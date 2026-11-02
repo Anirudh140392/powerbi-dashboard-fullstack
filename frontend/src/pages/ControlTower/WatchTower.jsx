@@ -111,8 +111,13 @@ export default function WatchTower() {
     metrics: {},
   });
 
-  const handleViewTrends = (card, level = "MRP") => {
-    console.log("card clicked", card);
+  const [selectedDrlSource, setSelectedDrlSource] = useState('rk');
+
+  const handleViewTrends = (card, level = "MRP", source = "rk") => {
+    console.log("card clicked", card, "source:", source);
+    if (source && typeof source === 'string') {
+      setSelectedDrlSource(source);
+    }
 
     const series =
       card.chart?.map((v, i) => {
@@ -1071,6 +1076,7 @@ export default function WatchTower() {
         brandOptions={contextBrands}
         initialPlatform={filters.platform}
         showResellerFilter={true}
+        drlSource={selectedDrlSource}
       />
 
       <RCAModal

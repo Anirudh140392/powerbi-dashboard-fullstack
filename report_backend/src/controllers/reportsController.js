@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
+import { buildContentOlapExportQuery, buildProductVerifyExportQuery } from '../services/contentExportService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -32,7 +34,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -55,6 +57,26 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the table behind the Report Builder's "Content Data" export, or null:
+ * rb_content_olap where it exists, else rb_product_verify (accounts like mars only have the latter).
+ */
+const resolveContentTable = async () => {
+    if (await checkTableExists('rb_content_olap')) return 'rb_content_olap';
+    if (await checkTableExists('rb_product_verify')) return 'rb_product_verify';
+    return null;
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
 };
 
 /**
@@ -158,7 +180,7 @@ export const getReportFilterOptions = async (req, res) => {
  */
 export const getReportBuilderOptions = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('report_builder_options_v1', {});
+        const cacheKey = generateCacheKey('report_builder_options_v2', {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         let catCol = 'Product_type';
@@ -210,9 +232,10 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
-                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                const currentDb = getCurrentDbName() || 'boat';
+                const hasLocalDarkstore = await checkTableExists(`${currentDb}.rb_pdp_week`) || await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? (await checkTableExists(`${currentDb}.rb_pdp_week`) ? `${currentDb}.rb_pdp_week` : 'rb_pdp_week') : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} WHERE created_on IS NOT NULL`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -221,6 +244,40 @@ export const getReportBuilderOptions = async (req, res) => {
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Content Analysis data (rb_content_olap, else rb_product_verify) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                const contentTable = await resolveContentTable();
+                if (contentTable) {
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
             }
 
             return out;
@@ -234,12 +291,84 @@ export const getReportBuilderOptions = async (req, res) => {
 };
 
 /**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport Microservice] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport Microservice] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
+};
+
+/**
  * Download Report as Excel or CSV (Darkstore / Aggregated)
  */
 export const downloadReport = async (req, res) => {
     try {
         const { isQcUser, maxAllowedDate } = applyQcDateFilter(req.query, req);
-        const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+        const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
 
         const pdpCols = await getTableColumns('rb_pdp_olap');
         const col = (name) => resolveColumn(pdpCols, name, '0');
@@ -254,10 +383,12 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
+        const isDarkstoreMode = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
         let startDate, endDate;
         const now = dayjs();
 
-        if (timePeriod === "Custom Range" && qStart && qEnd) {
+        if (((timePeriod === "Custom Range" || isDarkstoreMode) || (qStart && qEnd)) && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
@@ -289,10 +420,53 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        const dataMode = req.query.dataMode || 'aggregated';
+        // ── CONTENT DATA EXPORT (rb_content_olap / rb_product_verify) — Streaming CSV ──
+        // "Content Analysis" permission is checked by the main backend (fresh tb_user.tab_permissions) before
+        // proxying here — the JWT does not carry tabPermissions, so it cannot be re-checked in this service
+        if (dataMode === 'content' || reportType === 'Content Data') {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const contentTable = await resolveContentTable();
+            if (!contentTable) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const buildContentQuery = contentTable === 'rb_content_olap' ? buildContentOlapExportQuery : buildProductVerifyExportQuery;
+            const contentQuery = buildContentQuery({
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport Microservice] Streaming Content Data CSV from ${contentTable}`);
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // "Review Rating" tab permission is checked by the main backend before proxying here (same as Content Data)
+        if (dataMode === 'review' || reportType === 'Review Rating Data') {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport Microservice] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
-        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+        if (isDarkstoreMode) {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
@@ -308,7 +482,9 @@ export const downloadReport = async (req, res) => {
             const cCond = buildInClause('brand_category_name', format);
             if (cCond) darkstoreConds.push(cCond);
 
-            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+            // Filter strictly by date portion of created_on without time
+            darkstoreConds.push(`toDate(created_on) >= toDate('${startDate}') AND toDate(created_on) <= toDate('${endDate}')`);
+            darkstoreConds.push(`created_on IS NOT NULL`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -317,15 +493,15 @@ export const downloadReport = async (req, res) => {
                 state_map AS
                 (
                     SELECT DISTINCT
-                        toString(pincode) AS pincode,
+                        toString(location_id) AS loc_id,
                         location_state
                     FROM rb_location_darkstore
-                    WHERE pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    WHERE location_id IS NOT NULL AND toString(location_id) != '' AND toString(location_id) != '0'
                 )`
                 : '';
             const stateJoin = hasLocationDarkstoreTable
                 ? `LEFT JOIN state_map sm
-                    ON toString(b.pincode) = sm.pincode`
+                    ON toString(b.location_id) = sm.loc_id`
                 : '';
             const stateCol = hasLocationDarkstoreTable
                 ? `sm.location_state AS State,`
@@ -447,8 +623,8 @@ export const downloadReport = async (req, res) => {
 
             const csvEscape = (val) => {
                 if (val === null || val === undefined) return '';
-                const str = String(val);
-                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
+                if (str.includes(',') || str.includes('"')) {
                     return `"${str.replace(/"/g, '""')}"`;
                 }
                 return str;
@@ -1901,3 +2077,270 @@ export const downloadPromoViolationReport = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * Price Violation Report Logic
+ * Tables: emami_mrp_master & rb_pdp_olap
+ * Condition: rb_pdp_olap.MRP > emami_mrp_master.Price
+ * Columns: sku, web_pid, location, Mrp_master, current_mrp, selling_price
+ * ─────────────────────────────────────────────────────────────
+ */
+
+async function resolvePriceViolationTables() {
+    const currentDb = (getCurrentDbName() || '').toLowerCase().trim();
+
+    // Price Violation report is strictly for Emami database
+    if (!currentDb.includes('emami')) {
+        return { pdpTable: null, mrpTable: null };
+    }
+
+    const pdpTable = (await checkTableExists(`${currentDb}.rb_pdp_olap`))
+        ? `${currentDb}.rb_pdp_olap`
+        : (await checkTableExists('rb_pdp_olap'))
+            ? 'rb_pdp_olap'
+            : 'emami.rb_pdp_olap';
+
+    const mrpTable = (await checkTableExists(`${currentDb}.emami_mrp_master`))
+        ? `${currentDb}.emami_mrp_master`
+        : (await checkTableExists('emami_mrp_master'))
+            ? 'emami_mrp_master'
+            : 'emami.emami_mrp_master';
+
+    return { pdpTable, mrpTable };
+}
+
+async function fetchAndProcessPriceViolationData(reqQuery) {
+    const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+    if (!pdpTable || !mrpTable) {
+        return [];
+    }
+    const { platform, location, sku, web_pid, webPid, startDate, endDate } = reqQuery;
+
+    const conditions = ['p.MRP > m.Mrp_master'];
+
+    if (platform && platform !== 'All' && !platform.startsWith('All ') && platform.trim() !== '') {
+        const items = platform.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.Platform)) IN (${items})`);
+    }
+    if (location && location !== 'All' && !location.startsWith('All ') && location.trim() !== '') {
+        const items = location.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.Location)) IN (${items})`);
+    }
+    if (sku && sku !== 'All' && !sku.startsWith('All ') && sku.trim() !== '') {
+        const items = sku.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(m.sku)) IN (${items})`);
+    }
+    const pidVal = web_pid || webPid;
+    if (pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
+        const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`toString(p.Web_Pid) IN (${items})`);
+    }
+    if (startDate && endDate) {
+        conditions.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+    } else if (startDate) {
+        conditions.push(`toDate(p.DATE) >= '${startDate}'`);
+    } else if (endDate) {
+        conditions.push(`toDate(p.DATE) <= '${endDate}'`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const query = `
+        WITH latest_mrp AS (
+            SELECT 
+                toString(web_pid) AS mrp_web_pid,
+                lower(trim(platform_name)) AS mrp_platform,
+                any(\`Sku- Final\`) AS sku,
+                argMax(Price, Year * 100 + Month) AS Mrp_master
+            FROM ${mrpTable}
+            WHERE Price IS NOT NULL AND Price > 0
+            GROUP BY mrp_web_pid, mrp_platform
+        )
+        SELECT 
+            m.sku AS sku,
+            toString(p.Web_Pid) AS web_pid,
+            p.Location AS location,
+            round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
+            round(toFloat64(p.MRP), 2) AS current_mrp,
+            round(toFloat64(p.Selling_Price), 2) AS selling_price,
+            p.Platform AS platform,
+            formatDateTime(p.DATE, '%Y-%m-%d') AS date,
+            round(toFloat64(p.MRP) - toFloat64(m.Mrp_master), 2) AS price_violation
+        FROM ${pdpTable} AS p
+        INNER JOIN latest_mrp AS m 
+            ON toString(p.Web_Pid) = m.mrp_web_pid
+            AND lower(trim(p.Platform)) = m.mrp_platform
+        ${whereClause}
+        ORDER BY p.DATE DESC, price_violation DESC
+    `;
+
+    const rows = await queryClickHouse(query);
+    return rows;
+}
+
+export const getPriceViolationFilterOptions = async (req, res) => {
+    try {
+        const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+        if (!pdpTable || !mrpTable) {
+            return res.json({ platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null });
+        }
+        const { platform, location, sku, web_pid, webPid, startDate, endDate } = req.query;
+
+        const buildWhere = (excludeField) => {
+            const conds = ['p.MRP > m.Mrp_master'];
+
+            const addIn = (field, col, val) => {
+                if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
+                const items = val.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                conds.push(`lower(trim(${col})) IN (${items})`);
+            };
+
+            addIn('platform', 'p.Platform', platform);
+            addIn('location', 'p.Location', location);
+            addIn('sku', 'm.sku', sku);
+
+            const pidVal = web_pid || webPid;
+            if (excludeField !== 'web_pid' && pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
+                const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+                conds.push(`toString(p.Web_Pid) IN (${items})`);
+            }
+
+            if (startDate && endDate) {
+                conds.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+            }
+
+            return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
+        };
+
+        const cte = `
+            WITH latest_mrp AS (
+                SELECT 
+                    toString(web_pid) AS mrp_web_pid,
+                    lower(trim(platform_name)) AS mrp_platform,
+                    any(\`Sku- Final\`) AS sku,
+                    argMax(Price, Year * 100 + Month) AS Mrp_master
+                FROM ${mrpTable}
+                WHERE Price IS NOT NULL AND Price > 0
+                GROUP BY mrp_web_pid, mrp_platform
+            )
+        `;
+
+        const baseFrom = `
+            FROM ${pdpTable} AS p
+            INNER JOIN latest_mrp AS m 
+                ON toString(p.Web_Pid) = m.mrp_web_pid
+                AND lower(trim(p.Platform)) = m.mrp_platform
+        `;
+
+        const platformQuery = `${cte} SELECT DISTINCT p.Platform AS platform ${baseFrom} ${buildWhere('platform')} AND p.Platform != '' AND p.Platform IS NOT NULL ORDER BY platform`;
+        const locationQuery = `${cte} SELECT DISTINCT p.Location AS location ${baseFrom} ${buildWhere('location')} AND p.Location != '' AND p.Location IS NOT NULL ORDER BY location`;
+        const skuQuery = `${cte} SELECT DISTINCT m.sku AS sku ${baseFrom} ${buildWhere('sku')} AND m.sku != '' AND m.sku IS NOT NULL ORDER BY sku`;
+        const webPidQuery = `${cte} SELECT DISTINCT toString(p.Web_Pid) AS web_pid ${baseFrom} ${buildWhere('web_pid')} AND p.Web_Pid != '' AND p.Web_Pid IS NOT NULL ORDER BY web_pid`;
+        const dateRangeQuery = `${cte} SELECT formatDateTime(MIN(p.DATE), '%Y-%m-%d') AS minDate, formatDateTime(MAX(p.DATE), '%Y-%m-%d') AS maxDate ${baseFrom} ${buildWhere()}`;
+
+        const [platformsRes, locationsRes, skusRes, webPidsRes, dateRangeRes] = await Promise.all([
+            queryClickHouse(platformQuery).catch(() => []),
+            queryClickHouse(locationQuery).catch(() => []),
+            queryClickHouse(skuQuery).catch(() => []),
+            queryClickHouse(webPidQuery).catch(() => []),
+            queryClickHouse(dateRangeQuery).catch(() => []),
+        ]);
+
+        const platforms = platformsRes.map(r => r.platform).filter(Boolean);
+        const locations = locationsRes.map(r => r.location).filter(Boolean);
+        const skus = skusRes.map(r => r.sku).filter(Boolean);
+        const webPids = webPidsRes.map(r => r.web_pid).filter(Boolean);
+        const minDate = dateRangeRes?.[0]?.minDate || null;
+        const maxDate = dateRangeRes?.[0]?.maxDate || null;
+
+        res.json({ platforms, locations, skus, webPids, minDate, maxDate });
+    } catch (error) {
+        console.error('[getPriceViolationFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const previewPriceViolationReport = async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const offset = (page - 1) * limit;
+
+        const allRows = await fetchAndProcessPriceViolationData(req.query);
+        const totalCount = allRows.length;
+        const paginatedRows = allRows.slice(offset, offset + limit);
+
+        const uniqueSkus = new Set(allRows.map(r => r.sku)).size;
+        const uniquePlatforms = new Set(allRows.map(r => r.platform)).size;
+        const maxViolation = allRows.reduce((max, r) => Math.max(max, r.price_violation || 0), 0);
+
+        res.json({
+            rows: paginatedRows,
+            totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
+            summary: {
+                totalBreaches: totalCount,
+                uniqueSkus,
+                uniquePlatforms,
+                maxViolation: Math.round(maxViolation * 100) / 100
+            }
+        });
+    } catch (error) {
+        console.error('[previewPriceViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const downloadPriceViolationReport = async (req, res) => {
+    try {
+        const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+        if (!pdpTable || !mrpTable) {
+            return res.status(403).json({ error: 'Price Violation report is only available for the Emami dashboard.' });
+        }
+        const allRows = await fetchAndProcessPriceViolationData(req.query);
+
+        const headerRow = [
+            "SKU",
+            "Web PID",
+            "Platform",
+            "Location",
+            "Date",
+            "MRP Master",
+            "Current MRP",
+            "Selling Price",
+            "Price Violation (Diff)"
+        ];
+
+        const dataRows = allRows.map(row => [
+            row.sku || "",
+            row.web_pid || "",
+            row.platform || "",
+            row.location || "",
+            row.date || "",
+            row.Mrp_master !== undefined ? row.Mrp_master : "",
+            row.current_mrp !== undefined ? row.current_mrp : "",
+            row.selling_price !== undefined ? row.selling_price : "",
+            row.price_violation !== undefined ? row.price_violation : ""
+        ]);
+
+        const sheetData = [headerRow, ...dataRows];
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Price Violation Report");
+
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `Price_Violation_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[downloadPriceViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+

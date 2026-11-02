@@ -48,6 +48,22 @@ async function getFreshTabPermissions(email, dbId, dbName) {
     }
 }
 
+/**
+ * Mirror of isTabPermitted in frontend/src/components/ProtectedRoute.jsx (decides sidebar visibility):
+ * a tab is allowed unless tab_permissions sets it — or one of its aliases — to false / { access: false }.
+ * @param {object} tabPerms - user's tab_permissions
+ * @param {string[]} labels - tab label first, then its aliases (e.g. ['Review Rating', 'Rating'])
+ */
+export function isTabPermitted(tabPerms, labels) {
+    if (!tabPerms || typeof tabPerms !== 'object') return true;
+    const key = labels.find(l => tabPerms[l] !== undefined);
+    if (key === undefined) return true;
+    const val = tabPerms[key];
+    if (val === false) return false;
+    if (typeof val === 'object' && val !== null && val.access === false) return false;
+    return true;
+}
+
 export function filterPlatformsResponse(user, data) {
     if (!user) return data;
 

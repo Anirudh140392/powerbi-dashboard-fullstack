@@ -758,6 +758,7 @@ export default function TrendsCompetitionDrawer({
   defaultView = "Trends",
   initialAudience = "Platform",
   showResellerFilter = true,
+  drlSource = 'rk',
 }) {
   const isHayatna = useMemo(() => {
     try {
@@ -917,6 +918,28 @@ export default function TrendsCompetitionDrawer({
     const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
     return db === 'drl' || db === 'prestige';
   })();
+  const userManuallyChangedResellerRef = useRef(false);
+
+  const isBuymoreOption = (opt) => {
+    if (!opt) return false;
+    const s = String(opt).toLowerCase().trim();
+    return (s.includes('buy') && s.includes('more')) || s === 'buymore' || s.includes('3p');
+  };
+
+  const getDefaultResellerValue = useCallback((options, source) => {
+    if (!options || options.length === 0) return 'All';
+    const mode = String(source || 'rk').toLowerCase().trim();
+    if (mode === 'rk' || mode === 'portal') {
+      const nonBuymore = options.filter(o => !isBuymoreOption(o));
+      return nonBuymore.length > 0 ? nonBuymore.join(',') : 'All';
+    } else if (mode === 'buymore') {
+      const buymoreOpts = options.filter(o => isBuymoreOption(o));
+      return buymoreOpts.length > 0 ? buymoreOpts.join(',') : 'All';
+    } else {
+      return options.join(',');
+    }
+  }, []);
+
   const [resellerOptions, setResellerOptions] = useState([]);
   const selectedPlatformLower = (drawerFilters.Platform || '').toLowerCase();
   const isEcommPlatform = selectedPlatformLower === 'amazon' || selectedPlatformLower === 'flipkart';
@@ -934,14 +957,31 @@ export default function TrendsCompetitionDrawer({
           params: { filterType: 'resellerNames', platform: selectedPlatformLower }
         });
         if (res.data?.options) {
-          setResellerOptions(res.data.options);
+          const opts = res.data.options;
+          setResellerOptions(opts);
+          if (!userManuallyChangedResellerRef.current) {
+            const defaultReseller = getDefaultResellerValue(opts, drlSource);
+            setDrawerFilters(prev => {
+              if (prev.ResellerName !== defaultReseller) {
+                return { ...prev, ResellerName: defaultReseller };
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
         console.error('[TrendsDrawer] Error fetching reseller names:', err);
       }
     };
     fetchResellerOptions();
-  }, [open, shouldShowResellerFilter, selectedPlatformLower]);
+  }, [open, shouldShowResellerFilter, selectedPlatformLower, drlSource, getDefaultResellerValue]);
+
+  // Reset user manual reseller tracking when drawer closes
+  useEffect(() => {
+    if (!open) {
+      userManuallyChangedResellerRef.current = false;
+    }
+  }, [open]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -1046,10 +1086,25 @@ export default function TrendsCompetitionDrawer({
       baseline[targetDimensionKey] = normalizeToString(selectedColumn);
     }
 
+    const effectivePlat = normInitPlat !== 'All' 
+      ? normInitPlat 
+      : (targetDimensionKey === 'Platform' && selectedColumn ? normalizeToString(selectedColumn) : (normGlobalPlat !== 'All' ? normGlobalPlat : 'All'));
+    const isEcomm = ['amazon', 'flipkart'].includes(String(effectivePlat).toLowerCase());
+    if (isDrlUser && isEcomm) {
+      if (resellerOptions.length > 0) {
+        baseline.ResellerName = getDefaultResellerValue(resellerOptions, drlSource);
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && (drlSource === 'rk' || drlSource === 'portal')) {
+        baseline.ResellerName = 'rk world';
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && drlSource === 'buymore') {
+        baseline.ResellerName = 'buy more';
+      }
+    }
+
     return { baseline, targetDimensionKey };
-  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn]);
+  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn, isDrlUser, drlSource, resellerOptions, getDefaultResellerValue]);
 
   const handleClearDrawerFilters = useCallback(() => {
+    userManuallyChangedResellerRef.current = false;
     const { baseline } = getBaselineFilters();
     setDrawerFilters(baseline);
   }, [getBaselineFilters]);
@@ -1508,7 +1563,7 @@ export default function TrendsCompetitionDrawer({
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
-        const response = await axiosInstance.get('/pricing-analysis/dimension-trends', { params });
+        const response = await axiosInstance.post('/pricing-analysis/dimension-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1567,12 +1622,13 @@ export default function TrendsCompetitionDrawer({
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
           skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
+          sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           ownBrandsOnly: 'true',
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
+        const response = await axiosInstance.post('/availability-analysis/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1600,10 +1656,11 @@ export default function TrendsCompetitionDrawer({
           sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          drlSource: isDrl ? (drlSource || 'rk') : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+        const response = await axiosInstance.post('/watchtower/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1626,7 +1683,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl, drlSource]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -2885,47 +2942,268 @@ export default function TrendsCompetitionDrawer({
     const xData = dataSource.map((p) => p.date);
 
     const metrics = sortedTrendMetrics.length > 0 ? sortedTrendMetrics : (trendMeta.metrics || []);
-    const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id) && !m.isMetricNA);
+    // Map active metrics in user selection order so the first chosen KPI always leads
+    const activeMetricObjs = activeMetrics
+      .map((id) => metrics.find((m) => m.id === id))
+      .filter(Boolean)
+      .filter((m) => !m.isMetricNA);
 
-    const isQuantityMetric = (m) =>
-      m.id === "QuantitySold" ||
-      m.id === "quantitySold" ||
-      m.id === "Quantity_Sold" ||
-      m.id === "QtySold" ||
-      m.id === "Quantity" ||
-      m.axis === "quantity";
+    const isQuantityMetric = (m) => {
+      if (!m) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "quantity" ||
+        id === "quantitysold" ||
+        id === "quantity_sold" ||
+        id === "qtysold" ||
+        id === "quantity" ||
+        id === "units" ||
+        id === "orders" ||
+        label.includes("quantity")
+      );
+    };
 
-    const isCurrencyActive = activeMetricObjs.some(
-      (m) =>
-        !isQuantityMetric(m) &&
-        (m.axis === "left" ||
-          (m.axis !== "right" &&
-            m.axis !== "assortment" &&
-            m.axis !== "quantity" &&
-            m.id !== "Assortment"))
-    );
-    const isPercentageActive = activeMetricObjs.some(
-      (m) => m.axis === "right"
-    );
-    const isAssortmentActive = activeMetricObjs.some(
-      (m) => m.axis === "assortment" || m.id === "Assortment"
-    );
-    const isQuantityActive = activeMetricObjs.some(
-      (m) => isQuantityMetric(m)
-    );
+    const isAssortmentMetric = (m) => {
+      if (!m) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return m.axis === "assortment" || id === "assortment" || label.includes("assortment");
+    };
+
+    const isPercentageMetric = (m) => {
+      if (!m) return false;
+      if (isQuantityMetric(m) || isAssortmentMetric(m)) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "right" ||
+        id.includes("osa") ||
+        id.includes("availability") ||
+        id.includes("sos") ||
+        id.includes("share") ||
+        id.includes("discount") ||
+        id.includes("conversion") ||
+        id.includes("roas") ||
+        id.includes("listing") ||
+        id.includes("fillrate") ||
+        id.includes("promo") ||
+        id.includes("rate") ||
+        id.includes("bmi") ||
+        label.includes("%") ||
+        label.includes("share") ||
+        label.includes("rate")
+      );
+    };
+
+    const isCurrencyMetric = (m) => {
+      if (!m) return false;
+      if (isQuantityMetric(m) || isAssortmentMetric(m) || isPercentageMetric(m)) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "left" ||
+        id.includes("sales") ||
+        id.includes("offtake") ||
+        id.includes("spend") ||
+        id.includes("price") ||
+        id.includes("asp") ||
+        id.includes("cpc") ||
+        id.includes("cpm") ||
+        id.includes("ecp") ||
+        id.includes("mrp") ||
+        id.includes("psl") ||
+        id.includes("revenue") ||
+        label.includes("₹") ||
+        label.includes("aed") ||
+        label.includes("price") ||
+        label.includes("sales") ||
+        label.includes("spend") ||
+        label.includes("offtake")
+      );
+    };
+
+    const getMetricCategory = (m) => {
+      if (!m) return "number";
+      if (isQuantityMetric(m)) return "quantity";
+      if (isAssortmentMetric(m)) return "assortment";
+      if (isPercentageMetric(m)) return "percentage";
+      if (isCurrencyMetric(m)) return "currency";
+      return "number";
+    };
+
+    const getAxisFormatter = (cat) => {
+      if (cat === "percentage") {
+        return (value) => `${parseFloat(Number(value).toFixed(2))} %`;
+      }
+      if (cat === "currency") {
+        return (value) => {
+          const prefix = currencySymbol ? `${currencySymbol} ` : "₹ ";
+          const val = Number(value);
+          if (isNaN(val)) return value;
+          const absVal = Math.abs(val);
+          if (absVal >= 10000000) return `${prefix}${(val / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+          if (absVal >= 100000) return `${prefix}${(val / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
+          if (absVal >= 1000) return `${prefix}${(val / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+          return `${prefix}${parseFloat(val.toFixed(2))}`;
+        };
+      }
+      if (cat === "quantity" || cat === "assortment") {
+        return (value) => {
+          const val = Number(value);
+          if (isNaN(val)) return value;
+          const absVal = Math.abs(val);
+          if (absVal >= 10000000) return `${(val / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+          if (absVal >= 1000000) return `${(val / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
+          if (absVal >= 1000) return `${(val / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+          return `${parseFloat(val.toFixed(2))}`;
+        };
+      }
+      return (value) => `${parseFloat(Number(value).toFixed(2))}`;
+    };
+
+    // Determine Y-Axes dynamically:
+    // 1 KPI: Left axis for metric 0
+    // 2 KPIs: Left axis for metric 0, Right axis for metric 1 (each independent)
+    // 3+ KPIs: Each distinct category (Quantity, Currency, Percentage, Assortment) gets its own axis
+    let yAxis = [];
+    let getMetricAxisIndex;
+
+    if (activeMetricObjs.length === 0) {
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          axisLabel: { color: "#000000", fontSize: 11 }
+        }
+      ];
+      getMetricAxisIndex = () => 0;
+    } else if (activeMetricObjs.length === 1) {
+      const cat = getMetricCategory(activeMetricObjs[0]);
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat)
+          }
+        }
+      ];
+      getMetricAxisIndex = () => 0;
+    } else if (activeMetricObjs.length === 2) {
+      const cat0 = getMetricCategory(activeMetricObjs[0]);
+      const cat1 = getMetricCategory(activeMetricObjs[1]);
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat0)
+          }
+        },
+        {
+          type: "value",
+          position: "right",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat1)
+          }
+        }
+      ];
+      getMetricAxisIndex = (m, idx) => idx;
+    } else {
+      // 3 or more metrics selected:
+      // Group distinct categories in order of appearance
+      const activeCats = [];
+      activeMetricObjs.forEach((m) => {
+        const c = getMetricCategory(m);
+        if (!activeCats.includes(c)) activeCats.push(c);
+      });
+
+      // Assign axes for each distinct category:
+      // Cat 0: Left (offset 0)
+      // Cat 1: Right (offset 0)
+      // Cat 2: Right (offset 70)
+      // Cat 3: Left (offset 60)
+      yAxis = activeCats.map((cat, idx) => {
+        const isLeft = idx === 0 || idx === 3;
+        const offset = idx === 2 ? 70 : idx === 3 ? 60 : 0;
+        return {
+          type: "value",
+          position: isLeft ? "left" : "right",
+          offset: offset,
+          show: true,
+          axisLine: { show: offset > 0, lineStyle: { color: "#CBD5E1" } },
+          axisTick: { show: offset > 0, lineStyle: { color: "#CBD5E1" } },
+          splitLine: { show: idx === 0, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat)
+          }
+        };
+      });
+
+      getMetricAxisIndex = (m) => {
+        const c = getMetricCategory(m);
+        const idx = activeCats.indexOf(c);
+        return idx >= 0 ? idx : 0;
+      };
+    }
+
+    // Grid margins based on active axes on left & right:
+    const leftAxesCount = yAxis.filter((ax) => ax.position === "left").length;
+    const rightAxesCount = yAxis.filter((ax) => ax.position === "right").length;
+    const isCatCurrency = (cat) => cat === "currency";
+
+    let hasCurrencyLeft = false;
+    let hasCurrencyRight = false;
+    if (activeMetricObjs.length === 1) {
+      hasCurrencyLeft = isCatCurrency(getMetricCategory(activeMetricObjs[0]));
+    } else if (activeMetricObjs.length === 2) {
+      hasCurrencyLeft = isCatCurrency(getMetricCategory(activeMetricObjs[0]));
+      hasCurrencyRight = isCatCurrency(getMetricCategory(activeMetricObjs[1]));
+    } else {
+      const activeCats = [];
+      activeMetricObjs.forEach((m) => {
+        const c = getMetricCategory(m);
+        if (!activeCats.includes(c)) activeCats.push(c);
+      });
+      hasCurrencyLeft = isCatCurrency(activeCats[0]) || (activeCats.length >= 4 && isCatCurrency(activeCats[3]));
+      hasCurrencyRight = (activeCats.length >= 2 && isCatCurrency(activeCats[1])) || (activeCats.length >= 3 && isCatCurrency(activeCats[2]));
+    }
+
+    let gridLeft = leftAxesCount > 1 ? 120 : (hasCurrencyLeft ? 70 : 55);
+    let gridRight = rightAxesCount > 1 ? 140 : rightAxesCount === 1 ? (hasCurrencyRight ? 75 : 60) : 25;
 
     const series = [];
-    activeMetricObjs.forEach((m) => {
-      let yAxisIndex = 0;
-      if (isQuantityMetric(m)) {
-        yAxisIndex = 3;
-      } else if (m.axis === "assortment" || m.id === "Assortment") {
-        yAxisIndex = 2;
-      } else if (m.axis === "right") {
-        yAxisIndex = 1;
-      } else {
-        yAxisIndex = 0;
-      }
+    activeMetricObjs.forEach((m, idx) => {
+      const yAxisIndex = getMetricAxisIndex(m, idx);
 
       series.push({
         name: m.label,
@@ -2951,28 +3229,6 @@ export default function TrendsCompetitionDrawer({
       });
     });
 
-    let gridLeft = 60;
-    if (isCurrencyActive && isAssortmentActive) {
-      gridLeft = 115;
-    } else if (isCurrencyActive || isAssortmentActive || (!isCurrencyActive && isQuantityActive)) {
-      gridLeft = 60;
-    } else {
-      gridLeft = 45;
-    }
-
-    let gridRight = 45;
-    if (isCurrencyActive || isAssortmentActive) {
-      if (isPercentageActive && isQuantityActive) {
-        gridRight = 135;
-      } else if (isPercentageActive || isQuantityActive) {
-        gridRight = 75;
-      } else {
-        gridRight = 45;
-      }
-    } else {
-      gridRight = isPercentageActive ? 75 : 45;
-    }
-
     return {
       grid: { left: gridLeft, right: gridRight, top: 32, bottom: 40 },
       tooltip: { trigger: "axis", formatter: createTooltipFormatter },
@@ -2983,81 +3239,7 @@ export default function TrendsCompetitionDrawer({
         axisLine: { lineStyle: { color: "#E5E7EB" } },
         axisLabel: { fontSize: 11 },
       },
-      yAxis: [
-        {
-          type: "value",
-          position: "left",
-          show: isCurrencyActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              const prefix = currencySymbol + " ";
-              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
-              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${prefix}${parseFloat(value.toFixed(4))}`;
-            }
-          }
-        },
-        {
-          type: "value",
-          position: "right",
-          show: isPercentageActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => `${parseFloat(value.toFixed(2))} %`
-          }
-        },
-        {
-          type: "value",
-          position: "left",
-          offset: isCurrencyActive ? 55 : 0,
-          show: isAssortmentActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              if (value >= 1000000) return `${(value / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
-              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${parseFloat(value.toFixed(2))}`;
-            }
-          }
-        },
-        {
-          type: "value",
-          position: (isCurrencyActive || isAssortmentActive) ? "right" : "left",
-          offset: (isCurrencyActive || isAssortmentActive) ? (isPercentageActive ? 65 : 0) : 0,
-          show: isQuantityActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isAssortmentActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              if (value >= 10000000) return `${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-              if (value >= 100000) return `${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
-              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${parseFloat(value.toFixed(2))}`;
-            }
-          }
-        },
-      ],
+      yAxis,
       legend: { show: false },
       series,
     };
@@ -3337,6 +3519,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
+                    userManuallyChangedResellerRef.current = false;
                     setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', SubBrand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
                   }}
                 />
@@ -3381,6 +3564,7 @@ export default function TrendsCompetitionDrawer({
                     value={drawerFilters.ResellerName}
                     options={resellerOptions}
                     onChange={(v) => {
+                      userManuallyChangedResellerRef.current = true;
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
@@ -3727,6 +3911,19 @@ export default function TrendsCompetitionDrawer({
                         const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
 
                         const handleToggleAllFiltered = () => {
+                          if (drawerFilters.SKU === 'All' && skuSearchTerm) {
+                            // User searched while 'All' was active and clicked 'Select All Matching SKUs'
+                            const selectedWebPids = filteredSkus.map(name => {
+                              const details = getSkuDetails(name);
+                              return details?.webPid || details?.web_pid;
+                            }).filter(Boolean);
+                            setDrawerFilters(prev => ({
+                              ...prev,
+                              SKU: filteredSkus.join(';;'),
+                              SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
+                            }));
+                            return;
+                          }
                           const currentSelected = getCurrentlySelectedList();
                           let nextSelected;
                           if (isAllFilteredSelected) {
@@ -3797,6 +3994,17 @@ export default function TrendsCompetitionDrawer({
                                 <Box
                                   key={opt}
                                   onClick={() => {
+                                    if (drawerFilters.SKU === 'All') {
+                                      // When 'All' is active and user clicks a particular SKU, select ONLY this SKU
+                                      const details = getSkuDetails(opt);
+                                      const webPid = details?.webPid || details?.web_pid;
+                                      setDrawerFilters(prev => ({
+                                        ...prev,
+                                        SKU: opt,
+                                        SKUWebPid: webPid || 'All'
+                                      }));
+                                      return;
+                                    }
                                     const currentSelected = getCurrentlySelectedList();
                                     const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
                                     let nextSelected;

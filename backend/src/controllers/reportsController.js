@@ -7,6 +7,9 @@ import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
+import { buildContentOlapExportQuery, buildProductVerifyExportQuery } from '../services/contentAnalysisService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
+import { isTabPermitted } from '../helper/permissionMiddleware.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
@@ -95,7 +98,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -118,6 +121,98 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the table behind the Report Builder's "Content Data" export, or null:
+ * rb_content_olap where it exists, else rb_product_verify (accounts like mars only have the latter).
+ */
+const resolveContentTable = async () => {
+    if (await checkTableExists('rb_content_olap')) return 'rb_content_olap';
+    if (await checkTableExists('rb_product_verify')) return 'rb_product_verify';
+    return null;
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
+};
+
+/**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
 };
 
 /**
@@ -247,7 +342,8 @@ export const getReportBuilderOptions = async (req, res) => {
     try {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
-        const cacheKey = generateCacheKey(`report_builder_options_v2_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const currentDb = getCurrentDbName() || 'boat';
+        const cacheKey = generateCacheKey(`report_builder_options_v6_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -302,22 +398,53 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
-                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const darkstoreCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} ${darkstoreCond}`).catch(() => null);
+                const hasLocalDarkstore = await checkTableExists(`${currentDb}.rb_pdp_week`) || await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? (await checkTableExists(`${currentDb}.rb_pdp_week`) ? `${currentDb}.rb_pdp_week` : 'rb_pdp_week') : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} WHERE created_on IS NOT NULL`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
-                    let dMax = dayjs(dates[0].maxDate).format('YYYY-MM-DD');
-                    if (!isQcUser && dayjs(dMax).isAfter(dayjs(maxAllowedDate))) {
-                        dMax = maxAllowedDate;
-                    }
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
-                        maxDate: dMax,
+                        maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
                     };
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Content Analysis data (rb_content_olap, else rb_product_verify) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                const contentTable = await resolveContentTable();
+                if (contentTable) {
+                    const contentCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable} ${contentCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const reviewCond = !isQcUser ? `WHERE review_date <= toDate('${maxAllowedDate}')` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable} ${reviewCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
             }
 
             out.maxAllowedDate = maxAllowedDate;
@@ -337,13 +464,28 @@ export const getReportBuilderOptions = async (req, res) => {
  * Download Report as Excel
  */
 export const downloadReport = async (req, res) => {
+    // Checked here (fresh tb_user.tab_permissions via platformPermissionMiddleware) before proxying to report_backend
+    // On mars the same data sits behind its "Content Score" tab, so that permission counts too
+    const isContentExport = req.query.dataMode === 'content' || req.query.reportType === 'Content Data';
+    const tabPerms = req.user?.tabPermissions || {};
+    const hasContentPermission = tabPerms['Content Analysis'] === true
+        || (getCurrentDbName()?.toLowerCase() === 'mars' && tabPerms['Content Score'] === true);
+    if (isContentExport && !hasContentPermission) {
+        return res.status(403).json({ error: 'Content Analysis is not enabled for this account' });
+    }
+    // Same rule as the sidebar's Review Rating tab ("Rating" is its alias in tab_permissions)
+    const isReviewExport = req.query.dataMode === 'review' || req.query.reportType === 'Review Rating Data';
+    if (isReviewExport && !isTabPermitted(req.user?.tabPermissions, ['Review Rating', 'Rating'])) {
+        return res.status(403).json({ error: 'Review Rating is not enabled for this account' });
+    }
+
     const proxied = await proxyToReportService(req, res);
     if (proxied) return;
 
     try {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, currentDate, maxAllowedDate } = qcFilters;
-        const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+        const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
 
         // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
         const pdpCols = await getTableColumns('rb_pdp_olap');
@@ -352,7 +494,7 @@ export const downloadReport = async (req, res) => {
 
         const resellerCol = pdpCols.has('reseller_name') ? pdpCols.get('reseller_name')
             : pdpCols.has('reseller') ? pdpCols.get('reseller')
-            : null;
+                : null;
         const resellerParam = req.query.resellerName || req.query.reseller;
 
         // Dynamically determine Category column
@@ -361,13 +503,15 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
+        const isDarkstoreMode = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
         // 1. Determine Date Range from timePeriod
         // QC User: can download up to max(DATE) (currentDate)
         // Non-QC User: can download strictly up to max(DATE) < currentDate (maxAllowedDate = currentDate - 1)
         let startDate, endDate;
         const refDate = isQcUser ? dayjs(currentDate) : dayjs(maxAllowedDate);
 
-        if (timePeriod === "Custom Range" && qStart && qEnd) {
+        if (((timePeriod === "Custom Range" || isDarkstoreMode) || (qStart && qEnd)) && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
@@ -395,12 +539,14 @@ export const downloadReport = async (req, res) => {
             endDate = refDate.format('YYYY-MM-DD');
         }
 
-        // Clamp dates to maxAllowedDate for non-QC user, or currentDate for QC user
-        if (dayjs(endDate).isAfter(refDate)) {
-            endDate = refDate.format('YYYY-MM-DD');
-        }
-        if (dayjs(startDate).isAfter(refDate)) {
-            startDate = refDate.format('YYYY-MM-DD');
+        // Clamp dates to maxAllowedDate for non-QC user, or currentDate for QC user (aggregated reports only)
+        if (!isDarkstoreMode) {
+            if (dayjs(endDate).isAfter(refDate)) {
+                endDate = refDate.format('YYYY-MM-DD');
+            }
+            if (dayjs(startDate).isAfter(refDate)) {
+                startDate = refDate.format('YYYY-MM-DD');
+            }
         }
 
         const buildInClause = (column, value) => {
@@ -409,12 +555,54 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        const dataMode = req.query.dataMode || 'aggregated';
+        // ── CONTENT DATA EXPORT (rb_content_olap / rb_product_verify) — Streaming CSV ──
+        // Content Analysis KPIs per SKU per day; only for accounts with "Content Analysis" enabled in tb_user.tab_permissions
+        if (isContentExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const contentTable = await resolveContentTable();
+            if (!contentTable) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const buildContentQuery = contentTable === 'rb_content_olap' ? buildContentOlapExportQuery : buildProductVerifyExportQuery;
+            const contentQuery = buildContentQuery({
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Content Data CSV from ${contentTable}`);
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // One row per review, as shown on the Review Rating page; only where the Review Rating tab is available
+        if (isReviewExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         // Streams rows directly from ClickHouse → CSV → HTTP response.
         // This avoids loading millions of rows into memory (which caused OOM / Docker crashes).
-        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+        if (isDarkstoreMode) {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
@@ -430,10 +618,9 @@ export const downloadReport = async (req, res) => {
             const cCond = buildInClause('brand_category_name', format);
             if (cCond) darkstoreConds.push(cCond);
 
-            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
-            if (!isQcUser) {
-                darkstoreConds.push(`toDate(created_on) <= '${maxAllowedDate}'`);
-            }
+            // Filter strictly by date portion of created_on without time
+            darkstoreConds.push(`toDate(created_on) >= toDate('${startDate}') AND toDate(created_on) <= toDate('${endDate}')`);
+            darkstoreConds.push(`created_on IS NOT NULL`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -571,77 +758,7 @@ export const downloadReport = async (req, res) => {
 
             console.log(`[downloadReport] Streaming Darkstore CSV from ${weekTable}`);
 
-            // ── CSV helper: escape a value for CSV (handles commas, quotes, newlines) ──
-            const csvEscape = (val) => {
-                if (val === null || val === undefined) return '';
-                const str = String(val);
-                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
-
-            // Set streaming CSV response headers
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`);
-            res.setHeader('Transfer-Encoding', 'chunked');
-
-            // Stream from ClickHouse
-            const stream = await streamClickHouse(darkstoreQuery);
-
-            let headerWritten = false;
-            let rowCount = 0;
-
-            // The ClickHouse client stream() emits arrays of Row objects.
-            // Each Row has .json() → parsed object, .text → raw string.
-            stream.on('data', (rows) => {
-                const rowArray = Array.isArray(rows) ? rows : [rows];
-                for (const rowObj of rowArray) {
-                    // Row objects from @clickhouse/client have .json() method
-                    const row = (typeof rowObj.json === 'function') ? rowObj.json()
-                        : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
-                        : (typeof rowObj === 'string') ? JSON.parse(rowObj)
-                        : rowObj;
-
-                    // Apply web_pid uppercase transformation in-place
-                    processWebPidUppercase(row);
-
-                    // Write CSV header on first row
-                    if (!headerWritten) {
-                        const headers = Object.keys(row);
-                        res.write(headers.map(csvEscape).join(',') + '\n');
-                        headerWritten = true;
-                    }
-
-                    // Write CSV row
-                    const values = Object.values(row);
-                    res.write(values.map(csvEscape).join(',') + '\n');
-                    rowCount++;
-                }
-            });
-
-            stream.on('end', () => {
-                console.log(`[downloadReport] Streamed ${rowCount} Darkstore CSV rows`);
-                if (rowCount === 0) {
-                    // If no rows were streamed and headers not written, send 204
-                    if (!headerWritten) {
-                        // Headers already set for CSV, so just end with empty body
-                        // The frontend handles empty response
-                    }
-                }
-                res.end();
-            });
-
-            stream.on('error', (err) => {
-                console.error('[downloadReport] Darkstore stream error:', err);
-                if (!res.headersSent) {
-                    res.status(500).json({ error: 'Stream failed' });
-                } else {
-                    res.end();
-                }
-            });
-
-            return; // Response is handled by stream events
+            return streamCsvResponse(res, darkstoreQuery, `Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Darkstore');
         }
 
 
@@ -860,14 +977,14 @@ export const downloadReport = async (req, res) => {
             let cteTimeAgg = `toDate(DATE)`;
             let cteMsDateAgg = `toDate(${msDateCol})`;
             const granTime = req.query.granularityTime || "Daily";
-            if (granTime === "Weekly") { 
-                timeAgg = `toStartOfWeek(toDate(t.DATE))`; 
-                cteTimeAgg = `toStartOfWeek(toDate(DATE))`; 
+            if (granTime === "Weekly") {
+                timeAgg = `toStartOfWeek(toDate(t.DATE))`;
+                cteTimeAgg = `toStartOfWeek(toDate(DATE))`;
                 cteMsDateAgg = `toStartOfWeek(toDate(${msDateCol}))`;
             }
-            if (granTime === "Monthly") { 
-                timeAgg = `toStartOfMonth(toDate(t.DATE))`; 
-                cteTimeAgg = `toStartOfMonth(toDate(DATE))`; 
+            if (granTime === "Monthly") {
+                timeAgg = `toStartOfMonth(toDate(t.DATE))`;
+                cteTimeAgg = `toStartOfMonth(toDate(DATE))`;
                 cteMsDateAgg = `toStartOfMonth(toDate(${msDateCol}))`;
             }
 
@@ -1137,11 +1254,11 @@ export const downloadReport = async (req, res) => {
             const pmCols = await getTableColumns(pmTable).catch(() => new Map());
             const pmResellerCol = pmCols.has('reseller_name') ? pmCols.get('reseller_name')
                 : pmCols.has('reseller') ? pmCols.get('reseller')
-                : null;
+                    : null;
             const pmResellerSelect = pmResellerCol ? `, ${pmResellerCol} as Reseller_Name` : '';
             const pmResellerGroup = pmResellerCol ? `, ${pmResellerCol}` : '';
             const pmResellerSelectBase = pmResellerCol ? `, Reseller_Name` : '';
-            
+
             const spendCol = hasPmOlap ? 'ad_spend' : 'Ad_Spend';
             const salesCol = hasPmOlap ? 'Ad_sales' : 'Ad_Sales';
             const impCol = hasPmOlap ? 'impressions' : 'Ad_Impressions';
@@ -1664,7 +1781,7 @@ export const downloadPdpReport = async (req, res) => {
         const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
             : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
-            : null;
+                : null;
         const dateCol = pdpRawCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
         const { skuType, isCompetitor, platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
@@ -1817,7 +1934,7 @@ export const previewPdpReport = async (req, res) => {
         const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
             : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
-            : null;
+                : null;
         const dateCol = pdpRawCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
@@ -2154,30 +2271,31 @@ export const getPromoViolationDateRange = async (filters = {}) => {
         const pdpTable = await resolvePdpTable();
         const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
         const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+        const currentDb = getCurrentDbName();
+        const cacheKey = `promo_date_range_${currentDb}_${filters.isQcUser ? 'qc' : 'nonqc'}_${filters.maxAllowedDate || ''}`;
 
-        console.log(`[getPromoViolationDateRange] table=${pdpTable}, dateCol=${dateCol}, currentDb=${getCurrentDbName()}`);
+        return await getCachedOrCompute(cacheKey, async () => {
+            const conds = [`${dateCol} IS NOT NULL`];
+            if (!filters.isQcUser && filters.maxAllowedDate) {
+                conds.push(`toDate(${dateCol}) <= '${filters.maxAllowedDate}'`);
+            }
+            const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
 
-        const conds = [`${dateCol} IS NOT NULL`];
-        if (!filters.isQcUser && filters.maxAllowedDate) {
-            conds.push(`toDate(${dateCol}) <= '${filters.maxAllowedDate}'`);
-        }
-        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+            const query = `
+                SELECT 
+                    formatDateTime(MIN(${dateCol}), '%Y-%m-%d') AS minDate, 
+                    formatDateTime(MAX(${dateCol}), '%Y-%m-%d') AS maxDate 
+                FROM ${pdpTable} 
+                ${whereClause}
+            `;
 
-        const query = `
-            SELECT 
-                formatDateTime(MIN(${dateCol}), '%Y-%m-%d') AS minDate, 
-                formatDateTime(MAX(${dateCol}), '%Y-%m-%d') AS maxDate 
-            FROM ${pdpTable} 
-            ${whereClause}
-        `;
+            const res = await queryClickHouse(query).catch(() => []);
+            const minDate = res?.[0]?.minDate || null;
+            const maxDate = res?.[0]?.maxDate || null;
 
-        const res = await queryClickHouse(query).catch(() => []);
-        const minDate = res?.[0]?.minDate || null;
-        const maxDate = res?.[0]?.maxDate || null;
-
-        console.log(`[getPromoViolationDateRange] RESULT: minDate=${minDate}, maxDate=${maxDate}`);
-
-        return { minDate, maxDate };
+            console.log(`[getPromoViolationDateRange] RESULT: minDate=${minDate}, maxDate=${maxDate}`);
+            return { minDate, maxDate };
+        }, CACHE_TTL.METRICS);
     } catch (err) {
         console.error('[getPromoViolationDateRange] Error:', err);
         return { minDate: null, maxDate: null };
@@ -2190,77 +2308,73 @@ export const getPromoViolationDateRange = async (filters = {}) => {
  */
 export const getPromoViolationFilterOptions = async (req, res) => {
     try {
-        const pdpTable = await resolvePdpTable();
         const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
-        const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
-        const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
-        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
-        const hasIsCompetitor = skuPlatCols.has('is_competitor');
+        const currentDb = getCurrentDbName();
 
         applyQcDateFilter(req.query, req);
         const { isQcUser: isQc, maxAllowedDate } = req.query;
+        const { kam, asm, platform, sku } = req.query;
 
-        const { kam, asm, platform, sku, startDate, endDate } = req.query;
+        const hasFilters = Boolean(
+            (kam && kam !== 'All' && !kam.startsWith('All ')) ||
+            (asm && asm !== 'All' && !asm.startsWith('All ')) ||
+            (platform && platform !== 'All' && !platform.startsWith('All ')) ||
+            (sku && sku !== 'All' && !sku.startsWith('All '))
+        );
 
-        const buildWhere = (excludeField) => {
-            const conds = ['p.price_rp > 0', 'p.price_sp > 0'];
+        const cacheKey = `promo_filters_${currentDb}_${hasFilters ? JSON.stringify(req.query) : 'default'}_${isQc ? 'qc' : 'nonqc'}`;
 
-            if (pdpCols.has('is_competitor')) {
-                conds.push(`p.is_competitor = 0`);
-            } else if (pdpCols.has('is_competitor_product')) {
-                conds.push(`p.is_competitor_product = 0`);
-            } else if (hasIsCompetitor) {
-                conds.push(`(p.pf_id, lower(p.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = 0)`);
-            }
-
-            if (!isQc && maxAllowedDate) {
-                conds.push(`toDate(p.${dateCol}) <= '${maxAllowedDate}'`);
-            }
-
-            const addIn = (field, col, val) => {
-                if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
-                const items = val.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
-                conds.push(`lower(trim(${col})) IN (${items})`);
+        const filterData = await getCachedOrCompute(cacheKey, async () => {
+            const kamBuildWhere = (excludeField) => {
+                const conds = [];
+                const addIn = (field, col, val) => {
+                    if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
+                    const items = val.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                    conds.push(`lower(trim(${col})) IN (${items})`);
+                };
+                addIn('kam', 'kam', kam);
+                addIn('asm', 'asm', asm);
+                addIn('platform', 'platform_name', platform);
+                return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
             };
 
-            addIn('kam', 'k.kam', kam);
-            addIn('asm', 'k.asm', asm);
-            addIn('platform', 'p.platform_name', platform);
-            addIn('sku', 'p.sku_name', sku);
+            const kwKam = kamBuildWhere('kam');
+            const kamQuery = `SELECT DISTINCT kam FROM ${kamTable} ${kwKam} ${kwKam ? 'AND' : 'WHERE'} kam != '' AND kam IS NOT NULL ORDER BY kam`;
 
-            if (startDate && endDate) {
-                conds.push(`toDate(p.${dateCol}) >= '${startDate}' AND toDate(p.${dateCol}) <= '${endDate}'`);
+            const kwAsm = kamBuildWhere('asm');
+            const asmQuery = `SELECT DISTINCT asm FROM ${kamTable} ${kwAsm} ${kwAsm ? 'AND' : 'WHERE'} asm != '' AND asm IS NOT NULL ORDER BY asm`;
+
+            const kwPlat = kamBuildWhere('platform');
+            const platformQuery = `SELECT DISTINCT platform_name FROM ${kamTable} ${kwPlat} ${kwPlat ? 'AND' : 'WHERE'} platform_name != '' AND platform_name IS NOT NULL ORDER BY platform_name`;
+
+            let skuWhere = "WHERE (is_competitor = 0 OR is_competitor IS NULL) AND sku_name != ''";
+            if (platform && platform !== 'All' && !platform.startsWith('All ')) {
+                const platItems = platform.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                skuWhere += ` AND lower(platform_name) IN (${platItems})`;
             }
+            const skuQuery = `SELECT DISTINCT sku_name FROM rb_sku_platform ${skuWhere} ORDER BY sku_name`;
 
-            return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
-        };
+            const [kamsRes, asmsRes, platformsRes, skusRes, dateRange] = await Promise.all([
+                queryClickHouse(kamQuery).catch(() => []),
+                queryClickHouse(asmQuery).catch(() => []),
+                queryClickHouse(platformQuery).catch(() => []),
+                queryClickHouse(skuQuery).catch(() => []),
+                getPromoViolationDateRange(req.query),
+            ]);
 
-        const kamQuery = `SELECT DISTINCT k.kam AS kam FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('kam')} AND k.kam != '' AND k.kam IS NOT NULL ORDER BY kam`;
+            const kams = kamsRes.map(r => r.kam).filter(Boolean);
+            const asms = asmsRes.map(r => r.asm).filter(Boolean);
+            const platforms = platformsRes.map(r => r.platform_name).filter(Boolean);
+            const skus = skusRes.map(r => r.sku_name).filter(Boolean);
 
-        const asmQuery = `SELECT DISTINCT k.asm AS asm FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('asm')} AND k.asm != '' AND k.asm IS NOT NULL ORDER BY asm`;
+            const minDate = dateRange.minDate || null;
+            const maxDate = dateRange.maxDate || null;
 
-        const platformQuery = `SELECT DISTINCT p.platform_name AS platform_name FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('platform')} AND p.platform_name != '' AND p.platform_name IS NOT NULL ORDER BY platform_name`;
+            console.log(`[getPromoViolationFilterOptions] Sending to frontend: minDate=${minDate}, maxDate=${maxDate}, kams=${kams.length}, platforms=${platforms.length}`);
+            return { kams, asms, platforms, skus, minDate, maxDate };
+        }, CACHE_TTL.METRICS);
 
-        const skuQuery = `SELECT DISTINCT p.sku_name AS sku_name FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('sku')} AND p.sku_name != '' AND p.sku_name IS NOT NULL ORDER BY sku_name`;
-
-        const [kamsRes, asmsRes, platformsRes, skusRes, dateRange] = await Promise.all([
-            queryClickHouse(kamQuery).catch(() => []),
-            queryClickHouse(asmQuery).catch(() => []),
-            queryClickHouse(platformQuery).catch(() => []),
-            queryClickHouse(skuQuery).catch(() => []),
-            getPromoViolationDateRange(req.query),
-        ]);
-
-        const kams = kamsRes.map(r => r.kam).filter(Boolean);
-        const asms = asmsRes.map(r => r.asm).filter(Boolean);
-        const platforms = platformsRes.map(r => r.platform_name).filter(Boolean);
-        const skus = skusRes.map(r => r.sku_name).filter(Boolean);
-
-        const minDate = dateRange.minDate || null;
-        const maxDate = dateRange.maxDate || null;
-
-        console.log(`[getPromoViolationFilterOptions] Sending to frontend: minDate=${minDate}, maxDate=${maxDate}, kams=${kams.length}, platforms=${platforms.length}`);
-        res.json({ kams, asms, platforms, skus, minDate, maxDate, maxAllowedDate, isQcUser: isQc });
+        res.json({ ...filterData, maxAllowedDate, isQcUser: isQc });
     } catch (error) {
         console.error('[getPromoViolationFilterOptions] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -2380,6 +2494,266 @@ export const downloadPromoViolationReport = async (req, res) => {
         res.send(buffer);
     } catch (error) {
         console.error('[downloadPromoViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * Price Violation Report Logic (Main Backend with Proxy Fallback)
+ * Tables: emami_mrp_master & rb_pdp_olap
+ * Condition: rb_pdp_olap.MRP > emami_mrp_master.Price
+ * Columns: sku, web_pid, location, Mrp_master, current_mrp, selling_price
+ * ─────────────────────────────────────────────────────────────
+ */
+
+const pvFilterMemoryCache = new Map();
+
+async function resolvePriceViolationTables(req) {
+    const currentDb = (
+        req?.headers?.['x-db-name'] ||
+        req?.headers?.['x-database'] ||
+        req?.query?.db ||
+        req?.query?.dbName ||
+        getCurrentDbName() ||
+        ''
+    ).toLowerCase().trim();
+
+    // Price Violation report is strictly for Emami database
+    if (!currentDb.includes('emami')) {
+        return { pdpTable: null, mrpTable: null, currentDb };
+    }
+
+    const pdpTable = (await checkTableExists(`${currentDb}.rb_pdp_olap`))
+        ? `${currentDb}.rb_pdp_olap`
+        : (await checkTableExists('rb_pdp_olap'))
+            ? 'rb_pdp_olap'
+            : 'emami.rb_pdp_olap';
+
+    const mrpTable = (await checkTableExists(`${currentDb}.emami_mrp_master`))
+        ? `${currentDb}.emami_mrp_master`
+        : (await checkTableExists('emami_mrp_master'))
+            ? 'emami_mrp_master'
+            : 'emami.emami_mrp_master';
+
+    return { pdpTable, mrpTable, currentDb };
+}
+
+async function getCachedOrFetchPriceViolationRows(req) {
+    const { pdpTable, mrpTable, currentDb } = await resolvePriceViolationTables(req);
+    if (!pdpTable || !mrpTable) {
+        return [];
+    }
+
+    const memCacheEntry = pvFilterMemoryCache.get(currentDb);
+    if (memCacheEntry && (Date.now() - memCacheEntry.timestamp < 10 * 60 * 1000) && memCacheEntry.fullRows) {
+        return memCacheEntry.fullRows;
+    }
+
+    const query = `
+        WITH latest_mrp AS (
+            SELECT 
+                toString(web_pid) AS mrp_web_pid,
+                lower(trim(platform_name)) AS mrp_platform,
+                any(\`Sku- Final\`) AS sku,
+                argMax(Price, Year * 100 + Month) AS Mrp_master
+            FROM ${mrpTable}
+            WHERE Price IS NOT NULL AND Price > 0
+            GROUP BY mrp_web_pid, mrp_platform
+        )
+        SELECT 
+            m.sku AS sku,
+            toString(p.Web_Pid) AS web_pid,
+            p.Location AS location,
+            round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
+            round(toFloat64(p.MRP), 2) AS current_mrp,
+            round(toFloat64(p.Selling_Price), 2) AS selling_price,
+            p.Platform AS platform,
+            formatDateTime(p.DATE, '%Y-%m-%d') AS date,
+            round(toFloat64(p.MRP) - toFloat64(m.Mrp_master), 2) AS price_violation
+        FROM ${pdpTable} AS p
+        INNER JOIN latest_mrp AS m 
+            ON toString(p.Web_Pid) = m.mrp_web_pid
+            AND lower(trim(p.Platform)) = m.mrp_platform
+        WHERE p.MRP > m.Mrp_master
+        ORDER BY p.DATE DESC, price_violation DESC
+    `;
+
+    const fullRows = await queryClickHouse(query);
+    pvFilterMemoryCache.set(currentDb, { fullRows, timestamp: Date.now() });
+    return fullRows;
+}
+
+async function fetchAndProcessPriceViolationData(reqQuery, req) {
+    const allBreaches = await getCachedOrFetchPriceViolationRows(req);
+    if (!allBreaches || allBreaches.length === 0) {
+        return [];
+    }
+
+    const { platform, location, sku, web_pid, webPid, startDate, endDate } = reqQuery || {};
+    const selPlatforms = platform && platform !== 'All' && !platform.startsWith('All ')
+        ? platform.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+    const selLocations = location && location !== 'All' && !location.startsWith('All ')
+        ? location.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+    const selSkus = sku && sku !== 'All' && !sku.startsWith('All ')
+        ? sku.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+    const pidVal = web_pid || webPid;
+    const selWebPids = pidVal && pidVal !== 'All' && !pidVal.startsWith('All ')
+        ? pidVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    return allBreaches.filter(r => {
+        if (selPlatforms.length > 0 && !selPlatforms.includes(String(r.platform || '').toLowerCase().trim())) {
+            return false;
+        }
+        if (selLocations.length > 0 && !selLocations.includes(String(r.location || '').toLowerCase().trim())) {
+            return false;
+        }
+        if (selSkus.length > 0 && !selSkus.includes(String(r.sku || '').toLowerCase().trim())) {
+            return false;
+        }
+        if (selWebPids.length > 0 && !selWebPids.includes(String(r.web_pid || '').trim())) {
+            return false;
+        }
+        if (startDate && r.date && r.date < startDate) return false;
+        if (endDate && r.date && r.date > endDate) return false;
+        return true;
+    });
+}
+
+export const getPriceViolationFilterOptions = async (req, res) => {
+    try {
+        const allRows = await getCachedOrFetchPriceViolationRows(req);
+        if (!allRows || allRows.length === 0) {
+            return res.json({ platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null });
+        }
+
+        const { platform, location, sku, web_pid, webPid, startDate, endDate } = req.query;
+        const selPlatforms = platform && platform !== 'All' && !platform.startsWith('All ')
+            ? platform.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+        const selLocations = location && location !== 'All' && !location.startsWith('All ')
+            ? location.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+        const selSkus = sku && sku !== 'All' && !sku.startsWith('All ')
+            ? sku.toLowerCase().split(',').map(s => s.trim()).filter(Boolean) : [];
+        const pidVal = web_pid || webPid;
+        const selWebPids = pidVal && pidVal !== 'All' && !pidVal.startsWith('All ')
+            ? pidVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+        // Cascading filter: for each dimension, filter by all OTHER selected dimensions
+        const filterRowsExcluding = (excludeField) => {
+            return allRows.filter(r => {
+                if (excludeField !== 'platform' && selPlatforms.length > 0 && !selPlatforms.includes(String(r.platform || '').toLowerCase().trim())) {
+                    return false;
+                }
+                if (excludeField !== 'location' && selLocations.length > 0 && !selLocations.includes(String(r.location || '').toLowerCase().trim())) {
+                    return false;
+                }
+                if (excludeField !== 'sku' && selSkus.length > 0 && !selSkus.includes(String(r.sku || '').toLowerCase().trim())) {
+                    return false;
+                }
+                if (excludeField !== 'web_pid' && selWebPids.length > 0 && !selWebPids.includes(String(r.web_pid || '').trim())) {
+                    return false;
+                }
+                if (startDate && r.date && r.date < startDate) return false;
+                if (endDate && r.date && r.date > endDate) return false;
+                return true;
+            });
+        };
+
+        const platforms = [...new Set(filterRowsExcluding('platform').map(r => r.platform).filter(Boolean))].sort();
+        const locations = [...new Set(filterRowsExcluding('location').map(r => r.location).filter(Boolean))].sort();
+        const skus = [...new Set(filterRowsExcluding('sku').map(r => r.sku).filter(Boolean))].sort();
+        const webPids = [...new Set(filterRowsExcluding('web_pid').map(r => r.web_pid).filter(Boolean))].sort();
+
+        const dates = allRows.map(r => r.date).filter(Boolean).sort();
+        const minDate = dates[0] || null;
+        const maxDate = dates[dates.length - 1] || null;
+
+        res.json({ platforms, locations, skus, webPids, minDate, maxDate });
+    } catch (error) {
+        console.error('[getPriceViolationFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const previewPriceViolationReport = async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const offset = (page - 1) * limit;
+
+        const allRows = await fetchAndProcessPriceViolationData(req.query, req);
+        const totalCount = allRows.length;
+        const paginatedRows = allRows.slice(offset, offset + limit);
+
+        const uniqueSkus = new Set(allRows.map(r => r.sku)).size;
+        const uniquePlatforms = new Set(allRows.map(r => r.platform)).size;
+        const maxViolation = allRows.reduce((max, r) => Math.max(max, r.price_violation || 0), 0);
+
+        res.json({
+            rows: paginatedRows,
+            totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
+            summary: {
+                totalBreaches: totalCount,
+                uniqueSkus,
+                uniquePlatforms,
+                maxViolation: Math.round(maxViolation * 100) / 100
+            }
+        });
+    } catch (error) {
+        console.error('[previewPriceViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const downloadPriceViolationReport = async (req, res) => {
+    try {
+        const { pdpTable, mrpTable } = await resolvePriceViolationTables(req);
+        if (!pdpTable || !mrpTable) {
+            return res.status(403).json({ error: 'Price Violation report is only available for the Emami dashboard.' });
+        }
+        const allRows = await fetchAndProcessPriceViolationData(req.query, req);
+
+        const headerRow = [
+            "SKU",
+            "Web PID",
+            "Platform",
+            "Location",
+            "Date",
+            "MRP Master",
+            "Current MRP",
+            "Selling Price",
+            "Price Violation (Diff)"
+        ];
+
+        const dataRows = allRows.map(row => [
+            row.sku || "",
+            row.web_pid || "",
+            row.platform || "",
+            row.location || "",
+            row.date || "",
+            row.Mrp_master !== undefined ? row.Mrp_master : "",
+            row.current_mrp !== undefined ? row.current_mrp : "",
+            row.selling_price !== undefined ? row.selling_price : "",
+            row.price_violation !== undefined ? row.price_violation : ""
+        ]);
+
+        const sheetData = [headerRow, ...dataRows];
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Price Violation Report");
+
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `Price_Violation_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[downloadPriceViolationReport] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
