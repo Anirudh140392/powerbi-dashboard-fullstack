@@ -36,8 +36,9 @@ export const VISIBILITY_KPI_COLUMNS = [
 
 export const PRICING_KPI_COLUMNS = [
   { id: "discount", altId: "promo", label: "Discount %", format: "percent" },
-  { id: "pricePerUnit", altId: "price", label: "Price per Unit", format: "currency" },
   { id: "asp", altId: "price", label: "Average Selling Price", format: "currency" },
+  { id: "mrp", altId: "price", label: "MRP", format: "currency" },
+  { id: "pricePerUnit", altId: "price", label: "Price per Unit", format: "currency" },
 ];
 
 export const ALL_KPI_COLUMNS = [

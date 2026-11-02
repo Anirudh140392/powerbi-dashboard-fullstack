@@ -701,6 +701,7 @@ const KPI_SOURCE_MAP = {
   Discount: 'Discount', discount: 'Discount',
   PricePerUnit: 'PricePerUnit',
   ASP: 'ASP',
+  MRP: 'MRP', mrp: 'MRP',
   RPI: 'ASP',  // RPI depends on ASP (selling price) data
 };
 
@@ -2192,33 +2193,41 @@ export default function TrendsCompetitionDrawer({
               default: true,
             },
             {
-              id: "PricePerUnit",
-              label: `Wt. Price Per Unit (${currencySymbol})`,
-              color: "#14B8A6",
-              axis: "left",
-              default: true,
-            },
-            {
               id: "ASP",
               label: `Avg Selling Price (${currencySymbol})`,
               color: "#8B5CF6",
               axis: "left",
               default: false,
             },
+            {
+              id: "MRP",
+              label: `MRP (${currencySymbol})`,
+              color: "#F59E0B",
+              axis: "left",
+              default: false,
+            },
+            {
+              id: "PricePerUnit",
+              label: `Wt. Price Per Unit (${currencySymbol})`,
+              color: "#14B8A6",
+              axis: "left",
+              default: false,
+            },
           ],
           points: [
-            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190 },
-            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, ASP: 188 },
-            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, ASP: 186 },
-            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, ASP: 182 },
-            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, ASP: 185 },
-            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, ASP: 189 },
-            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, ASP: 198 },
+            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190, MRP: 210 },
+            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, ASP: 188, MRP: 212 },
+            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, ASP: 186, MRP: 213 },
+            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, ASP: 182, MRP: 213 },
+            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, ASP: 185, MRP: 213 },
+            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, ASP: 189, MRP: 215 },
+            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, ASP: 198, MRP: 226 },
           ].map((p, idx) => ({
             ...p,
             Discount: applyVar(p.Discount, idx),
             PricePerUnit: applyVar(p.PricePerUnit, idx),
             ASP: applyVar(p.ASP, idx),
+            MRP: applyVar(p.MRP, idx),
           })),
         },
 
@@ -2230,14 +2239,15 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "Discount", label: "Discount", color: "#6366F1", default: true },
-            { id: "PricePerUnit", label: "Wt. Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
+            { id: "MRP", label: "MRP", color: "#F59E0B", default: false },
+            { id: "PricePerUnit", label: "Wt. Price Per Unit", color: "#14B8A6", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), ASP: applyVar(195, x) })),
-            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), ASP: applyVar(188, x) })),
-            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), ASP: applyVar(200, x) })),
+            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), ASP: applyVar(195, x), MRP: applyVar(220, x) })),
+            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), ASP: applyVar(188, x), MRP: applyVar(218, x) })),
+            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), ASP: applyVar(200, x), MRP: applyVar(225, x) })),
           },
         },
 
@@ -2247,15 +2257,17 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
+            { id: "MRP", label: "MRP", type: "metric" },
             { id: "Discount", label: "Discount", type: "metric" },
-            { id: "PricePerUnit", label: "Price per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
+            { id: "PricePerUnit", label: "Price per Unit", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
+            MRP: { value: applyVar(210 + i * 10), delta: i % 2 === 0 ? 2.0 : -1.5 },
             Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
-            PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
             ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
+            PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
           })),
         },
       };
@@ -2895,7 +2907,7 @@ export default function TrendsCompetitionDrawer({
     if (sName.includes('%') || sName.includes('rate') || sName.includes('promo') || sName.includes('discount') || sName.includes('share') || sName.includes('osa') || sName.includes('availability') || sName.includes('sos') || sName.includes('conversion')) {
       return `${formatted}%`;
     }
-    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm')) {
+    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm') || sName.includes('mrp')) {
       return `${currencySymbol} ${formatted}`;
     }
     return formatted;

@@ -418,6 +418,7 @@ const buildDataModel = () => {
         PricePerUnit: 175 + brandIdx * 6 + cityIdx * 2,
         RPI: 3.6 + brandIdx * 0.18 + cityIdx * 0.06,
         ASP: 188 + brandIdx * 9 + cityIdx * 3,
+        MRP: 210 + brandIdx * 10 + cityIdx * 3,
       };
     });
 
@@ -449,6 +450,7 @@ const buildDataModel = () => {
         PricePerUnit: 165 + skuIdx * 8 + cityIdx * 2,
         RPI: 3.4 + skuIdx * 0.15 + cityIdx * 0.05,
         ASP: 180 + skuIdx * 10 + cityIdx * 3,
+        MRP: 200 + skuIdx * 12 + cityIdx * 3,
       };
     });
 
@@ -478,6 +480,7 @@ const buildDataModel = () => {
         PricePerUnit: 175 + brandIdx * 6 + Math.cos(idx / 5) * 4,
         RPI: 3.6 + brandIdx * 0.18 + Math.sin(idx / 3) * 0.15,
         ASP: 188 + brandIdx * 9 + Math.cos(idx / 6) * 5,
+        MRP: 210 + brandIdx * 10 + Math.sin(idx / 4) * 3,
       }));
     });
 
@@ -507,6 +510,7 @@ const buildDataModel = () => {
         PricePerUnit: 165 + skuIdx * 8 + Math.cos(idx / 5) * 3,
         RPI: 3.4 + skuIdx * 0.15 + Math.sin(idx / 3) * 0.12,
         ASP: 180 + skuIdx * 10 + Math.cos(idx / 6) * 4,
+        MRP: 200 + skuIdx * 12 + Math.sin(idx / 4) * 3,
       }));
     });
   });
@@ -1101,9 +1105,9 @@ const PRICING_KPI_KEYS = [
     fmt: (v) => `${Number(v).toFixed(2)}%`,
   },
   {
-    key: "PricePerUnit",
-    label: "Price per Unit",
-    color: "#14B8A6",
+    key: "ASP",
+    label: "Average Selling Price",
+    color: "#8B5CF6",
     get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
     fmt: (v) => {
       const sym = getCurrencySymbol();
@@ -1111,9 +1115,19 @@ const PRICING_KPI_KEYS = [
     },
   },
   {
-    key: "ASP",
-    label: "Average Selling Price",
-    color: "#8B5CF6",
+    key: "MRP",
+    label: "MRP",
+    color: "#F59E0B",
+    get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
+    fmt: (v) => {
+      const sym = getCurrencySymbol();
+      return sym === '₹' ? `₹${Number(v).toFixed(2)}` : `AED ${Number(v).toFixed(2)}`;
+    },
+  },
+  {
+    key: "PricePerUnit",
+    label: "Price per Unit",
+    color: "#14B8A6",
     get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
     fmt: (v) => {
       const sym = getCurrencySymbol();

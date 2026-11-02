@@ -1475,6 +1475,7 @@ const getDimensionTrends = async (filters = {}) => {
             ) AS rpi,
             
             AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE NULL END) AS mrp,
             any(po.platform_offtake) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
@@ -1502,6 +1503,7 @@ const getDimensionTrends = async (filters = {}) => {
                 countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_discount_data,
                 countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_ppu_data,
                 countIf(${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0) AS has_asp_data,
+                countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_mrp_data,
                 sum(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS has_offtake_data
             FROM ${src.table} p
             WHERE ${whereClause}
@@ -1512,6 +1514,7 @@ const getDimensionTrends = async (filters = {}) => {
         const hasDiscountData = parseInt(pr.has_discount_data || 0) > 0;
         const hasPpuData = parseInt(pr.has_ppu_data || 0) > 0;
         const hasAspData = parseInt(pr.has_asp_data || 0) > 0;
+        const hasMrpData = parseInt(pr.has_mrp_data || 0) > 0;
         const hasOfftakeData = parseFloat(pr.has_offtake_data || 0) > 0;
 
         const kpiAvailability = {
@@ -1520,6 +1523,8 @@ const getDimensionTrends = async (filters = {}) => {
             Discount: hasDiscountData,
             PricePerUnit: hasPpuData,
             ASP: hasAspData,
+            MRP: hasMrpData,
+            mrp: hasMrpData,
             Offtake: hasOfftakeData,
         };
 
@@ -1569,6 +1574,7 @@ const getDimensionTrends = async (filters = {}) => {
             Discount: hasDiscountData ? (parseFloat(r.discount) || 0) : null,
             PricePerUnit: hasPpuData ? (parseFloat(r.price_per_unit) || 0) : null,
             ASP: hasAspData ? (parseFloat(r.asp) || 0) : null,
+            MRP: hasMrpData ? (parseFloat(r.mrp) || 0) : null,
             Offtake: hasOfftakeData ? (parseFloat(r.offtake) || 0) : null,
         }));
 
@@ -1662,6 +1668,7 @@ const getPricingCompetitionTrends = async (filters) => {
         SELECT
             toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
@@ -1704,6 +1711,7 @@ const getPricingCompetitionTrends = async (filters) => {
             if (!timeSeriesByTarget[tName]) timeSeriesByTarget[tName] = {};
 
             timeSeriesByTarget[tName][rowDate] = {
+                MRP: parseFloat(r.mrp) || 0,
                 Discount: parseFloat(r.discount) || 0,
                 PricePerUnit: parseFloat(r.price_per_unit) || 0,
                 ASP: parseFloat(r.asp) || 0,
@@ -1812,6 +1820,7 @@ const getPricingCompetition = async (filters) => {
         WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
             p.${f.brand} AS brand_name,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
@@ -1833,6 +1842,7 @@ const getPricingCompetition = async (filters) => {
         SELECT
             p.${f.product} AS sku_name,
             p.${f.brand} AS brand_name,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
@@ -1858,6 +1868,7 @@ const getPricingCompetition = async (filters) => {
 
         const brandRows = (brandResults || []).map(r => ({
             brand_name: r.brand_name,
+            MRP: parseFloat(r.mrp) || 0,
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
@@ -1866,6 +1877,7 @@ const getPricingCompetition = async (filters) => {
         const skuRows = (skuResults || []).map(r => ({
             sku_name: r.sku_name,
             brand_name: r.brand_name,
+            MRP: parseFloat(r.mrp) || 0,
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
