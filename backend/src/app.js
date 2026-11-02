@@ -206,17 +206,12 @@ initSocket(server);
 // Start background schedulers
 import { initAlertCron } from './services/alertCronService.js';
 import { initKamAlertCron } from './services/kamAlertCronService.js';
-<<<<<<< HEAD
 import { initApiLoggerScheduler } from './services/apiLoggerScheduler.js';
-initAlertCron();
-initKamAlertCron();
-initApiLoggerScheduler();
-=======
 import { initReportScheduleCron } from './services/reportScheduleCronService.js';
 initAlertCron();
 initKamAlertCron();
+initApiLoggerScheduler();
 initReportScheduleCron();
->>>>>>> b33e410ecd92e0abc15bca3c2dca1e8750357855
 
 // Process Error Handling for Auto-Restart Safety
 process.on('uncaughtException', (err) => {

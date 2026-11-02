@@ -19,24 +19,17 @@ import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
-<<<<<<< HEAD
 import apiLogs from './routes/apiLogs.js';
-
-
-export default (app) => {
-    // API Logs routes
-    apiLogs(app);
-
-=======
 import reportSchedules from './routes/reportSchedules.js';
 import reportTemplates from './routes/reportTemplates.js';
 import reviewRating from './routes/reviewRating.js';
 
-
 export default (app) => {
     // Review Rating routes
     reviewRating(app);
->>>>>>> b33e410ecd92e0abc15bca3c2dca1e8750357855
+
+    // API Logs routes
+    apiLogs(app);
     // Admin routes
     admin(app);
 
