@@ -19,9 +19,12 @@ import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
+import reviewRating from './routes/reviewRating.js';
 
 
 export default (app) => {
+    // Review Rating routes
+    reviewRating(app);
     // Admin routes
     admin(app);
 
