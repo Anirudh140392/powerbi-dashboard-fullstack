@@ -21,9 +21,12 @@ import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
 import reportSchedules from './routes/reportSchedules.js';
 import reportTemplates from './routes/reportTemplates.js';
+import reviewRating from './routes/reviewRating.js';
 
 
 export default (app) => {
+    // Review Rating routes
+    reviewRating(app);
     // Admin routes
     admin(app);
 

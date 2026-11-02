@@ -7,7 +7,7 @@ import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
-import { buildContentOlapExportQuery } from '../services/contentAnalysisService.js';
+import { buildContentOlapExportQuery, buildProductVerifyExportQuery } from '../services/contentAnalysisService.js';
 import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
 import { isTabPermitted } from '../helper/permissionMiddleware.js';
 
@@ -121,6 +121,16 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the table behind the Report Builder's "Content Data" export, or null:
+ * rb_content_olap where it exists, else rb_product_verify (accounts like mars only have the latter).
+ */
+const resolveContentTable = async () => {
+    if (await checkTableExists('rb_content_olap')) return 'rb_content_olap';
+    if (await checkTableExists('rb_product_verify')) return 'rb_product_verify';
+    return null;
 };
 
 /**
@@ -333,7 +343,7 @@ export const getReportBuilderOptions = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
         const currentDb = getCurrentDbName() || 'boat';
-        const cacheKey = generateCacheKey(`report_builder_options_v5_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v6_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -402,11 +412,12 @@ export const getReportBuilderOptions = async (req, res) => {
             }
 
             try {
-                // Only accounts with Content Analysis data (rb_content_olap) get a contentDateRange;
+                // Only accounts with Content Analysis data (rb_content_olap, else rb_product_verify) get a contentDateRange;
                 // the frontend hides the "Content Data" button when it is missing
-                if (await checkTableExists('rb_content_olap')) {
+                const contentTable = await resolveContentTable();
+                if (contentTable) {
                     const contentCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
-                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_content_olap ${contentCond}`).catch(() => null);
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable} ${contentCond}`).catch(() => null);
                     if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
                         out.contentDateRange = {
                             minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -454,8 +465,12 @@ export const getReportBuilderOptions = async (req, res) => {
  */
 export const downloadReport = async (req, res) => {
     // Checked here (fresh tb_user.tab_permissions via platformPermissionMiddleware) before proxying to report_backend
+    // On mars the same data sits behind its "Content Score" tab, so that permission counts too
     const isContentExport = req.query.dataMode === 'content' || req.query.reportType === 'Content Data';
-    if (isContentExport && req.user?.tabPermissions?.['Content Analysis'] !== true) {
+    const tabPerms = req.user?.tabPermissions || {};
+    const hasContentPermission = tabPerms['Content Analysis'] === true
+        || (getCurrentDbName()?.toLowerCase() === 'mars' && tabPerms['Content Score'] === true);
+    if (isContentExport && !hasContentPermission) {
         return res.status(403).json({ error: 'Content Analysis is not enabled for this account' });
     }
     // Same rule as the sidebar's Review Rating tab ("Rating" is its alias in tab_permissions)
@@ -540,23 +555,25 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        // ── CONTENT DATA EXPORT (rb_content_olap) — Streaming CSV ──
+        // ── CONTENT DATA EXPORT (rb_content_olap / rb_product_verify) — Streaming CSV ──
         // Content Analysis KPIs per SKU per day; only for accounts with "Content Analysis" enabled in tb_user.tab_permissions
         if (isContentExport) {
             if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
                 return res.status(400).json({ error: 'Invalid date range' });
             }
-            if (!(await checkTableExists('rb_content_olap'))) {
+            const contentTable = await resolveContentTable();
+            if (!contentTable) {
                 return res.status(404).json({ error: 'Content data is not available for this account' });
             }
-            const contentQuery = buildContentOlapExportQuery({
+            const buildContentQuery = contentTable === 'rb_content_olap' ? buildContentOlapExportQuery : buildProductVerifyExportQuery;
+            const contentQuery = buildContentQuery({
                 platform,
                 brand,
                 category: format,
                 startDate,
                 endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
             });
-            console.log('[downloadReport] Streaming Content Data CSV from rb_content_olap');
+            console.log(`[downloadReport] Streaming Content Data CSV from ${contentTable}`);
             return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
         }
 

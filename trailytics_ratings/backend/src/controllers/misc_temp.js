@@ -3,7 +3,7 @@ import clickhouse from '../config/clickhouse.js';
 import { getOlapTableName } from '../utils/olapResolver.js';
 
 const getTargetDb = (req) => {
-    return (req.query.db && req.query.db.toLowerCase() === 'danone') ? 'danone' : 'loreal';
+    return req.dbName || req.query.db_name || req.query.db || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
 };
 
 export const getProductHealth = async (req, res) => {
