@@ -137,7 +137,7 @@ export async function triggerApiLogsRun(req, res) {
         }
 
         const targetPage = req.body?.page || req.query?.page || '';
-        const targetClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || '';
+        const targetClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || req.user?.dbName || '';
 
         // Trigger run in background
         (async () => {

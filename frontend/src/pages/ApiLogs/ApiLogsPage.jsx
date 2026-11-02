@@ -204,7 +204,15 @@ export default function ApiLogsPage({ isEmbedded = false }) {
             (async () => {
                 try {
                     setRunningTest(true);
-                    const res = await triggerApiTestRun('', '');
+                    let activeDb = '';
+                    try {
+                        const userStr = sessionStorage.getItem('user');
+                        const u = userStr ? JSON.parse(userStr) : null;
+                        activeDb = sessionStorage.getItem('activeWorkspaceDb') || u?.dbName || '';
+                    } catch (e) {
+                        // ignore
+                    }
+                    const res = await triggerApiTestRun('', activeDb);
                     if (res && res.success) {
                         setTimeout(async () => {
                             if (!isMounted.current) return;

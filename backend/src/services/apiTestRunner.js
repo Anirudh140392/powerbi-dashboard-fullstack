@@ -17,6 +17,7 @@ import {
     insertLogs, 
     cleanupOldLogs 
 } from './apiLoggerRepository.js';
+import { queryAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -29,6 +30,29 @@ const CONCURRENCY_LIMIT = 3;
 
 // Lock flag to prevent overlapping runs
 let isRunInProgress = false;
+
+let cachedDefaultClientDb = null;
+/**
+ * Dynamically resolves the active client database for the currently connected ClickHouse server.
+ * Ensures tests run against valid local databases rather than hardcoded foreign databases.
+ */
+export async function resolveDefaultClientDb() {
+    if (process.env.API_LOGGER_TARGET_DB) {
+        return process.env.API_LOGGER_TARGET_DB;
+    }
+    if (cachedDefaultClientDb) return cachedDefaultClientDb;
+    try {
+        const rows = await queryAdminDB(`SELECT db_name FROM ${ADMIN_DB}.tb_database WHERE status = 'active' ORDER BY db_id ASC LIMIT 1`);
+        if (rows && rows.length > 0 && rows[0].db_name) {
+            cachedDefaultClientDb = rows[0].db_name;
+            return cachedDefaultClientDb;
+        }
+    } catch (e) {
+        console.warn('[ApiTestRunner] Failed to query active client DB from tb_database:', e.message);
+    }
+    cachedDefaultClientDb = process.env.CLICKHOUSE_DB || 'demo';
+    return cachedDefaultClientDb;
+}
 
 /**
  * Generate internal service JWT with admin credentials to test protected routes.
@@ -264,9 +288,12 @@ export async function runPageTests(pageName = 'Pricing Analysis', clientDb = '')
             throw new Error(`Page "${pageName}" is not registered in apiLoggerRegistry.`);
         }
 
-        const port = process.env.PORT || 5000;
-        const baseUrl = process.env.API_LOGGER_BASE_URL || `http://localhost:${port}`;
-        const targetDb = pageConfig.targetDb || clientDb || process.env.API_LOGGER_TARGET_DB || process.env.CLICKHOUSE_DB || 'demo';
+        let targetDb = clientDb || process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb;
+        if (!targetDb) {
+            targetDb = await resolveDefaultClientDb();
+        }
+
+        const baseUrl = process.env.API_LOGGER_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
         const token = generateServiceToken(targetDb);
         const authHeaders = {
