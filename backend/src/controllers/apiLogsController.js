@@ -12,7 +12,10 @@ import {
 } from '../services/apiLoggerRepository.js';
 import { 
     runPageTests, 
-    isTestRunActive 
+    isTestRunActive,
+    getAllActiveDatabases,
+    getPermittedPagesForDb,
+    setSuiteRunning
 } from '../services/apiTestRunner.js';
 import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
 
@@ -137,28 +140,66 @@ export async function triggerApiLogsRun(req, res) {
         }
 
         const targetPage = req.body?.page || req.query?.page || '';
-        const targetClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || req.user?.dbName || '';
+        const requestedClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || '';
 
-        // Trigger run in background
+        // If a specific DB is requested (and not 'All'), test only that DB.
+        // Otherwise (default when clicking Run Check), test one by one for ALL active databases present in tb_database table!
+        let targetDbs = [];
+        if (requestedClientDb && requestedClientDb !== 'All') {
+            targetDbs = [requestedClientDb];
+        } else {
+            targetDbs = await getAllActiveDatabases();
+        }
+
+        const pagesToTest = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
+            ? getRegisteredPages()
+            : [targetPage];
+
+        setSuiteRunning(true);
+
+        // Trigger run in background sequentially for each database
         (async () => {
-            if (!targetPage || targetPage === 'All' || targetPage === 'All Pages') {
-                const pages = getRegisteredPages();
-                for (const p of pages) {
-                    await runPageTests(p, targetClientDb);
+            console.log(`[ApiLogsController] Starting multi-DB test run across ${targetDbs.length} databases:`, targetDbs);
+            try {
+                for (const currentDb of targetDbs) {
+                    const permittedPages = await getPermittedPagesForDb(currentDb);
+                    const pagesForDb = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
+                        ? permittedPages
+                        : (permittedPages.includes(targetPage) ? [targetPage] : []);
+
+                    if (pagesForDb.length === 0) {
+                        console.log(`[ApiLogsController] No permitted pages to test for DB "${currentDb}" based on tab_permissions.`);
+                        continue;
+                    }
+
+                    console.log(`[ApiLogsController] >>> Testing DB: "${currentDb}" (${pagesForDb.length} active pages: ${pagesForDb.join(', ')})...`);
+                    for (const p of pagesForDb) {
+                        try {
+                            await runPageTests(p, currentDb);
+                        } catch (pageErr) {
+                            console.error(`[ApiLogsController] Error testing page "${p}" for DB "${currentDb}":`, pageErr.message);
+                        }
+                    }
+                    console.log(`[ApiLogsController] <<< Finished testing DB: "${currentDb}"`);
                 }
-            } else {
-                await runPageTests(targetPage, targetClientDb);
+                console.log(`[ApiLogsController] Multi-database test run completed for all ${targetDbs.length} databases.`);
+            } finally {
+                setSuiteRunning(false);
             }
         })().catch(runErr => {
-            console.error('[ApiLogsController] Background test run error:', runErr.message);
+            setSuiteRunning(false);
+            console.error('[ApiLogsController] Background multi-DB test run error:', runErr.message);
         });
 
         return res.status(202).json({
             success: true,
             status: 'started',
-            message: `API health test run initiated in background for "${targetPage || 'All Pages'}"${targetClientDb ? ` (Client: ${targetClientDb})` : ''}.`,
+            databases: targetDbs,
+            pagesCount: pagesToTest.length,
+            message: `API health test run initiated for ${targetDbs.length} database(s) (${targetDbs.join(', ')}) across ${pagesToTest.length} page(s).`,
         });
     } catch (err) {
+        setSuiteRunning(false);
         console.error('[ApiLogsController] Error triggering test run:', err.message);
         return res.status(500).json({
             success: false,

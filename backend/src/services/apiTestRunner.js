@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 
-import { getPageConfig } from '../config/apiLoggerRegistry.js';
+import { getPageConfig, getRegisteredPages } from '../config/apiLoggerRegistry.js';
 import { 
     deleteLogsForDateAndPage, 
     insertLogs, 
@@ -28,10 +28,35 @@ const REQUEST_TIMEOUT_MS = parseInt(process.env.API_LOGGER_TIMEOUT_MS || '30000'
 const TIMEZONE = process.env.API_LOGGER_TZ || 'Asia/Kolkata';
 const CONCURRENCY_LIMIT = 3;
 
-// Lock flag to prevent overlapping runs
+// Lock flags to prevent overlapping runs
 let isRunInProgress = false;
+let isSuiteRunning = false;
+
+export function setSuiteRunning(val) {
+    isSuiteRunning = Boolean(val);
+}
 
 let cachedDefaultClientDb = null;
+/**
+ * Dynamically resolves all active client databases from tb_database table.
+ * Enables executing tests one by one across all databases.
+ */
+export async function getAllActiveDatabases() {
+    try {
+        const rows = await queryAdminDB(`
+            SELECT DISTINCT db_name 
+            FROM ${ADMIN_DB}.tb_database 
+            WHERE status = 'active' 
+            ORDER BY db_name ASC
+        `);
+        const dbs = rows.map(r => r.db_name).filter(Boolean);
+        if (dbs.length > 0) return dbs;
+    } catch (e) {
+        console.warn('[ApiTestRunner] Failed to query active databases from tb_database:', e.message);
+    }
+    return [process.env.CLICKHOUSE_DB || 'marico'];
+}
+
 /**
  * Dynamically resolves the active client database for the currently connected ClickHouse server.
  * Ensures tests run against valid local databases rather than hardcoded foreign databases.
@@ -42,9 +67,9 @@ export async function resolveDefaultClientDb() {
     }
     if (cachedDefaultClientDb) return cachedDefaultClientDb;
     try {
-        const rows = await queryAdminDB(`SELECT db_name FROM ${ADMIN_DB}.tb_database WHERE status = 'active' ORDER BY db_id ASC LIMIT 1`);
-        if (rows && rows.length > 0 && rows[0].db_name) {
-            cachedDefaultClientDb = rows[0].db_name;
+        const dbs = await getAllActiveDatabases();
+        if (dbs.length > 0) {
+            cachedDefaultClientDb = dbs[0];
             return cachedDefaultClientDb;
         }
     } catch (e) {
@@ -52,6 +77,73 @@ export async function resolveDefaultClientDb() {
     }
     cachedDefaultClientDb = process.env.CLICKHOUSE_DB || 'demo';
     return cachedDefaultClientDb;
+}
+
+/**
+ * Helper to check whether a specific page is permitted by tab_permissions object.
+ */
+export function isPagePermitted(perms, pageName) {
+    if (!perms || typeof perms !== 'object') return true;
+
+    // Check direct tab name
+    if (perms[pageName] === false) return false;
+    if (perms[pageName] === true) return true;
+
+    // Check known aliases
+    if (pageName === 'Primary Summary' || pageName === 'Secondary Summary') {
+        if (perms['Sales Data'] === false) return false;
+        if (perms['Sales Data'] === true) return true;
+    }
+    if (pageName === 'Content Analysis') {
+        if (perms['Content Score'] === false) return false;
+        if (perms['Content Score'] === true) return true;
+    }
+    if (pageName === 'Business Overview') {
+        if (perms['Watch Tower'] === false) return false;
+    }
+    if (pageName === 'India Overview') {
+        if (perms['Geo Intelligence'] === false) return false;
+    }
+
+    return true;
+}
+
+/**
+ * Resolves permitted pages for a given client database by reading tab_permissions from tb_user.
+ * If tab_permissions marks a page as false (e.g. Sales Data: false, Download Report: false),
+ * that page is excluded from the test execution for that database.
+ */
+export async function getPermittedPagesForDb(targetDb) {
+    const allPages = getRegisteredPages();
+    if (!targetDb) return allPages;
+
+    try {
+        const rows = await queryAdminDB(`
+            SELECT u.tab_permissions
+            FROM ${ADMIN_DB}.tb_user u
+            JOIN ${ADMIN_DB}.tb_database d ON u.db_id = d.db_id
+            WHERE (d.db_name = '${targetDb.replace(/'/g, "''")}' OR d.mapped_db LIKE '%${targetDb.replace(/'/g, "''")}%')
+              AND u.tab_permissions IS NOT NULL 
+              AND u.tab_permissions != ''
+            LIMIT 1
+        `);
+
+        if (!rows || rows.length === 0 || !rows[0].tab_permissions) {
+            return allPages;
+        }
+
+        let perms = {};
+        try {
+            perms = JSON.parse(rows[0].tab_permissions);
+        } catch (e) {
+            return allPages;
+        }
+
+        return allPages.filter(pageName => isPagePermitted(perms, pageName));
+    } catch (err) {
+        console.warn(`[ApiTestRunner] Error checking tab_permissions for DB "${targetDb}":`, err.message);
+        return allPages;
+    }
 }
 
 /**
@@ -288,9 +380,63 @@ export async function runPageTests(pageName = 'Pricing Analysis', clientDb = '')
             throw new Error(`Page "${pageName}" is not registered in apiLoggerRegistry.`);
         }
 
+const PAGE_REQUIRED_TABLES = {
+    'Primary Summary': 'rb_primary_olap',
+    'Secondary Summary': 'rb_secondary_olap',
+    'Content Analysis': 'rb_product_verify',
+    'Download Report': 'rb_pdp',
+};
+
         let targetDb = clientDb || process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb;
         if (!targetDb) {
             targetDb = await resolveDefaultClientDb();
+        }
+
+        // 1. Skip page if disabled in tab_permissions for this client database
+        const permittedPages = await getPermittedPagesForDb(targetDb);
+        if (!permittedPages.includes(pageName)) {
+            console.log(`[ApiTestRunner] Skipping page "${pageName}" for DB "${targetDb}": disabled in tab_permissions.`);
+            return {
+                success: true,
+                skipped: true,
+                runId,
+                date: runDateStr,
+                page: pageName,
+                clientDb: targetDb,
+                totalTested: 0,
+                successCount: 0,
+                slowCount: 0,
+                failedCount: 0,
+                results: [],
+            };
+        }
+
+        // Skip pages if the required table does not exist in the target database
+        if (PAGE_REQUIRED_TABLES[pageName]) {
+            const tableNeeded = PAGE_REQUIRED_TABLES[pageName];
+            try {
+                const tableCheck = await queryAdminDB(
+                    `SELECT count() as cnt FROM system.tables WHERE database = '${targetDb}' AND name = '${tableNeeded}'`
+                );
+                if (Number(tableCheck[0]?.cnt || 0) === 0) {
+                    console.log(`[ApiTestRunner] Skipping page "${pageName}" for DB "${targetDb}": required table "${tableNeeded}" does not exist.`);
+                    return {
+                        success: true,
+                        skipped: true,
+                        runId,
+                        date: runDateStr,
+                        page: pageName,
+                        clientDb: targetDb,
+                        totalTested: 0,
+                        successCount: 0,
+                        slowCount: 0,
+                        failedCount: 0,
+                        results: [],
+                    };
+                }
+            } catch (tableErr) {
+                // proceed if system.tables is inaccessible
+            }
         }
 
         const baseUrl = process.env.API_LOGGER_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`;
@@ -371,5 +517,5 @@ export async function runPageTests(pageName = 'Pricing Analysis', clientDb = '')
  * Check if a test run is currently executing.
  */
 export function isTestRunActive() {
-    return isRunInProgress;
+    return isRunInProgress || isSuiteRunning;
 }
