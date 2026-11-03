@@ -343,7 +343,7 @@ export const getReportBuilderOptions = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
         const currentDb = getCurrentDbName() || 'boat';
-        const cacheKey = generateCacheKey(`report_builder_options_v6_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v7_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -442,6 +442,11 @@ export const getReportBuilderOptions = async (req, res) => {
                             maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
                         };
                     }
+                    // Fetch distinct platforms that have review data
+                    // Use AND instead of WHERE since the query already has a WHERE clause for platform filtering
+                    const platformQuery = `SELECT DISTINCT platform FROM ${reviewTable} WHERE platform != '' AND platform IS NOT NULL ${reviewCond.replace('WHERE', 'AND')} ORDER BY platform`;
+                    const platformRows = await queryClickHouse(platformQuery).catch(() => []);
+                    out.reviewPlatforms = platformRows.map(r => r.platform).filter(Boolean);
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
