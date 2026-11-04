@@ -495,8 +495,20 @@ export default function ReportBuilder({
 
     // Pass latest values to parent directly to avoid React state timing bugs
     // Only send KPIs that are both selected AND available for the chosen platforms
-    const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
-    const activeDimensions = filters.join(",");
+    const activeTagList = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t));
+    const activeTags = activeTagList.join(",");
+
+    const PM_TAGS = new Set([
+      "impressions", "clicks", "spend", "inorganic sales",
+      "roas", "conversion rate", "cpm", "cpc", "aov"
+    ]);
+    const isOnlyPm = activeTagList.length > 0 && activeTagList.every(t => PM_TAGS.has(t.toLowerCase()));
+
+    let activeDimsList = filters;
+    if (isOnlyPm) {
+      activeDimsList = activeDimsList.filter(d => d !== "City" && d !== "Location");
+    }
+    const activeDimensions = activeDimsList.join(",");
     const clampedEnd = isDarkstoreMode
       ? (effectiveMaxDate && dayjs(endDate).isAfter(effectiveMaxDate) ? effectiveMaxDate : dayjs(endDate))
       : (dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate));
@@ -530,7 +542,7 @@ export default function ReportBuilder({
       dimensions: activeDimensions,
       platform: platformOverride,
       granularitySku: sku,
-      granularityGeo: geo,
+      granularityGeo: isOnlyPm ? "Pan India" : geo,
       granularityTime: time,
       overrideDates: customDates
     });
