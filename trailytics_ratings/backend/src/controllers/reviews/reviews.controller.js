@@ -1,5 +1,6 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
+import { buildWebPidCondition } from '../../utils/webPidHelper.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -65,8 +66,8 @@ export const getReviews = async (req, res) => {
             where.push(`r.review_date >= addMonths(today(), -${pm})`);
         }
         if (web_pid) {
-            where.push(`r.web_pid = {webPid:String}`);
-            params.webPid = web_pid;
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', params, 'webPid');
+            if (cond) where.push(cond);
         }
         if (price_min !== undefined && price_min !== '') {
             const priceExpr = price_mode === 'rp'

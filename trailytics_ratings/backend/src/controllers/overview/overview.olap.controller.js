@@ -16,7 +16,7 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-import { getOlapTableName } from '../../utils/olapResolver.js';
+import { getOlapTableName, buildWebPidCondition } from '../../utils/olapResolver.js';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -62,8 +62,8 @@ function buildOlapWhere(req, tableAlias = 'o') {
         queryParams.sentimentCategory = sentiment_category;
     }
     if (web_pid) {
-        where.push(`${a}.web_pid = {webPid:String}`);
-        queryParams.webPid = web_pid;
+        const cond = buildWebPidCondition(web_pid, `${a}.web_pid`, queryParams, 'webPid');
+        if (cond) where.push(cond);
     }
     if (brand && brand !== 'all') {
         where.push(`ilike(${a}.brand, {brand:String})`);
@@ -195,7 +195,10 @@ export const getTrends = async (req, res) => {
         if (brand && brand !== 'all') { extraFilters.push(`ilike(o.brand, {brand:String})`); queryParams.brand = brand; }
         if (category) { extraFilters.push(`ilike(o.product_category, {category:String})`); queryParams.category = category; }
         if (sentiment_category && sentiment_category !== 'all') { extraFilters.push(`ilike(o.sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
-        if (web_pid) { extraFilters.push(`o.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
+        }
         if (price_min !== undefined && price_min !== '') {
             const pe = price_mode === 'rp' ? 'o.price_rp' : 'o.price_sp';
             extraFilters.push(`${pe} >= {priceMin:Float64}`); queryParams.priceMin = Number(price_min);
@@ -282,7 +285,10 @@ export const getTimeline = async (req, res) => {
 
         if (platform && platform !== 'all') { extraFilters.push(`ilike(o.platform, {platform:String})`); queryParams.platform = platform; }
         if (category) { extraFilters.push(`ilike(o.product_category, {category:String})`); queryParams.category = category; }
-        if (web_pid) { extraFilters.push(`o.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
+        }
         if (date_from) { extraFilters.push(`o.review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
         if (date_to) { extraFilters.push(`o.review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
         if (is_competitor && is_competitor !== 'all') {
@@ -353,7 +359,8 @@ export const getRatingTrend = async (req, res) => {
         const { web_pid, platform, days } = req.query;
         if (!web_pid) return res.status(400).json({ error: 'web_pid param required' });
         const daysClamped = Math.max(1, Math.min(parseInt(days, 10) || 180, 365));
-        const queryParams = { companyId: String(req.companyId), webPid: String(web_pid), daysClamped: Number(daysClamped) };
+        const queryParams = { companyId: String(req.companyId), daysClamped: Number(daysClamped) };
+        const webPidCond = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
         let platformClause = '';
         if (platform && platform !== 'all') { queryParams.platform = String(platform); platformClause = `AND lower(platform) = lower({platform:String})`; }
 
@@ -368,7 +375,7 @@ export const getRatingTrend = async (req, res) => {
                 round(avg(price_sp), 2) AS price_sp
             FROM ${getOlapTable(req)}
             WHERE company_id = {companyId:String}
-              AND web_pid = {webPid:String}
+              AND ${webPidCond}
               ${platformClause}
               AND review_date >= addDays(today(), -{daysClamped:Int32})
             GROUP BY snapshot_date, platform
@@ -416,7 +423,10 @@ export const getExecutiveHealth = async (req, res) => {
         }
 
         if (platform && platform !== 'all') { baseFilters.push(`ilike(o.platform, {platform:String})`); queryParams.platform = platform; }
-        if (web_pid) { baseFilters.push(`o.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) baseFilters.push(cond);
+        }
         if (filterCategory) { baseFilters.push(`ilike(o.product_category, {filterCategory:String})`); queryParams.filterCategory = filterCategory; }
         if (sentiment_category && sentiment_category !== 'all') { baseFilters.push(`ilike(o.sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
         if (price_min !== undefined && price_min !== '') {
@@ -620,7 +630,10 @@ export const getRatingMismatch = async (req, res) => {
 
         if (platform && platform !== 'all') { queryParams.platform = platform; baseWhere.push(`lower(o.platform) = lower({platform:String})`); }
         if (category) { queryParams.category = category; baseWhere.push(`ilike(o.product_category, {category:String})`); }
-        if (web_pid) { queryParams.webPid = web_pid; baseWhere.push(`upper(o.web_pid) = upper({webPid:String})`); }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) baseWhere.push(cond);
+        }
         if (is_competitor === 'true' || is_competitor === 'false') { queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0; baseWhere.push(`o.is_competitor = {isCompetitor:UInt8}`); }
         if (date_from) { queryParams.dateFrom = date_from; baseWhere.push(`o.review_date >= toDate({dateFrom:String})`); }
         if (date_to) { queryParams.dateTo = date_to; baseWhere.push(`o.review_date <= toDate({dateTo:String})`); }
@@ -671,8 +684,9 @@ export const getReviewTimeline = async (req, res) => {
         const { web_pid, platform, limit = 500 } = req.query;
         if (!web_pid) return res.status(400).json({ error: 'web_pid is required' });
 
-        const where = ['company_id = {companyId:String}', 'web_pid = {webPid:String}', 'review_date >= addDays(today(), -365)'];
-        const queryParams = { companyId: String(req.companyId), webPid: String(web_pid) };
+        const queryParams = { companyId: String(req.companyId) };
+        const webPidCond = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+        const where = ['company_id = {companyId:String}', webPidCond, 'review_date >= addDays(today(), -365)'];
         if (platform && platform !== 'all') { where.push(`lower(platform) = lower({platform:String})`); queryParams.platform = platform; }
         const lim = Math.min(parseInt(limit, 10) || 500, 2000);
         queryParams.limit = lim;
@@ -772,7 +786,10 @@ export const getProductHealth = async (req, res) => {
         if (brand && brand !== 'all') { where.push(`ilike(o.brand, {brand:String})`); queryParams.brand = brand; }
         if (category) { where.push(`ilike(o.product_category, {category:String})`); queryParams.category = category; }
         if (sentiment_category && sentiment_category !== 'all') { where.push(`ilike(o.sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
-        if (web_pid) { where.push(`o.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) where.push(cond);
+        }
         if (price_min !== undefined && price_min !== '') {
             const pe = price_mode === 'rp' ? 'o.price_rp' : 'o.price_sp';
             where.push(`${pe} >= {priceMin:Float64}`); queryParams.priceMin = Number(price_min);
@@ -919,15 +936,27 @@ export const getBenchmarkData = async (req, res) => {
 
         let skuCondition = '';
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
-            skuCondition = `AND (
-                (coalesce(o.is_competitor, 0) = 0 AND o.web_pid = {webPid:String})
-                OR (coalesce(o.is_competitor, 0) = 1 AND o.product_category IN (
-                    SELECT product_category FROM ${getOlapTable(req)}
-                    WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
-                    LIMIT 1
-                ))
-            )`;
+            const pids = String(web_pid).split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+            if (pids.length === 1) {
+                queryParams.webPid = pids[0];
+                skuCondition = `AND (
+                    (coalesce(o.is_competitor, 0) = 0 AND lower(o.web_pid) = {webPid:String})
+                    OR (coalesce(o.is_competitor, 0) = 1 AND o.product_category IN (
+                        SELECT product_category FROM ${getOlapTable(req)}
+                        WHERE company_id = {companyId:String} AND lower(web_pid) = {webPid:String}
+                        LIMIT 1
+                    ))
+                )`;
+            } else if (pids.length > 1) {
+                queryParams.webPidList = pids;
+                skuCondition = `AND (
+                    (coalesce(o.is_competitor, 0) = 0 AND lower(o.web_pid) IN {webPidList:Array(String)})
+                    OR (coalesce(o.is_competitor, 0) = 1 AND o.product_category IN (
+                        SELECT product_category FROM ${getOlapTable(req)}
+                        WHERE company_id = {companyId:String} AND lower(web_pid) IN {webPidList:Array(String)}
+                    ))
+                )`;
+            }
         }
 
         const sql = `
@@ -1029,7 +1058,10 @@ export const getCategoryHealth = async (req, res) => {
         if (brand && brand !== 'all') { baseWhereParts.push(`ilike(brand, {brand:String})`); queryParams.brand = brand; }
         if (sentiment_category && sentiment_category !== 'all') { baseWhereParts.push(`ilike(sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
         if (category) { baseWhereParts.push(`ilike(product_category, {category:String})`); queryParams.category = category; }
-        if (web_pid) { baseWhereParts.push(`web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+            if (cond) baseWhereParts.push(cond);
+        }
         if (price_min !== undefined && price_min !== '') {
             const pe = price_mode === 'rp' ? 'price_rp' : 'price_sp';
             baseWhereParts.push(`${pe} >= {priceMin:Float64}`); queryParams.priceMin = Number(price_min);
@@ -1145,14 +1177,17 @@ export const getStarDistribution = async (req, res) => {
         const { category, platform, web_pid } = req.query;
         const queryParams = { companyId: String(req.companyId) };
         const conditions = [
-            'ps.company_id = {companyId:String}',
-            "ps.star_distribution != ''",
-            "ps.star_distribution != '{}'"
+            'o.company_id = {companyId:String}',
+            "o.star_distribution != ''",
+            "o.star_distribution != '{}'"
         ];
 
-        if (category) { conditions.push(`ilike(ps.product_category, {category:String})`); queryParams.category = category; }
-        if (platform && platform !== 'all') { conditions.push(`lower(ps.platform) = lower({platform:String})`); queryParams.platform = platform; }
-        if (web_pid) { conditions.push(`upper(ps.web_pid) = upper({webPid:String})`); queryParams.webPid = web_pid; }
+        if (category) { conditions.push(`ilike(o.product_category, {category:String})`); queryParams.category = category; }
+        if (platform && platform !== 'all') { conditions.push(`lower(o.platform) = lower({platform:String})`); queryParams.platform = platform; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) conditions.push(cond);
+        }
 
         // Deduplicate to latest row per (web_pid, platform)
         const sql = `
