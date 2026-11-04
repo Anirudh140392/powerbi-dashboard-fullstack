@@ -1,7 +1,9 @@
 /**
  * Report Studio KPIs, mirroring the Business Overview definitions in
- * backend/src/services/watchTowerService.js. `sql(c)` receives a column
- * resolver for the KPI's source table (see makeResolver in studioQuery.js);
+ * backend/src/services/watchTowerService.js. `sql(c, own)` receives a column
+ * resolver for the KPI's source table (see makeResolver in studioQuery.js) and,
+ * for share KPIs, the own-brand row test their numerator counts (null when each
+ * row is its own brand's share, i.e. competitors grouped by an item dimension);
  * referencing a column the tenant lacks makes the KPI unavailable (NA).
  *
  * Kinds:
@@ -12,22 +14,21 @@
  *  - context: `sql` returns { den }; the value is den summed the same way
  *             (e.g. category size stays the category's total on a brand row).
  *
- * rb_pdp_olap rows are already limited to own brands (Comp_flag = 0); kw and
- * ms rows keep competitors for the denominators, and flag = 1 marks own brands.
+ * `ownData` marks KPIs only tracked for own brands (competitor rows carry no
+ * sales): with competitors included they read blank where a group has no own rows.
  */
 
 const ratio = (num, den) => `${num} / nullIf(${den}, 0) * 100`;
-const kwOwn = (c) => `toString(${c.col('flag')}) = '1'`;
 const kwTop10 = (c) => `${c.num('POSITION')} <= 10`;
-const kwShare = (column) => (c) => ({
-    num: `sumIf(${c.num(column)}, ${kwOwn(c)} AND ${kwTop10(c)})`,
+const kwShare = (column) => (c, own) => ({
+    num: `sumIf(${c.num(column)}, ${own ? `${own} AND ` : ''}${kwTop10(c)})`,
     den: `sumIf(${c.num(column)}, ${kwTop10(c)})`,
 });
 const inStock = (c) => `${c.num('neno_osa')} > 0`;
 
 export const STUDIO_KPIS = {
     // ── rb_pdp_olap ──
-    offtake: { source: 'pdp', label: 'Offtake', unit: 'currency', sql: (c) => `sum(${c.num('Sales')})` },
+    offtake: { source: 'pdp', label: 'Offtake', unit: 'currency', ownData: true, sql: (c) => `sum(${c.num('Sales')})` },
     osa: { source: 'pdp', label: 'OSA', unit: 'percent', sql: (c) => ratio(`sum(${c.num('neno_osa')})`, `sum(${c.num('deno_osa')})`) },
     // Needs fulfilled/total order columns, which no OLAP table has yet.
     fill_rate: { source: 'pdp', label: 'Fill Rate', unit: 'percent', sql: null },
@@ -61,7 +62,7 @@ export const STUDIO_KPIS = {
         sql: (c) => `avg(if(${c.num('listing_percent')} > 0, ${c.num('listing_percent')}, ${ratio(c.num('neno_osa'), c.num('deno_osa'))}))`,
     },
     buy_box: { source: 'pdp', label: 'Buy Box %', unit: 'percent', sql: (c) => ratio(`sum(${c.num('buy_box_neno_osa')})`, `sum(${c.num('deno_osa')})`) },
-    qty_sold: { source: 'pdp', label: 'Quantity Sold', unit: 'number', sql: (c) => `sum(${c.num('Qty_Sold')})` },
+    qty_sold: { source: 'pdp', label: 'Quantity Sold', unit: 'number', ownData: true, sql: (c) => `sum(${c.num('Qty_Sold')})` },
 
     // ── rb_kw_olap: own-brand share of the top 10 results ──
     sos: { source: 'kw', label: 'SOS', unit: 'percent', kind: 'share', sql: kwShare('overall') },
@@ -74,7 +75,7 @@ export const STUDIO_KPIS = {
         label: 'Market Share',
         unit: 'percent',
         kind: 'share',
-        sql: (c) => ({ num: `sumIf(${c.num('sales')}, toString(${c.col('flag')}) = '1')`, den: `sum(${c.num('sales')})` }),
+        sql: (c, own) => ({ num: own ? `sumIf(${c.num('sales')}, ${own})` : `sum(${c.num('sales')})`, den: `sum(${c.num('sales')})` }),
     },
     category_size: { source: 'ms', label: 'Category Size', unit: 'currency', kind: 'context', sql: (c) => ({ den: `sum(${c.num('sales')})` }) },
 
@@ -91,9 +92,15 @@ export const STUDIO_KPIS = {
     aov: { source: 'pm', label: 'AOV', unit: 'currency', sql: (c) => `sum(${c.num('ad_sales')}) / nullIf(sum(${c.num('ad_quantity_sold')}), 0)` },
 };
 
-/** Per source: the row filter (pdp) or own-brand row test (kw, ms) behind "own brands only". */
+/**
+ * Per source: the SQL test for an own-brand row, and how "own brands only" is
+ * applied — rb_pdp_olap drops competitor rows up front (`filter`), while kw and
+ * ms keep them for share denominators and drop competitor-only groups after
+ * (`afterShare`). rb_pm_olap holds own campaigns only.
+ */
 export const OWN_BRAND = {
-    pdp: { filter: (c) => `toString(${c.col('Comp_flag')}) = '0'` },
-    kw: { ownRows: (c) => `countIf(toString(${c.col('flag')}) = '1')` },
-    ms: { ownRows: (c) => `countIf(toString(${c.col('flag')}) = '1')` },
+    pdp: { test: (c) => `toString(${c.col('Comp_flag')}) = '0'`, filter: true },
+    kw: { test: (c) => `toString(${c.col('flag')}) = '1'`, afterShare: true },
+    ms: { test: (c) => `toString(${c.col('flag')}) = '1'`, afterShare: true },
+    pm: { test: () => '1' },
 };

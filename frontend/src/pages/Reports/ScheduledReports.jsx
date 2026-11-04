@@ -225,6 +225,8 @@ export default function ScheduledReports() {
             } = currentFilters;
 
             const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+            const isContent = dataMode === 'content' || reportType === 'Content Data';
+            const isReview = dataMode === 'review' || reportType === 'Review Rating Data';
 
             // Build params for backend API
             const params = {
@@ -280,7 +282,7 @@ export default function ScheduledReports() {
                 else if (timePeriod === "Last Year") { sDate = refDate.subtract(1, 'year').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
             }
             const isOver31Days = sDate && eDate ? (dayjs(eDate).diff(dayjs(sDate), 'day') + 1 > 31) : false;
-            const isCsv = isDarkstore || isOver31Days || (blob && blob.type && blob.type.includes('csv'));
+            const isCsv = isDarkstore || isContent || isReview || isOver31Days || (blob && blob.type && blob.type.includes('csv'));
 
             const ext = isCsv ? 'csv' : 'xlsx';
             const fileName = `${reportType.replace(/\s+/g, '_')}_${timePeriod.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.${ext}`;

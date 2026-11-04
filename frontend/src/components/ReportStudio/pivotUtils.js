@@ -330,11 +330,6 @@ export const buildPivot = (report, fields, config) => {
         const dimValues = dims.map((dim) => dim.read(row));
         // A row with no value for a pivot dimension is left out, so there's no blank group.
         if (dimValues.includes(null)) continue;
-        let included = true;
-        dims.forEach((dim, d) => {
-            if (dim.excluded.has(dimValues[d])) included = false;
-        });
-        if (!included) continue;
 
         const rowDate = String(row.date || row.Date || row.DATE || "").slice(0, 10);
         const isCurrent = !hasPeriods || (rowDate >= currStart && rowDate <= currEnd);
@@ -342,10 +337,16 @@ export const buildPivot = (report, fields, config) => {
 
         if (!isCurrent && !isPrevious) continue;
 
-        if (isCurrent) {
-            dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
-            currMatchedRows += 1;
-        }
+        // Filter options are collected before exclusions, so hidden values stay listed and can be re-selected.
+        if (isCurrent) dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
+
+        let included = true;
+        dims.forEach((dim, d) => {
+            if (dim.excluded.has(dimValues[d])) included = false;
+        });
+        if (!included) continue;
+
+        if (isCurrent) currMatchedRows += 1;
         matchedRows += 1;
 
         const rowPath = dimValues.slice(0, rowCount);
@@ -386,13 +387,21 @@ export const buildPivot = (report, fields, config) => {
     // Pass 2: roll leaves up into every row-prefix × column-prefix (subtotals and totals).
     const cells = new Map();
     const prevCells = new Map();
+    // When Date is on Rows, compare each current date row with the previous
+    // period aggregated across dates, keyed by the remaining row dimensions.
+    const dateRowIndexes = layout.rows
+        .map((field, index) => (field.type === "date" ? index : -1))
+        .filter((index) => index >= 0);
+    const prevComparisonCells = new Map();
     const rowPaths = new Map();
     const colPaths = new Map();
     for (const leaf of leaves.values()) {
         if (!hasPeriods || leaf.hasCurrent) {
             rowPaths.set(leaf.rowPath.join(SEP), leaf.rowPath);
-            colPaths.set(leaf.colPath.join(SEP), leaf.colPath);
         }
+        // Keep previous-only column members visible so the report can show
+        // that they have no current value instead of silently dropping them.
+        colPaths.set(leaf.colPath.join(SEP), leaf.colPath);
         for (let r = 0; r <= rowCount; r += 1) {
             const rowKey = leaf.rowPath.slice(0, r).join(SEP);
             for (let c = 0; c <= colCount; c += 1) {
@@ -412,12 +421,30 @@ export const buildPivot = (report, fields, config) => {
                 leaf.prevAccs.forEach((acc, vi) => mergeAcc(prevAccs[vi], acc));
             }
         }
+        if (dateRowIndexes.length && leaf.prevAccs.some((acc) => acc.count)) {
+            const comparisonRowPath = leaf.rowPath.filter((_, index) => !dateRowIndexes.includes(index));
+            const key = comparisonRowPath.join(SEP) + AXIS_SEP + leaf.colPath.join(SEP);
+            let accs = prevComparisonCells.get(key);
+            if (!accs) {
+                accs = layout.values.map(newAcc);
+                prevComparisonCells.set(key, accs);
+            }
+            leaf.prevAccs.forEach((acc, vi) => mergeAcc(accs[vi], acc));
+        }
     }
     const valueAt = (rowPath, colPath, vi) =>
         finalize(cells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
 
     const prevValueAt = (rowPath, colPath, vi) =>
         finalize(prevCells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
+
+    const prevComparisonValueAt = (rowPath, colPath, vi) => {
+        const comparisonRowPath = rowPath.filter((_, index) => !dateRowIndexes.includes(index));
+        return finalize(
+            prevComparisonCells.get(comparisonRowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi],
+            layout.values[vi].agg
+        );
+    };
 
     // A week, period or month the report only partly covers says so, so its totals aren't misread.
     const { startDate: rangeStart, endDate: rangeEnd } = report;
@@ -452,7 +479,9 @@ export const buildPivot = (report, fields, config) => {
         if (current === null || current === undefined) return null;
 
         let previous = null;
-        if (!hasDateInColumns) {
+        if (dateRowIndexes.length) {
+            previous = prevComparisonValueAt(rowPath, col.path, vi);
+        } else if (!hasDateInColumns) {
             // When Date is NOT in columns (e.g. Platform is in columns),
             // compare each column (Blinkit, Instamart, Zepto, Grand Total)
             // to ITS OWN value in the previous period!

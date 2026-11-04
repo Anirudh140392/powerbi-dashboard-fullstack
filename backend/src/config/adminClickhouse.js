@@ -1,16 +1,47 @@
-// src/config/adminClickhouse.js
-// Query the admin_master database using the existing ClickHouse connection
-// Uses cross-database syntax (admin_master.table_name) to avoid creating a second client
-import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { createClient } from '@clickhouse/client';
 
-const ADMIN_DB = process.env.ADMIN_DB || 'admin_master';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure backend/.env is loaded even if CWD is project root or another folder
+if (!process.env.CLICKHOUSE_URL) {
+    dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+    dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+}
+
+export const ADMIN_DB = process.env.ADMIN_DB || process.env.CLICKHOUSE_ADMIN_DB || 'admin_master';
+
+const adminUrl = (
+    process.env.ADMIN_CLICKHOUSE_URL ||
+    process.env.CLICKHOUSE_ADMIN_URL ||
+    process.env.CLICKHOUSE_URL ||
+    process.env.CLICKHOUSE_HOST ||
+    process.env.CLICKHOUSE_DEV_URL ||
+    'http://localhost:8123'
+);
+
+const adminUser = (
+    process.env.ADMIN_CLICKHOUSE_USER ||
+    process.env.CLICKHOUSE_ADMIN_USER ||
+    process.env.CLICKHOUSE_USER ||
+    'main_user'
+);
+
+const adminPassword = (
+    process.env.ADMIN_CLICKHOUSE_PASSWORD ||
+    process.env.CLICKHOUSE_ADMIN_PASSWORD ||
+    process.env.CLICKHOUSE_PASSWORD ||
+    'prod_dev@1215'
+);
 
 // Create a dedicated client for admin queries
 const adminClickhouse = createClient({
-    url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
-    username: process.env.CLICKHOUSE_USER || 'default',
-    password: process.env.CLICKHOUSE_PASSWORD || '',
+    url: adminUrl,
+    username: adminUser,
+    password: adminPassword,
     database: ADMIN_DB,
     request_timeout: 60000,
     max_open_connections: 10,

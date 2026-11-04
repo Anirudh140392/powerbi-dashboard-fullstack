@@ -135,6 +135,10 @@ app.use("/api/auth", authRoutes);
 import whatsappWebhookRoutes from "./routes/whatsappWebhookRoutes.js";
 app.use("/api/whatsapp/webhook", whatsappWebhookRoutes);
 
+// Scheduled report unsubscribe link (PUBLIC - verified via the signed token in each email)
+import { unsubscribeHandler } from "./controllers/reportScheduleController.js";
+app.get("/api/report-schedules/unsubscribe", unsubscribeHandler);
+
 // Visitor tracking routes (accessible with or without token)
 import visitorRoutes from "./routes/visitors.js";
 app.use("/api/visitors", visitorRoutes);
@@ -176,8 +180,11 @@ redisClient.connect()
 app.use("/api/cache", cacheRoutes);
 
 // JWT Authentication middleware - protects all /api/* routes below this point
+import { apiLiveLoggerMiddleware } from "./middleware/apiLiveLogger.js";
 app.use("/api", authMiddleware);
 app.use("/api", platformPermissionMiddleware);
+// Live API logger disabled - only automated tested APIs are recorded
+// app.use("/api", apiLiveLoggerMiddleware);
 
 // all Routes (PROTECTED - JWT required)
 AllRoutes(app);
@@ -196,11 +203,15 @@ const server = app.listen(port, () => {
 // Initialize WebSocket server for real-time notifications
 initSocket(server);
 
-// Start the background email alert cron scheduler
+// Start background schedulers
 import { initAlertCron } from './services/alertCronService.js';
 import { initKamAlertCron } from './services/kamAlertCronService.js';
+import { initApiLoggerScheduler } from './services/apiLoggerScheduler.js';
+import { initReportScheduleCron } from './services/reportScheduleCronService.js';
 initAlertCron();
 initKamAlertCron();
+initApiLoggerScheduler();
+initReportScheduleCron();
 
 // Process Error Handling for Auto-Restart Safety
 process.on('uncaughtException', (err) => {

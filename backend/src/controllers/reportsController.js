@@ -7,6 +7,9 @@ import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
+import { buildContentOlapExportQuery, buildProductVerifyExportQuery } from '../services/contentAnalysisService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
+import { isTabPermitted } from '../helper/permissionMiddleware.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
@@ -95,7 +98,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -118,6 +121,98 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the table behind the Report Builder's "Content Data" export, or null:
+ * rb_content_olap where it exists, else rb_product_verify (accounts like mars only have the latter).
+ */
+const resolveContentTable = async () => {
+    if (await checkTableExists('rb_content_olap')) return 'rb_content_olap';
+    if (await checkTableExists('rb_product_verify')) return 'rb_product_verify';
+    return null;
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
+};
+
+/**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
 };
 
 /**
@@ -248,7 +343,7 @@ export const getReportBuilderOptions = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
         const currentDb = getCurrentDbName() || 'boat';
-        const cacheKey = generateCacheKey(`report_builder_options_v3_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v7_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -316,6 +411,47 @@ export const getReportBuilderOptions = async (req, res) => {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
             }
 
+            try {
+                // Only accounts with Content Analysis data (rb_content_olap, else rb_product_verify) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                const contentTable = await resolveContentTable();
+                if (contentTable) {
+                    const contentCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable} ${contentCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const reviewCond = !isQcUser ? `WHERE review_date <= toDate('${maxAllowedDate}')` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable} ${reviewCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                    // Fetch distinct platforms that have review data
+                    // Use AND instead of WHERE since the query already has a WHERE clause for platform filtering
+                    const platformQuery = `SELECT DISTINCT platform FROM ${reviewTable} WHERE platform != '' AND platform IS NOT NULL ${reviewCond.replace('WHERE', 'AND')} ORDER BY platform`;
+                    const platformRows = await queryClickHouse(platformQuery).catch(() => []);
+                    out.reviewPlatforms = platformRows.map(r => r.platform).filter(Boolean);
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
+            }
+
             out.maxAllowedDate = maxAllowedDate;
             out.isQcUser = isQcUser;
 
@@ -333,6 +469,21 @@ export const getReportBuilderOptions = async (req, res) => {
  * Download Report as Excel
  */
 export const downloadReport = async (req, res) => {
+    // Checked here (fresh tb_user.tab_permissions via platformPermissionMiddleware) before proxying to report_backend
+    // On mars the same data sits behind its "Content Score" tab, so that permission counts too
+    const isContentExport = req.query.dataMode === 'content' || req.query.reportType === 'Content Data';
+    const tabPerms = req.user?.tabPermissions || {};
+    const hasContentPermission = tabPerms['Content Analysis'] === true
+        || (getCurrentDbName()?.toLowerCase() === 'mars' && tabPerms['Content Score'] === true);
+    if (isContentExport && !hasContentPermission) {
+        return res.status(403).json({ error: 'Content Analysis is not enabled for this account' });
+    }
+    // Same rule as the sidebar's Review Rating tab ("Rating" is its alias in tab_permissions)
+    const isReviewExport = req.query.dataMode === 'review' || req.query.reportType === 'Review Rating Data';
+    if (isReviewExport && !isTabPermitted(req.user?.tabPermissions, ['Review Rating', 'Rating'])) {
+        return res.status(403).json({ error: 'Review Rating is not enabled for this account' });
+    }
+
     const proxied = await proxyToReportService(req, res);
     if (proxied) return;
 
@@ -340,6 +491,15 @@ export const downloadReport = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, currentDate, maxAllowedDate } = qcFilters;
         const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
+
+        const PM_TAGS = new Set([
+            "impressions", "clicks", "spend", "inorganic sales",
+            "roas", "conversion rate", "cpm", "cpc", "aov"
+        ]);
+        const requestedMetricsList = req.query.metrics 
+            ? req.query.metrics.split(',').map(t => t.trim()).filter(Boolean) 
+            : [];
+        const isOnlyPm = (requestedMetricsList.length > 0 && requestedMetricsList.every(t => PM_TAGS.has(t.toLowerCase()))) || reportType === "Performance Marketing";
 
         // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
         const pdpCols = await getTableColumns('rb_pdp_olap');
@@ -408,6 +568,50 @@ export const downloadReport = async (req, res) => {
             const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
             return `lower(${column}) IN (${items})`;
         };
+
+        // ── CONTENT DATA EXPORT (rb_content_olap / rb_product_verify) — Streaming CSV ──
+        // Content Analysis KPIs per SKU per day; only for accounts with "Content Analysis" enabled in tb_user.tab_permissions
+        if (isContentExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const contentTable = await resolveContentTable();
+            if (!contentTable) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const buildContentQuery = contentTable === 'rb_content_olap' ? buildContentOlapExportQuery : buildProductVerifyExportQuery;
+            const contentQuery = buildContentQuery({
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Content Data CSV from ${contentTable}`);
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // One row per review, as shown on the Review Rating page; only where the Review Rating tab is available
+        if (isReviewExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         // Streams rows directly from ClickHouse → CSV → HTTP response.
@@ -568,77 +772,7 @@ export const downloadReport = async (req, res) => {
 
             console.log(`[downloadReport] Streaming Darkstore CSV from ${weekTable}`);
 
-            // ── CSV helper: escape a value for CSV (handles commas, quotes, newlines) ──
-            const csvEscape = (val) => {
-                if (val === null || val === undefined) return '';
-                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
-                if (str.includes(',') || str.includes('"')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
-
-            // Set streaming CSV response headers
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`);
-            res.setHeader('Transfer-Encoding', 'chunked');
-
-            // Stream from ClickHouse
-            const stream = await streamClickHouse(darkstoreQuery);
-
-            let headerWritten = false;
-            let rowCount = 0;
-
-            // The ClickHouse client stream() emits arrays of Row objects.
-            // Each Row has .json() → parsed object, .text → raw string.
-            stream.on('data', (rows) => {
-                const rowArray = Array.isArray(rows) ? rows : [rows];
-                for (const rowObj of rowArray) {
-                    // Row objects from @clickhouse/client have .json() method
-                    const row = (typeof rowObj.json === 'function') ? rowObj.json()
-                        : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
-                            : (typeof rowObj === 'string') ? JSON.parse(rowObj)
-                                : rowObj;
-
-                    // Apply web_pid uppercase transformation in-place
-                    processWebPidUppercase(row);
-
-                    // Write CSV header on first row
-                    if (!headerWritten) {
-                        const headers = Object.keys(row);
-                        res.write(headers.map(csvEscape).join(',') + '\n');
-                        headerWritten = true;
-                    }
-
-                    // Write CSV row
-                    const values = Object.values(row);
-                    res.write(values.map(csvEscape).join(',') + '\n');
-                    rowCount++;
-                }
-            });
-
-            stream.on('end', () => {
-                console.log(`[downloadReport] Streamed ${rowCount} Darkstore CSV rows`);
-                if (rowCount === 0) {
-                    // If no rows were streamed and headers not written, send 204
-                    if (!headerWritten) {
-                        // Headers already set for CSV, so just end with empty body
-                        // The frontend handles empty response
-                    }
-                }
-                res.end();
-            });
-
-            stream.on('error', (err) => {
-                console.error('[downloadReport] Darkstore stream error:', err);
-                if (!res.headersSent) {
-                    res.status(500).json({ error: 'Stream failed' });
-                } else {
-                    res.end();
-                }
-            });
-
-            return; // Response is handled by stream events
+            return streamCsvResponse(res, darkstoreQuery, `Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Darkstore');
         }
 
 
@@ -843,10 +977,11 @@ export const downloadReport = async (req, res) => {
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Master Dump") {
-            const [hasKwOlap, hasLocationDarkstore, hasBrandMs] = await Promise.all([
+            const [hasKwOlap, hasLocationDarkstore, hasBrandMs, hasPmOlap] = await Promise.all([
                 checkTableExists('rb_kw_olap'),
                 checkTableExists('rb_location_darkstore'),
-                checkTableExists('rb_brand_ms')
+                checkTableExists('rb_brand_ms'),
+                checkTableExists('rb_pm_olap')
             ]);
             const msTable = hasBrandMs ? 'rb_brand_ms' : 'rb_ms_olap';
             const msDateCol = hasBrandMs ? 'created_on' : 'created_on';
@@ -872,16 +1007,17 @@ export const downloadReport = async (req, res) => {
 
             // 2. Geography / Location Granularity handling
             let reqDimensions = req.query.dimensions ? req.query.dimensions.split(',') : ['Platform', 'Brand', 'City', 'Category', 'Product'];
-            if (req.query.granularityGeo === "Pan India") {
-                reqDimensions = reqDimensions.filter(d => d !== 'City');
+            if (req.query.granularityGeo === "Pan India" || isOnlyPm) {
+                reqDimensions = reqDimensions.filter(d => d !== 'City' && d !== 'Location');
             }
 
             const granSku = req.query.granularitySku || '';
             const isOwnOnly = granSku.includes('(Own)') && !granSku.includes('Comp');
 
-            const [msCols, kwCols] = await Promise.all([
+            const [msCols, kwCols, pmCols] = await Promise.all([
                 getTableColumns(msTable).catch(() => new Map()),
                 getTableColumns('rb_kw_olap').catch(() => new Map()),
+                (hasPmOlap ? getTableColumns('rb_pm_olap').catch(() => new Map()) : new Map()),
             ]);
 
             let kwFlagCond = "";
@@ -900,19 +1036,37 @@ export const downloadReport = async (req, res) => {
 
             let hasPlatform = true; // Platform is ALWAYS included in exported report!
             let hasBrand = reqDimensions.includes('Brand');
-            let hasCity = reqDimensions.includes('City');
+            let hasCity = !isOnlyPm && (reqDimensions.includes('City') || reqDimensions.includes('Location'));
             let hasFormat = reqDimensions.includes('Category') || reqDimensions.includes('Format');
-            let hasProduct = reqDimensions.includes('Product');
+            let hasProduct = !isOnlyPm && (reqDimensions.includes('Product') || reqDimensions.includes('SKU'));
 
             // Force override dimensions based on explicit SKU constraints
-            if (granSku.includes('SKU')) {
-                hasProduct = true;
-                hasBrand = true;
-            } else if (granSku.includes('Brand')) {
-                hasBrand = true;
-            } else if (granSku.includes('Category')) {
-                hasFormat = true;
+            if (!isOnlyPm) {
+                if (granSku.includes('SKU')) {
+                    hasProduct = true;
+                    hasBrand = true;
+                } else if (granSku.includes('Brand')) {
+                    hasBrand = true;
+                } else if (granSku.includes('Category')) {
+                    hasFormat = true;
+                }
             }
+
+            // Detect if Product (SKU) or Location (City) filter/dimension is applied
+            const hasLocationFilter = Boolean(
+                (city && city !== 'All' && !city.startsWith('All ')) ||
+                (req.query.location && req.query.location !== 'All' && !req.query.location.startsWith('All '))
+            );
+            const hasProductFilter = Boolean(
+                (req.query.product && req.query.product !== 'All' && !req.query.product.startsWith('All ')) ||
+                (req.query.sku && req.query.sku !== 'All' && !req.query.sku.startsWith('All '))
+            );
+            const hasLocationDim = hasCity;
+            const hasProductDim = hasProduct;
+
+            // When Product or Location is present, fetch PM from rb_pdp_olap;
+            // otherwise (up to channel, platform, Brand, Category, keyword, keyword_type), fetch PM from rb_pm_olap.
+            const usePdpForPm = !hasPmOlap || hasLocationFilter || hasProductFilter || hasLocationDim || hasProductDim;
 
             const dimSelects = [];
             const dimGroups = [];
@@ -926,6 +1080,105 @@ export const downloadReport = async (req, res) => {
 
             const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
 
+            if (isOnlyPm && hasPmOlap && !usePdpForPm) {
+                const pmPlatformCol = resolveColumn(pmCols, 'Platform', 'Platform');
+                const pmBrandCol = resolveColumn(pmCols, 'brand', 'brand');
+                const pmCatCol = resolveColumn(pmCols, 'category', 'category');
+                const pmChannelCol = pmCols.has('channel') ? resolveColumn(pmCols, 'channel', 'channel') : null;
+                const pmKeywordCol = pmCols.has('keyword') ? resolveColumn(pmCols, 'keyword', 'keyword') : null;
+                const pmKeywordTypeCol = pmCols.has('keyword_type') ? resolveColumn(pmCols, 'keyword_type', 'keyword_type') : null;
+                const pmDateCol = resolveColumn(pmCols, 'DATE', 'DATE');
+
+                const pmSpendCol = resolveColumn(pmCols, 'ad_spend', 'ad_spend');
+                const pmSalesCol = resolveColumn(pmCols, 'Ad_sales', 'Ad_sales');
+                const pmClicksCol = resolveColumn(pmCols, 'ad_click', 'ad_click');
+                const pmImpCol = resolveColumn(pmCols, 'impressions', 'impressions');
+                const pmQtyCol = resolveColumn(pmCols, 'ad_quantity_sold', 'ad_quantity_sold');
+
+                const pmConds = [];
+                pmConds.push(`toDate(${pmDateCol}) BETWEEN '${startDate}' AND '${endDate}'`);
+                if (!isQcUser) pmConds.push(`toDate(${pmDateCol}) <= '${maxAllowedDate}'`);
+                const platCond = buildInClause(pmPlatformCol, platform);
+                if (platCond) pmConds.push(platCond);
+                const bCond = buildInClause(pmBrandCol, brand);
+                if (bCond) pmConds.push(bCond);
+                const cCond = buildInClause(pmCatCol, format);
+                if (cCond) pmConds.push(cCond);
+                if (pmChannelCol && req.query.channel) {
+                    const chanCond = buildInClause(pmChannelCol, req.query.channel);
+                    if (chanCond) pmConds.push(chanCond);
+                }
+                if (pmKeywordCol && req.query.keyword) {
+                    const kwCond = buildInClause(pmKeywordCol, req.query.keyword);
+                    if (kwCond) pmConds.push(kwCond);
+                }
+                if (pmKeywordTypeCol && req.query.keyword_type) {
+                    const kwtCond = buildInClause(pmKeywordTypeCol, req.query.keyword_type);
+                    if (kwtCond) pmConds.push(kwtCond);
+                }
+
+                const pmWhere = pmConds.length > 0 ? `WHERE ${pmConds.join(' AND ')}` : '';
+
+                const pmDateAgg = cteTimeAgg.replace(/\bDATE\b/g, pmDateCol);
+                const pmDimsSelect = [`${pmDateAgg} as DATE`, `${pmPlatformCol} as Platform`];
+                const pmDimsGroup = [`DATE`, `${pmPlatformCol}`];
+                const pmOuterDims = [`DATE`, `Platform`];
+
+                if (hasBrand) {
+                    pmDimsSelect.push(`${pmBrandCol} as Brand`);
+                    pmDimsGroup.push(`${pmBrandCol}`);
+                    pmOuterDims.push(`Brand`);
+                }
+                if (hasFormat) {
+                    pmDimsSelect.push(`${pmCatCol} as Format`);
+                    pmDimsGroup.push(`${pmCatCol}`);
+                    pmOuterDims.push(`Format`);
+                }
+                if (pmChannelCol && (reqDimensions.includes('Channel') || req.query.channel)) {
+                    pmDimsSelect.push(`${pmChannelCol} as Channel`);
+                    pmDimsGroup.push(`${pmChannelCol}`);
+                    pmOuterDims.push(`Channel`);
+                }
+                if (pmKeywordCol && (reqDimensions.includes('Keyword') || req.query.keyword)) {
+                    pmDimsSelect.push(`${pmKeywordCol} as Keyword`);
+                    pmDimsGroup.push(`${pmKeywordCol}`);
+                    pmOuterDims.push(`Keyword`);
+                }
+                if (pmKeywordTypeCol && (reqDimensions.includes('Keyword Type') || reqDimensions.includes('keyword_type') || req.query.keyword_type)) {
+                    pmDimsSelect.push(`${pmKeywordTypeCol} as Keyword_Type`);
+                    pmDimsGroup.push(`${pmKeywordTypeCol}`);
+                    pmOuterDims.push(`Keyword_Type`);
+                }
+
+                query = `
+                    WITH base_metrics AS (
+                        SELECT 
+                            ${pmDimsSelect.join(', ')},
+                            SUM(ifNull(toFloat64OrZero(toString(${pmSpendCol})), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmSalesCol})), 0)) as total_inorganic_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmImpCol})), 0)) as total_impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmClicksCol})), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmQtyCol})), 0)) as total_orders
+                        FROM rb_pm_olap
+                        ${pmWhere}
+                        GROUP BY ${pmDimsGroup.join(', ')}
+                    )
+                    SELECT 
+                        ${pmOuterDims.join(', ')},
+                        round(total_spend, 2) as Spend,
+                        round(total_inorganic_sales, 2) as Inorganic_Sales,
+                        total_impressions as Impressions,
+                        total_clicks as Clicks,
+                        total_orders as Orders,
+                        round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
+                        round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
+                        round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
+                        round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,
+                        round(if(total_orders > 0, total_inorganic_sales / total_orders, 0), 2) as AOV
+                    FROM base_metrics
+                    ORDER BY DATE DESC
+                `;
+            } else {
             // Handle CTE mappings tightly aligned to base query
             // SOS = this brand's share of the whole platform/category shelf (top 10 positions), as on the dashboard.
             // The denominator sums across every brand, so it must not be split by Brand.
@@ -1034,6 +1287,90 @@ export const downloadReport = async (req, res) => {
             const catSizeJoin = `
                 LEFT JOIN cat_size_stats cs ON ${timeAgg} = cs.DATE AND t.Platform = cs.Platform${catSizeJoinLoc}`;
 
+            const pmPlatformCol = resolveColumn(pmCols, 'Platform', 'Platform');
+            const pmBrandCol = resolveColumn(pmCols, 'brand', 'brand');
+            const pmCategoryCol = resolveColumn(pmCols, 'category', 'category');
+            const pmChannelCol = pmCols.has('channel') ? resolveColumn(pmCols, 'channel', 'channel') : null;
+            const pmDateCol = resolveColumn(pmCols, 'DATE', 'DATE');
+            const pmKeywordCol = pmCols.has('keyword') ? resolveColumn(pmCols, 'keyword', 'keyword') : null;
+            const pmKeywordTypeCol = pmCols.has('keyword_type') ? resolveColumn(pmCols, 'keyword_type', 'keyword_type') : null;
+
+            const pmSpendCol = resolveColumn(pmCols, 'ad_spend', 'ad_spend');
+            const pmSalesCol = resolveColumn(pmCols, 'Ad_sales', 'Ad_sales');
+            const pmClicksCol = resolveColumn(pmCols, 'ad_click', 'ad_click');
+            const pmImpCol = resolveColumn(pmCols, 'impressions', 'impressions');
+            const pmQtyCol = resolveColumn(pmCols, 'ad_quantity_sold', 'ad_quantity_sold');
+
+            let pmGroupCols = ['DATE'];
+            let pmSelectCols = [`${cteTimeAgg} as DATE`];
+            let pmJoinOn = [`${timeAgg} = pm.DATE`];
+
+            if (hasPlatform) {
+                pmGroupCols.push('Platform');
+                pmSelectCols.push(`${pmPlatformCol} as Platform`);
+                pmJoinOn.push(`lower(t.${col('Platform')}) = lower(pm.Platform)`);
+            }
+            if (hasBrand) {
+                pmGroupCols.push('Brand');
+                pmSelectCols.push(`${pmBrandCol} as Brand`);
+                pmJoinOn.push(`lower(t.${col('Brand')}) = lower(pm.Brand)`);
+            }
+            if (hasFormat) {
+                pmGroupCols.push('Category');
+                pmSelectCols.push(`${pmCategoryCol} as Category`);
+                pmJoinOn.push(`lower(t.${catCol}) = lower(pm.Category)`);
+            }
+            if (reqDimensions.includes('Channel') && pmChannelCol) {
+                pmGroupCols.push('Channel');
+                pmSelectCols.push(`${pmChannelCol} as Channel`);
+                pmJoinOn.push(`lower(t.${col('channel')}) = lower(pm.Channel)`);
+            }
+
+            const pmConditions = [];
+            pmConditions.push(`toDate(${pmDateCol}) BETWEEN '${startDate}' AND '${endDate}'`);
+            if (!isQcUser) {
+                pmConditions.push(`toDate(${pmDateCol}) <= '${maxAllowedDate}'`);
+            }
+            const pmPlatCond = buildInClause(pmPlatformCol, platform);
+            if (pmPlatCond) pmConditions.push(pmPlatCond);
+
+            const pmBrandCond = buildInClause(pmBrandCol, brand);
+            if (pmBrandCond) pmConditions.push(pmBrandCond);
+
+            const pmFormatCond = buildInClause(pmCategoryCol, format);
+            if (pmFormatCond) pmConditions.push(pmFormatCond);
+
+            const channelParam = req.query.channel;
+            if (channelParam && pmChannelCol) {
+                const pmChanCond = buildInClause(pmChannelCol, channelParam);
+                if (pmChanCond) pmConditions.push(pmChanCond);
+            }
+            if (req.query.keyword && pmKeywordCol) {
+                const pmKwCond = buildInClause(pmKeywordCol, req.query.keyword);
+                if (pmKwCond) pmConditions.push(pmKwCond);
+            }
+            if (req.query.keyword_type && pmKeywordTypeCol) {
+                const pmKwTypeCond = buildInClause(pmKeywordTypeCol, req.query.keyword_type);
+                if (pmKwTypeCond) pmConditions.push(pmKwTypeCond);
+            }
+
+            const pmCte = !usePdpForPm ? `,
+                pm_stats AS (
+                    SELECT 
+                        ${pmSelectCols.join(', ')},
+                        SUM(ifNull(toFloat64OrZero(toString(${pmImpCol})), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(${pmClicksCol})), 0)) as total_clicks,
+                        round(SUM(ifNull(toFloat64OrZero(toString(${pmSpendCol})), 0)), 2) as total_spend,
+                        round(SUM(ifNull(toFloat64OrZero(toString(${pmSalesCol})), 0)), 2) as total_inorganic_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(${pmQtyCol})), 0)) as total_orders
+                    FROM rb_pm_olap
+                    WHERE ${pmConditions.join(' AND ')}
+                    GROUP BY ${pmGroupCols.join(', ')}
+                )` : '';
+
+            const pmJoin = !usePdpForPm ? `
+                LEFT JOIN pm_stats pm ON ${pmJoinOn.join(' AND ')}` : '';
+
             const sosCol = hasKwOlap ? `
                     any(s.overall_sos_pct) as SOS_Percentage,
                     any(s.overall_sos_pct) as Overall_SOS_Percentage,
@@ -1046,7 +1383,7 @@ export const downloadReport = async (req, res) => {
             const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability,` : `0 as Metro_City_Stock_Availability,`;
 
             // If sosCte is empty, we must ensure the CTE starts properly with WITH
-            const fullCte = (hasKwOlap ? sosCte : 'WITH ') + pricingCte + msCte + catSizeCte;
+            const fullCte = (hasKwOlap ? sosCte : 'WITH ') + pricingCte + msCte + catSizeCte + pmCte;
 
             query = `
                 ${fullCte}
@@ -1063,7 +1400,18 @@ export const downloadReport = async (req, res) => {
                     round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
                     round(avg(ifNull(toFloat64OrZero(toString(t.${col('listing_percent')})), 0)), 2) as Listing_Percentage,
 
-                    -- PM
+                    -- PM (${!usePdpForPm ? 'from rb_pm_olap' : 'from rb_pdp_olap'})
+                    ${!usePdpForPm ? `
+                    any(pm.total_impressions) as Impressions,
+                    any(pm.total_clicks) as Clicks,
+                    round(any(pm.total_spend), 2) as Spend,
+                    round(any(pm.total_inorganic_sales), 2) as Inorganic_Sales,
+                    round(if(any(pm.total_spend) > 0, any(pm.total_inorganic_sales) / any(pm.total_spend), 0), 2) as ROAS,
+                    round(if(any(pm.total_clicks) > 0, (any(pm.total_orders) / any(pm.total_clicks)) * 100, 0), 2) as Conversion_Rate,
+                    round(if(any(pm.total_impressions) > 0, (any(pm.total_spend) / any(pm.total_impressions)) * 1000, 0), 2) as CPM,
+                    round(if(any(pm.total_clicks) > 0, any(pm.total_spend) / any(pm.total_clicks), 0), 2) as CPC,
+                    round(if(any(pm.total_orders) > 0, any(pm.total_inorganic_sales) / any(pm.total_orders), 0), 2) as AOV,
+                    ` : `
                     SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) as Impressions,
                     SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) as Clicks,
                     round(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)), 2) as Spend,
@@ -1073,6 +1421,7 @@ export const downloadReport = async (req, res) => {
                     round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0))) * 1000, 0), 2) as CPM,
                     round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)), 0), 2) as CPC,
                     round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)), 0), 2) as AOV,
+                    `}
 
                     -- Inventory
                     SUM(toFloat64(t.${col('Inventory')})) as Current_Inventory,
@@ -1089,7 +1438,7 @@ export const downloadReport = async (req, res) => {
                     
                     ${sosCol}
                     
-                    round((SUM(toFloat64(t.${col('Ad_Spend')})) / nullIf(SUM(toFloat64(t.${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    ${!usePdpForPm ? `round((any(pm.total_spend) / nullIf(SUM(toFloat64(t.${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,` : `round((SUM(toFloat64(t.${col('Ad_Spend')})) / nullIf(SUM(toFloat64(t.${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,`}
                     round(avg(toFloat64(t.${col('Discount')})), 2) as Promo_Percentage,
 
                     -- Additional Availability KPIs
@@ -1112,10 +1461,12 @@ export const downloadReport = async (req, res) => {
                 ${pricingJoin}
                 ${msJoin}
                 ${catSizeJoin}
+                ${pmJoin}
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? 't.' + catCol : 't.' + match)}
                 GROUP BY DATE${dimGroupStr}
                 ORDER BY DATE DESC
             `;
+            }
         } else if (reportType === "Pricing Analysis") {
             query = `
                 SELECT 
@@ -1130,49 +1481,152 @@ export const downloadReport = async (req, res) => {
             `;
         } else if (reportType === "Performance Marketing") {
             const hasPmOlap = await checkTableExists('rb_pm_olap');
-            const pmTable = hasPmOlap ? 'rb_pm_olap' : 'rb_pdp_olap';
+            const hasLocationFilter = Boolean(
+                (city && city !== 'All' && !city.startsWith('All ')) ||
+                (req.query.location && req.query.location !== 'All' && !req.query.location.startsWith('All '))
+            );
+            const hasProductFilter = Boolean(
+                (req.query.product && req.query.product !== 'All' && !req.query.product.startsWith('All ')) ||
+                (req.query.sku && req.query.sku !== 'All' && !req.query.sku.startsWith('All '))
+            );
+            const reqDims = req.query.dimensions ? req.query.dimensions.split(',') : [];
+            const hasLocationDim = !isOnlyPm && (reqDims.includes('City') || reqDims.includes('Location'));
+            const hasProductDim = !isOnlyPm && (reqDims.includes('Product') || reqDims.includes('SKU'));
+
+            const usePdp = !hasPmOlap || hasLocationFilter || hasProductFilter || hasLocationDim || hasProductDim;
+            const pmTable = usePdp ? 'rb_pdp_olap' : 'rb_pm_olap';
             const pmCols = await getTableColumns(pmTable).catch(() => new Map());
-            const pmResellerCol = pmCols.has('reseller_name') ? pmCols.get('reseller_name')
-                : pmCols.has('reseller') ? pmCols.get('reseller')
-                    : null;
-            const pmResellerSelect = pmResellerCol ? `, ${pmResellerCol} as Reseller_Name` : '';
-            const pmResellerGroup = pmResellerCol ? `, ${pmResellerCol}` : '';
-            const pmResellerSelectBase = pmResellerCol ? `, Reseller_Name` : '';
 
-            const spendCol = hasPmOlap ? 'ad_spend' : 'Ad_Spend';
-            const salesCol = hasPmOlap ? 'Ad_sales' : 'Ad_Sales';
-            const impCol = hasPmOlap ? 'impressions' : 'Ad_Impressions';
-            const clicksCol = hasPmOlap ? 'ad_click' : 'Ad_Clicks';
-            const qtyCol = hasPmOlap ? 'Ad_Quantity_sold' : 'Ad_Quantity_sold';
+            if (usePdp) {
+                // User filtered or selected Product or Location -> fetch from rb_pdp_olap
+                const pmResellerCol = pmCols.has('reseller_name') ? pmCols.get('reseller_name')
+                    : pmCols.has('reseller') ? pmCols.get('reseller')
+                        : null;
+                const pmResellerSelect = pmResellerCol ? `, ${pmResellerCol} as Reseller_Name` : '';
+                const pmResellerGroup = pmResellerCol ? `, ${pmResellerCol}` : '';
+                const pmResellerSelectBase = pmResellerCol ? `, Reseller_Name` : '';
 
-            query = `
-                WITH base_metrics AS (
+                const spendCol = col('Ad_Spend');
+                const salesCol = col('Ad_Sales');
+                const impCol = col('Ad_Impressions');
+                const clicksCol = col('Ad_Clicks');
+                const qtyCol = col('Ad_Quantity_sold');
+
+                query = `
+                    WITH base_metrics AS (
+                        SELECT 
+                            ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${pmResellerSelect},
+                            SUM(ifNull(toFloat64OrZero(toString(${spendCol})), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(${salesCol})), 0)) as total_inorganic_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(${impCol})), 0)) as total_impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(${clicksCol})), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(${qtyCol})), 0)) as total_orders
+                        FROM rb_pdp_olap
+                        ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
+                        GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${pmResellerGroup}
+                    )
                     SELECT 
-                        ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${pmResellerSelect},
-                        SUM(ifNull(toFloat64OrZero(toString(${spendCol})), 0)) as total_spend,
-                        SUM(ifNull(toFloat64OrZero(toString(${salesCol})), 0)) as total_inorganic_sales,
-                        SUM(ifNull(toFloat64OrZero(toString(${impCol})), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64OrZero(toString(${clicksCol})), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64OrZero(toString(${qtyCol})), 0)) as total_orders
-                    FROM ${pmTable}
-                    ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
-                    GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${pmResellerGroup}
-                )
-                SELECT 
-                    DATE, Platform, Brand, City, Format, Product${pmResellerSelectBase},
-                    round(total_spend, 2) as Spend,
-                    round(total_inorganic_sales, 2) as Inorganic_Sales,
-                    total_impressions as Impressions,
-                    total_clicks as Clicks,
-                    total_orders as Orders,
-                    round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
-                    round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
-                    round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
-                    round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,
-                    round(if(total_orders > 0, total_inorganic_sales / total_orders, 0), 2) as AOV
-                FROM base_metrics
-                ORDER BY DATE DESC
-            `;
+                        DATE, Platform, Brand, City, Format, Product${pmResellerSelectBase},
+                        round(total_spend, 2) as Spend,
+                        round(total_inorganic_sales, 2) as Inorganic_Sales,
+                        total_impressions as Impressions,
+                        total_clicks as Clicks,
+                        total_orders as Orders,
+                        round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
+                        round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
+                        round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
+                        round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,
+                        round(if(total_orders > 0, total_inorganic_sales / total_orders, 0), 2) as AOV
+                    FROM base_metrics
+                    ORDER BY DATE DESC
+                `;
+            } else {
+                // Up to channel, platform, Brand, Category, keyword, keyword_type -> fetch from rb_pm_olap
+                const pmPlatformCol = resolveColumn(pmCols, 'Platform', 'Platform');
+                const pmBrandCol = resolveColumn(pmCols, 'brand', 'brand');
+                const pmCatCol = resolveColumn(pmCols, 'category', 'category');
+                const pmChannelCol = pmCols.has('channel') ? resolveColumn(pmCols, 'channel', 'channel') : null;
+                const pmKeywordCol = pmCols.has('keyword') ? resolveColumn(pmCols, 'keyword', 'keyword') : null;
+                const pmKeywordTypeCol = pmCols.has('keyword_type') ? resolveColumn(pmCols, 'keyword_type', 'keyword_type') : null;
+                const pmDateCol = resolveColumn(pmCols, 'DATE', 'DATE');
+
+                const pmSpendCol = resolveColumn(pmCols, 'ad_spend', 'ad_spend');
+                const pmSalesCol = resolveColumn(pmCols, 'Ad_sales', 'Ad_sales');
+                const pmClicksCol = resolveColumn(pmCols, 'ad_click', 'ad_click');
+                const pmImpCol = resolveColumn(pmCols, 'impressions', 'impressions');
+                const pmQtyCol = resolveColumn(pmCols, 'ad_quantity_sold', 'ad_quantity_sold');
+
+                const pmConds = [];
+                pmConds.push(`toDate(${pmDateCol}) BETWEEN '${startDate}' AND '${endDate}'`);
+                if (!isQcUser) pmConds.push(`toDate(${pmDateCol}) <= '${maxAllowedDate}'`);
+                const platCond = buildInClause(pmPlatformCol, platform);
+                if (platCond) pmConds.push(platCond);
+                const bCond = buildInClause(pmBrandCol, brand);
+                if (bCond) pmConds.push(bCond);
+                const cCond = buildInClause(pmCatCol, format);
+                if (cCond) pmConds.push(cCond);
+                if (pmChannelCol && req.query.channel) {
+                    const chanCond = buildInClause(pmChannelCol, req.query.channel);
+                    if (chanCond) pmConds.push(chanCond);
+                }
+                if (pmKeywordCol && req.query.keyword) {
+                    const kwCond = buildInClause(pmKeywordCol, req.query.keyword);
+                    if (kwCond) pmConds.push(kwCond);
+                }
+                if (pmKeywordTypeCol && req.query.keyword_type) {
+                    const kwtCond = buildInClause(pmKeywordTypeCol, req.query.keyword_type);
+                    if (kwtCond) pmConds.push(kwtCond);
+                }
+
+                const pmWhere = pmConds.length > 0 ? `WHERE ${pmConds.join(' AND ')}` : '';
+
+                const extraDimsSelect = [];
+                const extraDimsGroup = [];
+                if (pmChannelCol && (reqDims.includes('Channel') || req.query.channel)) {
+                    extraDimsSelect.push(`${pmChannelCol} as Channel`);
+                    extraDimsGroup.push(pmChannelCol);
+                }
+                if (pmKeywordCol && (reqDims.includes('Keyword') || req.query.keyword)) {
+                    extraDimsSelect.push(`${pmKeywordCol} as Keyword`);
+                    extraDimsGroup.push(pmKeywordCol);
+                }
+                if (pmKeywordTypeCol && (reqDims.includes('Keyword Type') || reqDims.includes('keyword_type') || req.query.keyword_type)) {
+                    extraDimsSelect.push(`${pmKeywordTypeCol} as Keyword_Type`);
+                    extraDimsGroup.push(pmKeywordTypeCol);
+                }
+
+                const extraSelectStr = extraDimsSelect.length > 0 ? ', ' + extraDimsSelect.join(', ') : '';
+                const extraGroupStr = extraDimsGroup.length > 0 ? ', ' + extraDimsGroup.join(', ') : '';
+
+                query = `
+                    WITH base_metrics AS (
+                        SELECT 
+                            ${pmDateCol} as DATE, ${pmPlatformCol} as Platform, ${pmBrandCol} as Brand, ${pmCatCol} as Format${extraSelectStr},
+                            SUM(ifNull(toFloat64OrZero(toString(${pmSpendCol})), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmSalesCol})), 0)) as total_inorganic_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmImpCol})), 0)) as total_impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmClicksCol})), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(${pmQtyCol})), 0)) as total_orders
+                        FROM rb_pm_olap
+                        ${pmWhere}
+                        GROUP BY DATE, ${pmPlatformCol}, ${pmBrandCol}, ${pmCatCol}${extraGroupStr}
+                    )
+                    SELECT 
+                        DATE, Platform, Brand, Format${extraSelectStr},
+                        round(total_spend, 2) as Spend,
+                        round(total_inorganic_sales, 2) as Inorganic_Sales,
+                        total_impressions as Impressions,
+                        total_clicks as Clicks,
+                        total_orders as Orders,
+                        round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
+                        round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
+                        round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
+                        round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,
+                        round(if(total_orders > 0, total_inorganic_sales / total_orders, 0), 2) as AOV
+                    FROM base_metrics
+                    ORDER BY DATE DESC
+                `;
+            }
         } else if (reportType === "Content Analysis") {
             // Use tb_content_score_data without hardcoded DB prefix — resolves to user's current DB
             const hasContentTable = await checkTableExists('tb_content_score_data');
@@ -1369,12 +1823,15 @@ export const downloadReport = async (req, res) => {
                 const newRow = { DATE: row.DATE };
                 if (row.Platform !== undefined) newRow.Platform = row.Platform;
                 if (row.Brand !== undefined) newRow.Brand = row.Brand;
-                if (row.City !== undefined) newRow.City = row.City;
+                if (row.City !== undefined && !isOnlyPm) newRow.City = row.City;
                 if (row.Format !== undefined) newRow.Format = row.Format;
-                if (row.Product !== undefined) newRow.Product = row.Product;
-                if (row.Web_Pid !== undefined) newRow["Web Pid"] = row.Web_Pid;
-                if (row.Reseller_Name !== undefined) newRow["Reseller Name"] = row.Reseller_Name;
-                else if (row.reseller_name !== undefined) newRow["Reseller Name"] = row.reseller_name;
+                if (row.Product !== undefined && !isOnlyPm) newRow.Product = row.Product;
+                if (row.Web_Pid !== undefined && !isOnlyPm) newRow["Web Pid"] = row.Web_Pid;
+                if (row.Channel !== undefined) newRow.Channel = row.Channel;
+                if (row.Keyword !== undefined) newRow.Keyword = row.Keyword;
+                if (row.Keyword_Type !== undefined) newRow["Keyword Type"] = row.Keyword_Type;
+                if (row.Reseller_Name !== undefined && !isOnlyPm) newRow["Reseller Name"] = row.Reseller_Name;
+                else if (row.reseller_name !== undefined && !isOnlyPm) newRow["Reseller Name"] = row.reseller_name;
 
                 requestedTags.forEach(tag => {
                     const alias = TAG_MAP[tag];
@@ -1383,6 +1840,24 @@ export const downloadReport = async (req, res) => {
                     }
                 });
                 return newRow;
+            });
+        }
+
+        if (isOnlyPm) {
+            finalData = finalData.map(row => {
+                const copy = { ...row };
+                delete copy.City;
+                delete copy.city;
+                delete copy.Location;
+                delete copy.location;
+                delete copy.Product;
+                delete copy.product;
+                delete copy["Web Pid"];
+                delete copy.Web_Pid;
+                delete copy["Reseller Name"];
+                delete copy.Reseller_Name;
+                delete copy.reseller_name;
+                return copy;
             });
         }
 
