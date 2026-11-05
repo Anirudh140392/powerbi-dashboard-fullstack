@@ -1171,8 +1171,8 @@ const getDimensionOverview = async (filters = {}) => {
 
             const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
-            // ✅ Grammage filter ONLY applies to SKU dimension
-            const grammages = isSku ? parseMultiSelectFilter(filters.grammage) : null;
+            // ✅ Grammage filter applies across dimensions
+            const grammages = parseMultiSelectFilter(filters.grammage);
             if (grammages) {
                 const pdpCols = await getTableColumns(src.table);
                 if (columnExists(pdpCols, 'weight')) {
