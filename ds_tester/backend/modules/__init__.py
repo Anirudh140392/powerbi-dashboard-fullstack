@@ -7,6 +7,7 @@ from .visibility_analysis import VisibilityAnalysisModule
 from .content_analysis import ContentAnalysisModule
 from .content_score import ContentScoreModule
 from .pds_score import PdsScoreModule
+from .market_share import MarketShareModule
 
 MODULES: Dict[str, Any] = {
     "business_overview": BusinessOverviewModule,
@@ -17,6 +18,7 @@ MODULES: Dict[str, Any] = {
     "content_score": ContentScoreModule,
     "content_analysis": ContentAnalysisModule,
     "pds_score": PdsScoreModule,
+    "market_share": MarketShareModule,
 }
 
 
