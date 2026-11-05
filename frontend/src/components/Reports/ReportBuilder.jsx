@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Typography,
@@ -63,6 +63,7 @@ import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import dayjs from "dayjs";
 import { useHelp } from "../../utils/HelpContext";
 import { useAuth } from "../../utils/AuthContext";
+import { isTabPermitted } from "../ProtectedRoute";
 
 /* ─────────────────────────────────────────────────────────────
    PLATFORM VISUAL MAP  (colors & icons for known platforms)
@@ -201,6 +202,8 @@ export default function ReportBuilder({
 }) {
   const { toggleHelp } = useHelp();
   const { user } = useAuth();
+  const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+  const maxAllowedDate = useMemo(() => isQc ? dayjs() : dayjs().subtract(1, 'day'), [isQc]);
 
   // ── Dynamic platform list from backend ──
   const dynamicPlatforms = useMemo(() => {
@@ -251,15 +254,106 @@ export default function ReportBuilder({
   const [filters, setFilters] = useState(["Category", "Brand", "City"]);
   const [showFilterOpts, setShowFilterOpts] = useState(false);
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
-  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore"
+  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "content" | "review"
+  // "Content Data" is only offered when tb_user.tab_permissions has "Content Analysis": true
+  // (on mars, "Content Score": true — its sidebar tab for the same data) and the account has
+  // Content Analysis data (builder-options sends contentDateRange only then)
+  const isMars = user?.dbName?.toLowerCase() === 'mars';
+  const hasContentPermission = user?.tabPermissions?.["Content Analysis"] === true
+    || (isMars && user?.tabPermissions?.["Content Score"] === true);
+  const hasContentAnalysis = hasContentPermission && !!builderOptions?.contentDateRange;
 
-  // Sync date range bounds when switching dataMode to darkstore for DRL
+  // "Review Rating Data" is only offered where the sidebar shows the Review Rating tab
+  // and the account has review data (builder-options sends reviewDateRange only then)
+  const hasReviewRating = isTabPermitted(user?.tabPermissions, "Review Rating") && !!builderOptions?.reviewDateRange;
+
+  // Platforms that have review rating data (from builderOptions.reviewPlatforms)
+  const reviewPlatforms = useMemo(() => builderOptions?.reviewPlatforms || [], [builderOptions?.reviewPlatforms]);
+
+  // Check if any currently selected platform has review data
+  const selectedPlatforms = useMemo(() => Object.entries(platforms).filter(([, on]) => on).map(([id]) => id), [platforms]);
+  const hasSelectedReviewPlatform = useMemo(() => {
+    if (!hasReviewRating) return false;
+    if (selectedPlatforms.length === 0) return false;
+    return selectedPlatforms.some(p => reviewPlatforms.includes(p));
+  }, [hasReviewRating, selectedPlatforms, reviewPlatforms]);
+
+  // Review Rating Data is available if account has it AND at least one selected platform has data
+  const canUseReviewRating = hasReviewRating && hasSelectedReviewPlatform;
+
   useEffect(() => {
-    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange) {
-      setStartDate(dayjs(builderOptions.darkstoreDateRange.minDate));
-      setEndDate(dayjs(builderOptions.darkstoreDateRange.maxDate));
+    if (!hasContentAnalysis && dataMode === "content") setDataMode("aggregated");
+    if (!canUseReviewRating && dataMode === "review") setDataMode("aggregated");
+  }, [hasContentAnalysis, canUseReviewRating, dataMode]);
+
+  // Content Data / Review Rating Data only need a date range: no granularity, no metrics step
+  const isContentMode = dataMode === "content";
+  const isReviewMode = dataMode === "review";
+  const isDateOnlyMode = isContentMode || isReviewMode;
+  const visibleSteps = isDateOnlyMode ? STEPS.filter(s => s.id !== 2) : STEPS;
+
+  useEffect(() => {
+    if (isDateOnlyMode && step === 2) setStep(1);
+  }, [isDateOnlyMode, step]);
+
+  // ── Date boundary calculations based on dataMode ──
+  const effectiveMaxDate = useMemo(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange?.maxDate) {
+      return dayjs(builderOptions.darkstoreDateRange.maxDate);
+    }
+    return maxAllowedDate;
+  }, [dataMode, builderOptions?.darkstoreDateRange?.maxDate, maxAllowedDate]);
+
+  const effectiveMinDate = useMemo(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange?.minDate) {
+      return dayjs(builderOptions.darkstoreDateRange.minDate);
+    }
+    return undefined;
+  }, [dataMode, builderOptions?.darkstoreDateRange?.minDate]);
+
+  // Sync date range bounds when switching dataMode to darkstore without overwriting user changes
+  const hasInitializedDarkstoreDatesRef = useRef(false);
+  useEffect(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange && !hasInitializedDarkstoreDatesRef.current) {
+      hasInitializedDarkstoreDatesRef.current = true;
+      const minD = dayjs(builderOptions.darkstoreDateRange.minDate);
+      const maxD = dayjs(builderOptions.darkstoreDateRange.maxDate);
+      setStartDate(minD);
+      setEndDate(maxD);
+    }
+    if (dataMode !== 'darkstore') {
+      hasInitializedDarkstoreDatesRef.current = false;
     }
   }, [dataMode, builderOptions?.darkstoreDateRange]);
+
+  // Date picker bounds: in content / review mode, limited to the days that have that data
+  const dateOnlyRange = isContentMode ? builderOptions?.contentDateRange
+    : isReviewMode ? builderOptions?.reviewDateRange
+    : undefined;
+  // Otherwise, fall back to the darkstore/aggregated bounds above
+  const pickerMinDate = useMemo(
+    () => (dateOnlyRange ? dayjs(dateOnlyRange.minDate) : effectiveMinDate),
+    [dateOnlyRange, effectiveMinDate]
+  );
+  const pickerMaxDate = useMemo(() => {
+    if (!dateOnlyRange) return effectiveMaxDate;
+    const maxD = dayjs(dateOnlyRange.maxDate);
+    return !isQc && maxD.isAfter(maxAllowedDate) ? maxAllowedDate : maxD;
+  }, [dateOnlyRange, isQc, maxAllowedDate, effectiveMaxDate]);
+  const clampDate = (v) => {
+    if (v.isAfter(pickerMaxDate)) return pickerMaxDate;
+    if (pickerMinDate && v.isBefore(pickerMinDate)) return pickerMinDate;
+    return v;
+  };
+
+  // Content / review data only exists on some days — jump to the available range (last 30 days of it)
+  useEffect(() => {
+    if (isDateOnlyMode && pickerMinDate) {
+      const last30 = pickerMaxDate.subtract(30, 'day');
+      setStartDate(pickerMinDate.isAfter(last30) ? pickerMinDate : last30);
+      setEndDate(pickerMaxDate);
+    }
+  }, [isDateOnlyMode, pickerMinDate, pickerMaxDate]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -336,8 +430,18 @@ export default function ReportBuilder({
   const onTags = useMemo(() => allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).length, [allTags, tagOn, availableKpis]);
 
   // ── Date range state ──
-  const [startDate, setStartDate] = useState(customDateRange?.startDate || dayjs().subtract(30, 'day'));
-  const [endDate, setEndDate] = useState(customDateRange?.endDate || dayjs());
+  const [startDate, setStartDate] = useState(() => {
+    if (customDateRange?.startDate) {
+      return customDateRange.startDate.isAfter(maxAllowedDate) ? maxAllowedDate : customDateRange.startDate;
+    }
+    return (isQc ? dayjs() : dayjs().subtract(1, 'day')).subtract(30, 'day');
+  });
+  const [endDate, setEndDate] = useState(() => {
+    if (customDateRange?.endDate) {
+      return customDateRange.endDate.isAfter(maxAllowedDate) ? maxAllowedDate : customDateRange.endDate;
+    }
+    return isQc ? dayjs() : dayjs().subtract(1, 'day');
+  });
   const daysDiff = endDate.diff(startDate, 'day');
 
   // Sync date range to parent
@@ -385,26 +489,60 @@ export default function ReportBuilder({
     // 2. Set time period based on date range
     handleFilterChange("timePeriod", "Custom Range");
 
-    // 3. Set report type — Send custom Master Dump to trigger massive join backend query
-    handleFilterChange("reportType", "Master Dump");
+    // 3. Set report type
+    const isDarkstoreMode = dataMode === "darkstore";
+    handleFilterChange("reportType", isDarkstoreMode ? "Darkstore Data" : "Master Dump");
 
     // Pass latest values to parent directly to avoid React state timing bugs
     // Only send KPIs that are both selected AND available for the chosen platforms
-    const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
-    const activeDimensions = filters.join(",");
+    const activeTagList = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t));
+    const activeTags = activeTagList.join(",");
+
+    const PM_TAGS = new Set([
+      "impressions", "clicks", "spend", "inorganic sales",
+      "roas", "conversion rate", "cpm", "cpc", "aov"
+    ]);
+    const isOnlyPm = activeTagList.length > 0 && activeTagList.every(t => PM_TAGS.has(t.toLowerCase()));
+
+    let activeDimsList = filters;
+    if (isOnlyPm) {
+      activeDimsList = activeDimsList.filter(d => d !== "City" && d !== "Location");
+    }
+    const activeDimensions = activeDimsList.join(",");
+    const clampedEnd = isDarkstoreMode
+      ? (effectiveMaxDate && dayjs(endDate).isAfter(effectiveMaxDate) ? effectiveMaxDate : dayjs(endDate))
+      : (dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate));
+    const clampedStart = isDarkstoreMode
+      ? (effectiveMinDate && dayjs(startDate).isBefore(effectiveMinDate) ? effectiveMinDate : dayjs(startDate))
+      : (dayjs(startDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(startDate));
     const customDates = {
-      start: dayjs(startDate).format("YYYY-MM-DD"),
-      end: dayjs(endDate).format("YYYY-MM-DD")
+      start: clampedStart.format("YYYY-MM-DD"),
+      end: clampedEnd.format("YYYY-MM-DD")
     };
 
+    // Content Data / Review Rating Data only use platforms + date range
+    if (isDateOnlyMode) {
+      parentHandleDownload({
+        reportType: isContentMode ? "Content Data" : "Review Rating Data",
+        dataMode,
+        timePeriod: "Custom Range",
+        platform: platformOverride,
+        overrideDates: customDates
+      });
+      return;
+    }
+
     parentHandleDownload({
-      reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",
+      reportType: isDarkstoreMode ? "Darkstore Data" : "Master Dump",
       dataMode: dataMode,
+      timePeriod: "Custom Range",
+      startDate: customDates.start,
+      endDate: customDates.end,
       metrics: activeTags,
       dimensions: activeDimensions,
       platform: platformOverride,
       granularitySku: sku,
-      granularityGeo: geo,
+      granularityGeo: isOnlyPm ? "Pan India" : geo,
       granularityTime: time,
       overrideDates: customDates
     });
@@ -461,7 +599,7 @@ export default function ReportBuilder({
 
             {/* ── STEP RAIL ── */}
             <Paper elevation={0} sx={{ width: 72, flexShrink: 0, border: "1px solid #E2E8F0", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", py: 2.5, gap: 0.5, background: "white" }}>
-              {STEPS.map((s, i) => (
+              {visibleSteps.map((s, i) => (
                 <React.Fragment key={s.id}>
                   <Box
                     onClick={() => setStep(s.id)}
@@ -483,7 +621,7 @@ export default function ReportBuilder({
                       {String(s.id + 1).padStart(2, "0")}
                     </Typography>
                   </Box>
-                  {i < STEPS.length - 1 && (
+                  {i < visibleSteps.length - 1 && (
                     <Box sx={{ width: "1.5px", height: 14, background: step > s.id ? "#10B981" : "#E2E8F0", borderRadius: 1 }} />
                   )}
                 </React.Fragment>
@@ -587,8 +725,8 @@ export default function ReportBuilder({
               {/* ── STEP 1: GRANULARITY ── */}
               {step === 1 && (
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Set Granularity</Typography>
-                  <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Define how data is grouped across SKU, geography, and time</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>{isDateOnlyMode ? "Select Date Range" : "Set Granularity"}</Typography>
+                  <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>{isContentMode ? "Choose the date range for the content data export" : isReviewMode ? "Choose the date range for the review rating data export" : "Define how data is grouped across SKU, geography, and time"}</Typography>
 
                   {/* Data Source Toggle */}
                   <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
@@ -622,10 +760,43 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
+                      {hasReviewRating && (
+                        <Tooltip title={hasSelectedReviewPlatform ? "" : "No review rating data available for selected platform(s)"} placement="top" arrow>
+                          <Button
+                            variant={dataMode === "review" ? "contained" : "outlined"}
+                            onClick={hasSelectedReviewPlatform ? () => setDataMode("review") : undefined}
+                            disabled={!hasSelectedReviewPlatform}
+                            sx={{
+                              textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                              background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "white",
+                              color: dataMode === "review" ? "white" : !hasSelectedReviewPlatform ? "#BDBDBD" : "#64748B",
+                              borderColor: dataMode === "review" ? "#F59E0B" : !hasSelectedReviewPlatform ? "#E0E0E0" : "#CBD5E1",
+                              "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "#F1F5F9" }
+                            }}
+                          >
+                            Review Rating Data
+                          </Button>
+                        </Tooltip>
+                      )}
                     </Box>
                   </Box>
 
-                  {dataMode === "darkstore" ? (
+                  {isDateOnlyMode ? null : dataMode === "darkstore" ? (
                     <Box sx={{ mb: 3, p: 2.5, borderRadius: "14px", background: "#F0F9FF", border: "1.5px solid #0EA5E9" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
                         <StoreIcon sx={{ color: "#0EA5E9", fontSize: 22 }} />
@@ -682,15 +853,18 @@ export default function ReportBuilder({
                     <DatePicker
                       label="Start"
                       value={startDate}
-                      onChange={(v) => v && setStartDate(v)}
+                      onChange={(v) => v && setStartDate(clampDate(v))}
+                      minDate={pickerMinDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ color: "#94A3B8", fontSize: 18 }}>→</Typography>
                     <DatePicker
                       label="End"
                       value={endDate}
-                      onChange={(v) => v && setEndDate(v)}
-                      minDate={startDate}
+                      onChange={(v) => v && setEndDate((startDate && v.isBefore(startDate)) ? startDate : clampDate(v))}
+                      minDate={startDate || pickerMinDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ fontSize: 12, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace" }}>{daysDiff} day{daysDiff !== 1 ? "s" : ""}</Typography>
@@ -698,7 +872,23 @@ export default function ReportBuilder({
 
                   <Box sx={{ display: "flex", justifyContent: "space-between", pt: 2, borderTop: "1px solid #E2E8F0" }}>
                     <Button startIcon={<ArrowBackIcon />} onClick={() => setStep(0)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", color: "#64748B", borderColor: "#E2E8F0" }} variant="outlined">Back</Button>
-                    <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => setStep(2)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", background: "#4F46E5", "&:hover": { background: "#4338CA" } }}>Continue</Button>
+                    {isDateOnlyMode ? (
+                      <Button
+                        variant="contained"
+                        startIcon={isDownloading ? null : <DownloadIcon />}
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 3, py: 1.2,
+                          background: "linear-gradient(135deg, #4F46E5, #7C3AED)",
+                          "&:hover": { background: "linear-gradient(135deg, #4338CA, #6D28D9)", boxShadow: "0 6px 20px rgba(79,70,229,0.3)" },
+                        }}
+                      >
+                        {isDownloading ? "Generating…" : "Download Report"}
+                      </Button>
+                    ) : (
+                      <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => setStep(2)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", background: "#4F46E5", "&:hover": { background: "#4338CA" } }}>Continue</Button>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -741,6 +931,39 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
+                      {hasReviewRating && (
+                        <Tooltip title={hasSelectedReviewPlatform ? "" : "No review rating data available for selected platform(s)"} placement="top" arrow>
+                          <Button
+                            variant={dataMode === "review" ? "contained" : "outlined"}
+                            onClick={hasSelectedReviewPlatform ? () => setDataMode("review") : undefined}
+                            disabled={!hasSelectedReviewPlatform}
+                            sx={{
+                              textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                              background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "white",
+                              color: dataMode === "review" ? "white" : !hasSelectedReviewPlatform ? "#BDBDBD" : "#64748B",
+                              borderColor: dataMode === "review" ? "#F59E0B" : !hasSelectedReviewPlatform ? "#E0E0E0" : "#CBD5E1",
+                              "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "#F1F5F9" }
+                            }}
+                          >
+                            Review Rating Data
+                          </Button>
+                        </Tooltip>
+                      )}
                     </Box>
                   </Box>
 
@@ -828,7 +1051,8 @@ export default function ReportBuilder({
                       variant="contained"
                       startIcon={isDownloading ? null : <DownloadIcon />}
                       onClick={handleDownload}
-                      disabled={isDownloading}
+                      // An empty metrics param is dropped from the request, which would export every column
+                      disabled={isDownloading || (dataMode !== "darkstore" && onTags === 0)}
                       sx={{
                         textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 3, py: 1.2,
                         background: "linear-gradient(135deg, #4F46E5, #7C3AED)",
@@ -865,6 +1089,7 @@ export default function ReportBuilder({
               <Divider sx={{ my: 1.5 }} />
 
               {/* Granularity */}
+              {!isDateOnlyMode && (<>
               <Box sx={{ mb: 2 }}>
                 <Typography sx={{ fontSize: 10, color: "#94A3B8", mb: 0.8, fontFamily: "'JetBrains Mono', monospace" }}>// granularity</Typography>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
@@ -879,6 +1104,7 @@ export default function ReportBuilder({
               </Box>
 
               <Divider sx={{ my: 1.5 }} />
+              </>)}
 
               {/* Date Range */}
               <Box sx={{ mb: 2 }}>
@@ -886,6 +1112,7 @@ export default function ReportBuilder({
                 <Chip label={`${startDate.format("DD MMM")}–${endDate.format("DD MMM")}`} size="small" sx={{ borderRadius: "100px", fontSize: 11, height: 24, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748B" }} />
               </Box>
 
+              {!isDateOnlyMode && (<>
               <Divider sx={{ my: 1.5 }} />
 
               {/* Metrics */}
@@ -905,10 +1132,12 @@ export default function ReportBuilder({
                   {onTags}/{totalTags} total
                 </Typography>
               </Box>
+              </>)}
 
+              {/* Schedule button in sidebar — Content / Review Rating Data are download-only */}
+              {!isDateOnlyMode && (<>
               <Divider sx={{ my: 2 }} />
 
-              {/* Schedule button in sidebar */}
               <Button
                 fullWidth
                 variant="outlined"
@@ -918,6 +1147,7 @@ export default function ReportBuilder({
               >
                 Schedule
               </Button>
+              </>)}
             </Paper>
           </Box>
         )}

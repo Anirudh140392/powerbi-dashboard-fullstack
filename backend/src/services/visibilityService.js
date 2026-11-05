@@ -7,20 +7,48 @@ import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
 
-function buildCHCondition(value, column, options = {}) {
-    const { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
+export const isAllValue = (val) => {
+    if (!val) return true;
+    if (Array.isArray(val)) {
+        if (val.length === 0) return true;
+        return val.some(v => {
+            const lower = String(v).toLowerCase().trim();
+            return (
+                lower === 'all' ||
+                lower === 'all india' ||
+                lower === 'select all' ||
+                lower === 'all platforms' ||
+                lower === 'all categories' ||
+                lower === 'all signals' ||
+                lower === 'all cities' ||
+                lower === 'all brands' ||
+                lower === 'all skus' ||
+                lower === 'multi-city'
+            );
+        });
+    }
+    const lower = String(val).toLowerCase().trim();
+    return (
+        lower === 'all' ||
+        lower === 'all india' ||
+        lower === 'select all' ||
+        lower === 'all platforms' ||
+        lower === 'all categories' ||
+        lower === 'all signals' ||
+        lower === 'all cities' ||
+        lower === 'all brands' ||
+        lower === 'all skus' ||
+        lower === 'multi-city'
+    );
+};
 
-    const isAll = (val) => {
-        if (!val) return true;
-        if (Array.isArray(val)) {
-            return val.some(v => {
-                const lower = String(v).toLowerCase();
-                return lower === 'all' || lower === 'all india';
-            });
-        }
-        const lower = String(val).toLowerCase();
-        return lower === 'all' || lower === 'all india';
-    };
+function buildCHCondition(value, column, options = {}) {
+    let { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
+    if (column === 'keyword_search_product' || column === 'Product' || column === 'item_name') {
+        noSplit = true;
+    }
+
+    const isAll = isAllValue;
 
     const isOurBrand = (val) => {
         if (!val) return false;
@@ -266,7 +294,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
 
         results.forEach(row => {
             const date = dayjs(row.crawl_date);
-            const dateStr = date.format('MMM D');
+            const dateStr = date.format('DD MMM YYYY');
 
             overall.dates.push(dateStr);
             overall.values.push(Number(row.overall_sos) || 0);
@@ -348,13 +376,23 @@ async function getVisibilityOverviewData(filters = {}) {
 
         // Use dayjs like Watch Tower for consistent date handling
         // Default to last 7 days for a "Weekly" comparison
-        let endDate = dayjs();
+        let endDate = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : (filters.isQcUser ? dayjs() : dayjs().subtract(1, 'day'));
         let startDate = endDate.subtract(6, 'day'); // 7 days inclusive
 
         // Override with filter dates if provided
         if (filters.startDate && filters.endDate) {
             startDate = dayjs(filters.startDate);
             endDate = dayjs(filters.endDate);
+        }
+
+        // Restrict non-QC users to maxAllowedDate (current day - 1)
+        if (!filters.isQcUser && filters.maxAllowedDate) {
+            if (endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                endDate = dayjs(filters.maxAllowedDate);
+            }
+            if (startDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                startDate = dayjs(filters.maxAllowedDate);
+            }
         }
 
         // Previous period: use compare dates if provided, else shift back by duration
@@ -386,7 +424,6 @@ async function getVisibilityOverviewData(filters = {}) {
         // 1. Current period SOS (all 3 types in 1 query)
         // 2. Previous period SOS (all 3 types in 1 query)
         // 3. Sparkline trends (all 3 types in 1 query)
-        // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
             calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
@@ -409,6 +446,8 @@ async function getVisibilityOverviewData(filters = {}) {
         const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
 
         return {
+            startDate: dateRanges.current.start,
+            endDate: dateRanges.current.end,
             cards: [
                 {
                     title: "Overall SOS",
@@ -421,6 +460,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "green",
                     months: dailyTrends.overall.dates,
+                    dates: dailyTrends.overall.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.overall.values
                 },
                 {
@@ -434,6 +476,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "red",
                     months: dailyTrends.sponsored.dates,
+                    dates: dailyTrends.sponsored.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.sponsored.values
                 },
                 {
@@ -447,6 +492,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "green",
                     months: dailyTrends.organic.dates,
+                    dates: dailyTrends.organic.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.organic.values
                 }
             ]
@@ -733,8 +781,8 @@ class VisibilityService {
 
             if (!startDate || !endDate) {
                 // Default to last 30 days
-                endDate = dayjs().format('YYYY-MM-DD');
-                startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                endDate = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+                startDate = dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
             }
 
             const replacements = { startDate, endDate };
@@ -1398,7 +1446,7 @@ class VisibilityService {
                 }
 
                 let startDate = filters.startDate ? dayjs(filters.startDate).format('YYYY-MM-DD') : maxDate;
-                let endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : maxDate;
+                let endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : (filters.maxAllowedDate && dayjs(maxDate).isAfter(dayjs(filters.maxAllowedDate)) ? filters.maxAllowedDate : maxDate);
 
                 const start = dayjs(startDate);
                 const end = dayjs(endDate);
@@ -1774,8 +1822,8 @@ class VisibilityService {
                 const categoryClause = categoryFilter !== '1=1' ? `AND ${categoryFilter}` : '';
 
                 // 1. Calculate Period Boundaries (consistent with getTopSearchTerms)
-                const start = dayjs(filters.startDate || dayjs().subtract(7, 'day'));
-                const end = dayjs(filters.endDate || dayjs());
+                const end = dayjs(filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs()));
+                const start = dayjs(filters.startDate || end.subtract(7, 'day'));
                 const duration = end.diff(start, 'day') + 1;
 
                 const currStart = start.format('YYYY-MM-DD');
@@ -2180,10 +2228,10 @@ class VisibilityService {
      * Get the latest available dates from rb_kw_olap table
      * Returns the date range of the latest month that has data
      */
-    async getLatestAvailableDates() {
-        console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called');
+    async getLatestAvailableDates(maxAllowedDate) {
+        console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called, maxAllowedDate:', maxAllowedDate);
         const dbName = getCurrentDbName();
-        const cacheKey = `visibility_latest_dates_db_${dbName}`;
+        const cacheKey = `visibility_latest_dates_db_${dbName}_${maxAllowedDate || 'all'}`;
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -2196,12 +2244,12 @@ class VisibilityService {
             `);
 
                 const minDate = results[0]?.minDate;
-                const maxDate = results[0]?.maxDate;
+                const dbMaxDate = results[0]?.maxDate;
 
-                if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
+                if (!dbMaxDate || dbMaxDate === '0000-00-00' || dbMaxDate === '1970-01-01') {
                     console.log('[VisibilityService] No valid data found in rb_kw_olap table, returning current month');
                     // Fallback to current month if no data
-                    const now = dayjs();
+                    const now = maxAllowedDate ? dayjs(maxAllowedDate) : dayjs();
                     return {
                         available: false,
                         minDate: undefined,
@@ -2212,7 +2260,10 @@ class VisibilityService {
                     };
                 }
 
-                const latestDate = dayjs(maxDate);
+                let latestDate = dayjs(dbMaxDate);
+                if (maxAllowedDate && latestDate.isAfter(dayjs(maxAllowedDate))) {
+                    latestDate = dayjs(maxAllowedDate);
+                }
                 const startOfMonth = latestDate.startOf('month');
 
                 console.log('[VisibilityService] Found latest date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
@@ -2228,7 +2279,7 @@ class VisibilityService {
             } catch (error) {
                 console.error('[VisibilityService] Error getting latest available dates (ClickHouse):', error);
                 // Fallback to current month on error
-                const now = dayjs();
+                const now = maxAllowedDate ? dayjs(maxAllowedDate) : dayjs();
                 return {
                     available: false,
                     minDate: undefined,
@@ -2293,6 +2344,9 @@ class VisibilityService {
                     endDate = dayjs(maxDate);
                 } else {
                     endDate = dayjs();
+                }
+                if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                    endDate = dayjs(filters.maxAllowedDate);
                 }
 
                 const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
@@ -2504,7 +2558,10 @@ class VisibilityService {
                 return { brands: [], skus: [] };
             }
 
-            const latestDate = dayjs(maxDate);
+            let latestDate = dayjs(maxDate);
+            if (filters.maxAllowedDate && latestDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                latestDate = dayjs(filters.maxAllowedDate);
+            }
             console.log('[VisibilityService] Using latest available date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
 
             // Determine date ranges
@@ -2612,6 +2669,7 @@ class VisibilityService {
             const brandQuery = `
                 SELECT 
                     brand as brand_name,
+                    max(toInt32(flag)) as flag,
                     ROUND(sumIf(toInt32(overall), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.overall}, 2) AS current_overall_sos,
                     ROUND(sumIf(toInt32(spons), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.spons}, 2) AS current_sponsored_sos,
                     ROUND(sumIf(toInt32(organic), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.organic}, 2) AS current_organic_sos,
@@ -2624,38 +2682,60 @@ class VisibilityService {
                   ${allFilters}
                   AND brand IS NOT NULL AND brand != ''
                   AND lower(brand) != 'other'
-                  AND flag = 0
                   ${rankCondition}
                 GROUP BY brand
-                ORDER BY impressions DESC
-                LIMIT 20
+                ORDER BY current_overall_sos DESC, impressions DESC
+                LIMIT 100
             `;
 
+            // Get valid brand names from rca_sku_dim (comp_flag = 0)
+            let validBrandNames = [];
+            try {
+                const validBrandsResult = await queryClickHouse(`
+                    SELECT DISTINCT brand_name 
+                    FROM rca_sku_dim 
+                    WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
+                `);
+                validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+            } catch (e) {
+                console.warn('[VisibilityService] Could not fetch valid brands from rca_sku_dim:', e.message);
+            }
+            const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
 
             const brandResults = await queryClickHouse(brandQuery);
 
-            const brands = brandResults.map(b => ({
-                brand: b.brand_name,
-                overall_sos: {
-                    value: Number(b.current_overall_sos) || 0,
-                    delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
-                },
-                sponsored_sos: {
-                    value: Number(b.current_sponsored_sos) || 0,
-                    delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
-                },
-                organic_sos: {
-                    value: Number(b.current_organic_sos) || 0,
-                    delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
-                },
-                display_sos: { value: 0, delta: 0 }
-            }));
+            const brands = brandResults.map((b, idx) => {
+                const brandCleanName = (b.brand_name || '').trim();
+                const isOwnBrand = Boolean(Number(b.flag) === 1 || validBrandNamesLower.has(brandCleanName.toLowerCase()));
+                return {
+                    rank: idx + 1,
+                    brand: brandCleanName,
+                    brand_name: brandCleanName,
+                    name: brandCleanName,
+                    isOwnBrand,
+                    is_my_brand: isOwnBrand,
+                    overall_sos: {
+                        value: Number(b.current_overall_sos) || 0,
+                        delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
+                    },
+                    sponsored_sos: {
+                        value: Number(b.current_sponsored_sos) || 0,
+                        delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
+                    },
+                    organic_sos: {
+                        value: Number(b.current_organic_sos) || 0,
+                        delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
+                    },
+                    display_sos: { value: 0, delta: 0 }
+                };
+            });
 
             // 3. Query for SKU-level competition using rb_kw_olap
             const skuQuery = `
                 SELECT 
                     keyword_search_product as sku_name,
                     brand as brand_name,
+                    max(toInt32(flag)) as flag,
                     ROUND(sum(toInt32(overall)) * 100.0 / ${currV.overall}, 2) AS overall_sos,
                     ROUND(sum(toInt32(spons)) * 100.0 / ${currV.spons}, 2) AS sponsored_sos,
                     ROUND(sum(toInt32(organic)) * 100.0 / ${currV.organic}, 2) AS organic_sos,
@@ -2665,26 +2745,37 @@ class VisibilityService {
                   ${allFilters}
                   AND keyword IS NOT NULL AND keyword != ''
                   AND lower(brand) != 'other'
-                  AND flag = 0
                   ${rankCondition}
                 GROUP BY sku_name, brand_name
-                ORDER BY impressions DESC
-                LIMIT 20
+                ORDER BY overall_sos DESC, impressions DESC
+                LIMIT 50
             `;
 
             console.log(`[VisibilityService] ClickHouse SKU Competition Query: ${skuQuery}`);
             const skuResults = await queryClickHouse(skuQuery);
 
-            const skus = skuResults.map(s => ({
-                sku: s.sku_name,
-                brand: s.brand_name,
-                overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
-                sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
-                organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
-                display_sos: { value: 0, delta: 0 }
-            }));
+            const skus = skuResults.map(s => {
+                const isOwn = Boolean(Number(s.flag) === 1 || validBrandNamesLower.has((s.brand_name || '').toLowerCase().trim()));
+                return {
+                    sku: s.sku_name,
+                    name: s.sku_name,
+                    brand: s.brand_name,
+                    brand_name: s.brand_name,
+                    isOwnBrand: isOwn,
+                    is_my_brand: isOwn,
+                    overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
+                    sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
+                    organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
+                    display_sos: { value: 0, delta: 0 }
+                };
+            });
 
-            return { brands, skus };
+            return {
+                brands,
+                topBrands: brands.slice(0, 10),
+                ourBrands: validBrandNames,
+                skus
+            };
         } catch (error) {
             console.error('[VisibilityService] Error getting visibility competition (ClickHouse):', error);
             return { brands: [], skus: [] };
@@ -2718,18 +2809,67 @@ class VisibilityService {
             let selectedItems = [];
 
             if (dimension === 'sku') {
-                selectedItems = Array.isArray(filters.skus) ? filters.skus : (filters.skus ? filters.skus.split(',') : []);
-                if (selectedItems.length === 0 || selectedItems[0] === 'All') {
-                    selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
+                if (Array.isArray(filters.skus)) {
+                    selectedItems = filters.skus;
+                } else if (typeof filters.skus === 'string' && filters.skus.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.skus);
+                    } catch (e) {
+                        selectedItems = filters.skus.split(',');
+                    }
+                } else if (filters.skus && filters.skus !== 'All') {
+                    selectedItems = [filters.skus];
+                } else {
+                    selectedItems = [];
+                }
+
+                if (selectedItems.length === 0 || (selectedItems.length === 1 && selectedItems[0] === 'All')) {
+                    if (Array.isArray(filters.brands)) {
+                        selectedItems = filters.brands;
+                    } else if (typeof filters.brands === 'string' && filters.brands.trim().startsWith('[')) {
+                        try {
+                            selectedItems = JSON.parse(filters.brands);
+                        } catch (e) {
+                            selectedItems = filters.brands.split(',');
+                        }
+                    } else if (filters.brands && filters.brands !== 'All') {
+                        selectedItems = [filters.brands];
+                    } else {
+                        selectedItems = [];
+                    }
                 }
             } else if (dimension === 'keyword') {
-                selectedItems = Array.isArray(filters.keyword) ? filters.keyword : (filters.keyword ? filters.keyword.split(',') : []);
+                if (Array.isArray(filters.keyword)) {
+                    selectedItems = filters.keyword;
+                } else if (typeof filters.keyword === 'string' && filters.keyword.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.keyword);
+                    } catch (e) {
+                        selectedItems = filters.keyword.split(',');
+                    }
+                } else if (filters.keyword && filters.keyword !== 'All') {
+                    selectedItems = [filters.keyword];
+                } else {
+                    selectedItems = [];
+                }
             } else {
-                selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
+                if (Array.isArray(filters.brands)) {
+                    selectedItems = filters.brands;
+                } else if (typeof filters.brands === 'string' && filters.brands.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.brands);
+                    } catch (e) {
+                        selectedItems = filters.brands.split(',');
+                    }
+                } else if (filters.brands && filters.brands !== 'All') {
+                    selectedItems = [filters.brands];
+                } else {
+                    selectedItems = [];
+                }
             }
 
             // [FIX] Remove 'Other' brand from comparison as requested
-            selectedItems = selectedItems.filter(b => b && b.trim().toLowerCase() !== 'other');
+            selectedItems = selectedItems.filter(b => b && String(b).trim().toLowerCase() !== 'other');
 
             if (selectedItems.length === 0) {
                 return { brands: {}, days: [] };
@@ -2747,7 +2887,7 @@ class VisibilityService {
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
 
             // Specific conditions for the selected comparison items (the lines on the graph)
-            const targetCondition = buildCHCondition(selectedItems, dimColumn);
+            const targetCondition = buildCHCondition(selectedItems, dimColumn, { noSplit: true });
 
             // Drawer filters that apply globally
             let drawerBrandCondition = '1=1';
@@ -2755,13 +2895,13 @@ class VisibilityService {
 
             if (dimension === 'brand') {
                 // When comparing brands, apply the drawer's SKU filter if present
-                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product', { noSplit: true });
             } else if (dimension === 'sku') {
                 // When comparing SKUs, apply the drawer's brand filter if present
                 drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
             } else {
                 drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
-                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product', { noSplit: true });
             }
 
             let rankCondition = '';
@@ -2793,6 +2933,9 @@ class VisibilityService {
                     endDate = dayjs(maxDate);
                 } else {
                     endDate = dayjs();
+                }
+                if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                    endDate = dayjs(filters.maxAllowedDate);
                 }
 
                 const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
@@ -2863,9 +3006,9 @@ class VisibilityService {
                 if (!val) return false;
                 if (Array.isArray(val)) {
                     if (val.length === 0) return false;
-                    return !val.some(v => String(v).toLowerCase() === 'all');
+                    return !val.some(v => isAllValue(v));
                 }
-                return String(val).toLowerCase() !== 'all';
+                return !isAllValue(val);
             };
             const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType) || dimension === 'keyword';
 
@@ -2896,11 +3039,11 @@ class VisibilityService {
             console.log('--- getBrandComparisonTrends Numerator Query ---');
             console.log(brandDataQuery);
 
-            const queries = [queryClickHouse(brandDataQuery)];
+            const brandResults = await queryClickHouse(brandDataQuery);
 
-            let offtakeQuery = null;
-            let msBrandQuery = null;
-            let msCatTotalQuery = null;
+            let offtakeResults = [];
+            let msResults = [];
+            let msTotalResults = [];
 
             if (!hasKeywordFilter) {
                 let pdpDimCol = dimension === 'sku' ? 'Product' : 'Brand';
@@ -2912,10 +3055,10 @@ class VisibilityService {
                 const msLocationCondition = buildCHCondition(filters.location, 'location');
                 const pdpCategoryCondition = buildCHCondition(filters.category || filters.format, 'Category');
                 const msCategoryCondition = buildCHCondition(filters.category || filters.format, 'category');
-                const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol);
-                const msBrandsCondition = buildCHCondition(selectedItems, msDimCol);
+                const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol, { noSplit: true });
+                const msBrandsCondition = buildCHCondition(selectedItems, msDimCol, { noSplit: true });
 
-                offtakeQuery = `
+                const offtakeQuery = `
                         SELECT 
                             ${pdpDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
@@ -2929,7 +3072,7 @@ class VisibilityService {
                         GROUP BY brand_name, crawl_date
                     `;
 
-                msBrandQuery = `
+                const msBrandQuery = `
                         SELECT 
                             ${msDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
@@ -2943,7 +3086,7 @@ class VisibilityService {
                         GROUP BY brand_name, crawl_date
                     `;
 
-                msCatTotalQuery = `
+                const msCatTotalQuery = `
                         SELECT 
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
                             SUM(toFloat64OrZero(toString(sales))) as cat_total_sales
@@ -2955,20 +3098,28 @@ class VisibilityService {
                         GROUP BY crawl_date
                     `;
 
-                queries.push(queryClickHouse(offtakeQuery));
-                queries.push(queryClickHouse(msBrandQuery));
-                queries.push(queryClickHouse(msCatTotalQuery));
+                try {
+                    const [oRes, mRes, mtRes] = await Promise.all([
+                        queryClickHouse(offtakeQuery).catch(e => { console.warn('offtakeQuery failed:', e.message); return []; }),
+                        queryClickHouse(msBrandQuery).catch(e => { console.warn('msBrandQuery failed:', e.message); return []; }),
+                        queryClickHouse(msCatTotalQuery).catch(e => { console.warn('msCatTotalQuery failed:', e.message); return []; })
+                    ]);
+                    offtakeResults = oRes || [];
+                    msResults = mRes || [];
+                    msTotalResults = mtRes || [];
+                } catch (e) {
+                    console.warn('[VisibilityService] Optional offtake/ms query error:', e.message);
+                }
             }
 
-            const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
-
-            // Group results by brand
+            // Group results by brand (case-insensitive key mapping)
             const brandDataMap = {};
             brandResults.forEach(row => {
-                if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
+                const bKey = String(row.brand_name || '').toLowerCase().trim();
+                if (!brandDataMap[bKey]) brandDataMap[bKey] = {};
                 const date = dayjs(row.crawl_date);
                 const dateStr = date.format(dateFormat);
-                brandDataMap[row.brand_name][dateStr] = {
+                brandDataMap[bKey][dateStr] = {
                     brand_volume: Number(row.brand_volume) || 0,
                     sponsored_volume: Number(row.sponsored_volume) || 0,
                     organic_volume: Number(row.organic_volume) || 0,
@@ -2979,9 +3130,10 @@ class VisibilityService {
             const offtakeMap = {};
             if (offtakeResults) {
                 offtakeResults.forEach(row => {
-                    if (!offtakeMap[row.brand_name]) offtakeMap[row.brand_name] = {};
+                    const bKey = String(row.brand_name || '').toLowerCase().trim();
+                    if (!offtakeMap[bKey]) offtakeMap[bKey] = {};
                     const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                    offtakeMap[row.brand_name][dateStr] = parseFloat(row.total_sales || 0);
+                    offtakeMap[bKey][dateStr] = parseFloat(row.total_sales || 0);
                 });
             }
 
@@ -2996,20 +3148,22 @@ class VisibilityService {
             const msMap = {};
             if (msResults) {
                 msResults.forEach(row => {
-                    if (!msMap[row.brand_name]) msMap[row.brand_name] = {};
+                    const bKey = String(row.brand_name || '').toLowerCase().trim();
+                    if (!msMap[bKey]) msMap[bKey] = {};
                     const dateStr = dayjs(row.crawl_date).format(dateFormat);
                     const brandSales = parseFloat(row.brand_total_sales || 0);
                     const totalSales = catTotalMap[dateStr] || 0;
                     const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
-                    msMap[row.brand_name][dateStr] = parseFloat(catShare.toFixed(2));
+                    msMap[bKey][dateStr] = parseFloat(catShare.toFixed(2));
                 });
             }
 
             const brandsResult = {};
             selectedItems.forEach((brandName, index) => {
-                const brandHistory = brandDataMap[brandName] || {};
-                const offtakeHistory = offtakeMap[brandName] || {};
-                const msHistory = msMap[brandName] || {};
+                const bKey = String(brandName || '').toLowerCase().trim();
+                const brandHistory = brandDataMap[bKey] || brandDataMap[brandName] || {};
+                const offtakeHistory = offtakeMap[bKey] || offtakeMap[brandName] || {};
+                const msHistory = msMap[bKey] || msMap[brandName] || {};
 
                 const timeSeries = allDays.map(dateStr => {
                     const totalVol = volumeByDate[dateStr] || { overall: 1, spons: 1, organic: 1 };
@@ -4552,8 +4706,8 @@ class VisibilityService {
                     skuCol, bsrCol, discountCol, channelCol, flagCol, dateCol, pltCol, brdCol, locCol, catCol
                 });
 
-                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+                const endDate = filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+                const startDate = filters.startDate || dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
 
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
@@ -4847,8 +5001,8 @@ class VisibilityService {
                 const locCol = r('Location', 'Location');
                 const catCol = r('Category', 'Category');
 
-                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+                const endDate = filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+                const startDate = filters.startDate || dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
 
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];

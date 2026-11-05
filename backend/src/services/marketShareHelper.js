@@ -3807,3 +3807,265 @@ export const getMarketShareShareTable = async (start, end, platformFilter, categ
     }
 };
 
+/**
+ * 4-Level Platform -> Category -> Brand -> Product Drilldown from rb_ms_olap
+ * Columns: platform, category, brand, Product, own_brand_sales, category_size, market_share
+ */
+export const getMarketShareProductDrilldown = async (
+    start,
+    end,
+    platformFilter = null,
+    categoryFilter = null,
+    locationFilter = null,
+    brandFilter = null,
+    subCategoryFilter = null,
+    subBrandFilter = null,
+    channelFilter = null
+) => {
+    try {
+        const startStr = (dayjs.isDayjs(start) ? start : dayjs(start)).format('YYYY-MM-DD');
+        const endStr = (dayjs.isDayjs(end) ? end : dayjs(end)).format('YYYY-MM-DD');
+        const dateCond = `toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'`;
+
+        // 1. Fetch own brands dynamically
+        const ownBrands = new Set();
+        try {
+            const brandQuery = `SELECT DISTINCT lower(brand_name) as b FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            brandResult.forEach(r => {
+                if (r.b) ownBrands.add(r.b.trim().toLowerCase());
+            });
+        } catch (e) {
+            console.warn('[getMarketShareProductDrilldown] rca_sku_dim query failed:', e.message);
+        }
+
+        // 2. Build filters: Platform & Channel
+        const platformArr = normalizeFilterArray(platformFilter);
+        let platformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            const escaped = platformArr.map(p => `'${p.trim().toLowerCase().replace(/'/g, "''")}'`).join(', ');
+            platformCond = `AND lower(platform) IN (${escaped})`;
+        } else if (channelFilter && channelFilter !== 'All') {
+            // Resolve all platforms belonging to this channel so all platforms for the channel are returned
+            let validPlatforms = [];
+            try {
+                const allPlatformResults = await queryClickHouse(
+                    `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != ''`
+                );
+                const allMsPlatforms = allPlatformResults.map(r => r.platform);
+                if (allMsPlatforms.length > 0) {
+                    const platformList = allMsPlatforms.map(p => `'${p.replace(/'/g, "''")}'`).join(', ');
+                    const mappingResults = await queryClickHouse(`
+                        SELECT DISTINCT platform, channel 
+                        FROM rca_sku_dim 
+                        WHERE platform IN (${platformList}) 
+                        AND channel IS NOT NULL AND channel != ''
+                    `);
+                    const channelMap = new Map();
+                    mappingResults.forEach(r => {
+                        if (r.platform && r.channel) {
+                            channelMap.set(r.platform.toLowerCase(), r.channel.toLowerCase());
+                        }
+                    });
+
+                    const chLower = channelFilter.toLowerCase();
+                    validPlatforms = allMsPlatforms.filter(p => {
+                        const mappedCh = channelMap.get(p.toLowerCase());
+                        if (!mappedCh) return false;
+                        if (chLower.includes('quick') && mappedCh.includes('quick')) return true;
+                        if ((chLower.includes('ecom') || chLower.includes('ecommerce')) && (mappedCh.includes('ecom') || mappedCh.includes('ecommerce'))) return true;
+                        return mappedCh === chLower;
+                    });
+                }
+            } catch (chErr) {
+                console.warn('[getMarketShareProductDrilldown] channel resolution error:', chErr.message);
+            }
+
+            // Fallback by well-known platform names if rca_sku_dim had no matches
+            if (validPlatforms.length === 0) {
+                const chLower = channelFilter.toLowerCase();
+                const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'flipkart minutes', 'amazon now'];
+                const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+                if (chLower.includes('quick')) {
+                    validPlatforms = quickPlatforms;
+                } else if (chLower.includes('ecom')) {
+                    validPlatforms = ecomPlatforms;
+                }
+            }
+
+            if (validPlatforms.length > 0) {
+                const escaped = validPlatforms.map(p => `'${p.trim().toLowerCase().replace(/'/g, "''")}'`).join(', ');
+                platformCond = `AND lower(platform) IN (${escaped})`;
+            }
+        }
+
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            const escaped = categoryArr.map(c => `'${c.trim().toLowerCase().replace(/'/g, "''")}'`).join(', ');
+            categoryCond = `AND lower(category) IN (${escaped})`;
+        }
+
+        const brandArr = normalizeFilterArray(brandFilter);
+        let brandCond = '';
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            const escaped = brandArr.map(b => `'${b.trim().toLowerCase().replace(/'/g, "''")}'`).join(', ');
+            brandCond = `AND (lower(group_brand) IN (${escaped}) OR lower(brand) IN (${escaped}))`;
+        }
+
+        const locationArr = normalizeFilterArray(locationFilter);
+        let locationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
+            const escaped = locationArr.map(l => `'${l.trim().toLowerCase().replace(/'/g, "''")}'`).join(', ');
+            locationCond = `AND lower(location) IN (${escaped})`;
+        }
+
+        const query = `
+            SELECT 
+                initCap(platform) as platform,
+                initCap(category) as category,
+                initCap(coalesce(nullIf(group_brand, ''), brand)) as brand,
+                item_name as product,
+                SUM(toFloat64OrZero(toString(sales))) as total_sales
+            FROM rb_ms_olap
+            WHERE ${dateCond}
+              AND toFloat64OrZero(toString(sales)) > 0
+              AND category IS NOT NULL AND category != ''
+              AND item_name IS NOT NULL AND item_name != ''
+              ${platformCond}
+              ${categoryCond}
+              ${brandCond}
+              ${locationCond}
+            GROUP BY platform, category, brand, product
+            ORDER BY platform, category, brand, total_sales DESC
+        `;
+
+        const rows = await queryClickHouse(query);
+        if (!rows || rows.length === 0) {
+            return [];
+        }
+
+        // 3. Build nested 4-level tree: Platform -> Category -> Brand -> Product
+        const platMap = new Map();
+
+        for (const r of rows) {
+            const p = r.platform || 'Other';
+            const c = r.category || 'Other';
+            const b = r.brand || 'Other';
+            const prod = r.product || 'Other';
+            const sales = Number(r.total_sales) || 0;
+            const isOur = ownBrands.has(b.toLowerCase());
+
+            if (!platMap.has(p)) platMap.set(p, new Map());
+            const catMap = platMap.get(p);
+
+            if (!catMap.has(c)) catMap.set(c, new Map());
+            const brandMap = catMap.get(c);
+
+            if (!brandMap.has(b)) brandMap.set(b, { isOur, sales: 0, products: [] });
+            const bObj = brandMap.get(b);
+            bObj.sales += sales;
+            // Retain top 25 products per brand for performance
+            if (bObj.products.length < 25) {
+                bObj.products.push({ product: prod, sales, isOur });
+            }
+        }
+
+        const tree = [];
+        for (const [pName, catMap] of platMap.entries()) {
+            let pCatSize = 0;
+            let pOwnSales = 0;
+            const catNodes = [];
+
+            for (const [cName, brandMap] of catMap.entries()) {
+                let cCatSize = 0;
+                let cOwnSales = 0;
+                const brandNodes = [];
+
+                for (const [, bData] of brandMap.entries()) {
+                    cCatSize += bData.sales;
+                    if (bData.isOur) cOwnSales += bData.sales;
+                }
+
+                for (const [bName, bData] of brandMap.entries()) {
+                    const bShare = cCatSize > 0 ? (bData.sales / cCatSize) * 100 : 0;
+                    const prodNodes = bData.products.map((pr, idx) => ({
+                        id: `prod-${pName}-${cName}-${bName}-${idx}`,
+                        level: 'product',
+                        name: pr.product,
+                        platform: pName,
+                        category: cName,
+                        brand: bName,
+                        product: pr.product,
+                        isOurBrand: pr.isOur,
+                        ownBrandSales: pr.isOur ? pr.sales : 0,
+                        categorySize: cCatSize,
+                        marketShare: cCatSize > 0 ? (pr.sales / cCatSize) * 100 : 0
+                    }));
+
+                    brandNodes.push({
+                        id: `brand-${pName}-${cName}-${bName}`,
+                        level: 'brand',
+                        name: bName,
+                        platform: pName,
+                        category: cName,
+                        brand: bName,
+                        product: '—',
+                        isOurBrand: bData.isOur,
+                        ownBrandSales: bData.isOur ? bData.sales : 0,
+                        categorySize: cCatSize,
+                        marketShare: bShare,
+                        children: prodNodes
+                    });
+                }
+
+                // Sort brands: our brand first, then descending by share
+                brandNodes.sort((x, y) => {
+                    if (x.isOurBrand && !y.isOurBrand) return -1;
+                    if (!x.isOurBrand && y.isOurBrand) return 1;
+                    return y.marketShare - x.marketShare;
+                });
+
+                pCatSize += cCatSize;
+                pOwnSales += cOwnSales;
+
+                catNodes.push({
+                    id: `cat-${pName}-${cName}`,
+                    level: 'category',
+                    name: cName,
+                    platform: pName,
+                    category: cName,
+                    brand: 'All Brands',
+                    product: '—',
+                    ownBrandSales: cOwnSales,
+                    categorySize: cCatSize,
+                    marketShare: cCatSize > 0 ? (cOwnSales / cCatSize) * 100 : 0,
+                    children: brandNodes
+                });
+            }
+
+            catNodes.sort((x, y) => y.categorySize - x.categorySize);
+
+            tree.push({
+                id: `plat-${pName}`,
+                level: 'platform',
+                name: pName,
+                platform: pName,
+                category: 'All Categories',
+                brand: 'All Brands',
+                product: '—',
+                ownBrandSales: pOwnSales,
+                categorySize: pCatSize,
+                marketShare: pCatSize > 0 ? (pOwnSales / pCatSize) * 100 : 0,
+                children: catNodes
+            });
+        }
+
+        tree.sort((x, y) => y.categorySize - x.categorySize);
+        return tree;
+    } catch (error) {
+        console.error('[getMarketShareProductDrilldown] Error:', error.message);
+        return [];
+    }
+};
+

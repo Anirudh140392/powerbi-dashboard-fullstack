@@ -1,5 +1,6 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
+import { buildWebPidCondition } from '../../utils/webPidHelper.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -13,8 +14,8 @@ export const getIssuesBreakdown = async (req, res) => {
         const extraFilters = [];
 
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
-            extraFilters.push(`r.web_pid = {webPid:String}`);
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
         }
 
         if (is_competitor === 'true' || is_competitor === 'false') {
@@ -237,16 +238,17 @@ export const getReviewsByIssue = async (req, res) => {
 
         const queryParams = { 
             companyId: String(req.companyId), 
-            webPid: web_pid, 
             subcategory,
             limit: parseInt(limit), 
             offset: parseInt(offset) 
         };
+        const webPidCondR = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+        const webPidCondPlain = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
 
         // Build the same WHERE conditions as getAsinIssues
         let where = [
             `r.company_id = {companyId:String}`,
-            `r.web_pid = {webPid:String}`
+            webPidCondR
         ];
 
         if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
@@ -295,7 +297,7 @@ export const getReviewsByIssue = async (req, res) => {
             LEFT JOIN (
                 SELECT web_pid, platform, price_rp, price_sp, rating, category, pareto_status
                 FROM product_snapshots
-                WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
+                WHERE company_id = {companyId:String} AND ${webPidCondPlain}
                 ORDER BY snapshot_date DESC, created_at DESC
                 LIMIT 1 BY lower(platform), web_pid
             ) ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
@@ -357,13 +359,15 @@ export const getAsinIssues = async (req, res) => {
         if (!web_pid) return res.status(400).json({ error: 'web_pid param required' });
 
         const targetDb = getTargetDb(req);
-        const queryParams = { companyId: String(req.companyId), webPid: web_pid };
+        const queryParams = { companyId: String(req.companyId) };
+        const webPidCondPlain = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+        const webPidCondR = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
 
         // Get product info
         const productSql = `
             SELECT product_name, rating AS pdp_rating, rating_count, star_distribution
             FROM product_snapshots
-            WHERE company_id = {companyId:String} AND web_pid = {webPid:String} AND coalesce(is_competitor, false) = false
+            WHERE company_id = {companyId:String} AND ${webPidCondPlain} AND coalesce(is_competitor, false) = false
             ORDER BY snapshot_date DESC, created_at DESC LIMIT 1
         `;
         const chProduct = await clickhouse.query({ database: targetDb, query: productSql, query_params: queryParams, format: 'JSONEachRow' });
@@ -373,7 +377,7 @@ export const getAsinIssues = async (req, res) => {
         // Construct global filters
         let where = [
             `r.company_id = {companyId:String}`,
-            `r.web_pid = {webPid:String}`
+            webPidCondR
         ];
 
         if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
@@ -417,7 +421,7 @@ export const getAsinIssues = async (req, res) => {
             LEFT JOIN (
                 SELECT web_pid, platform, price_rp, price_sp, rating, category, pareto_status
                 FROM product_snapshots
-                WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
+                WHERE company_id = {companyId:String} AND ${webPidCondPlain}
                 ORDER BY snapshot_date DESC, created_at DESC
                 LIMIT 1 BY lower(platform), web_pid
             ) ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)

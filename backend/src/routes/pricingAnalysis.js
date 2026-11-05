@@ -399,6 +399,7 @@ export default (app) => {
      *     description: Returns daily/weekly/monthly trend of Discount, PricePerUnit, RPI, ASP for a given dimension value (category or city).
      */
     app.get('/api/pricing-analysis/dimension-trends', getDimensionTrends);
+    app.post('/api/pricing-analysis/dimension-trends', getDimensionTrends);
 
     /**
      * @swagger

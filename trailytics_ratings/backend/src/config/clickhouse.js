@@ -8,13 +8,14 @@ import { getOlapTableName } from '../utils/olapResolver.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../backend/.env') });
 
 export const clickhouseStorage = new AsyncLocalStorage();
 
 const defaultDb = process.env.CLICKHOUSE_DB || 'prestige';
 
 const clickhouse = createClient({
-    url: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
+    url: process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL || 'http://localhost:8123',
     database: defaultDb,
     username: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
@@ -22,7 +23,7 @@ const clickhouse = createClient({
 });
 
 const maricoClickhouse = createClient({
-    url: process.env.MARICO_CLICKHOUSE_HOST || process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
+    url: process.env.MARICO_CLICKHOUSE_HOST || process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL || 'http://localhost:8123',
     database: process.env.MARICO_CLICKHOUSE_DB || 'marico_true_element',
     username: process.env.MARICO_CLICKHOUSE_USER || process.env.CLICKHOUSE_USER || 'default',
     password: process.env.MARICO_CLICKHOUSE_PASSWORD || process.env.CLICKHOUSE_PASSWORD || '',

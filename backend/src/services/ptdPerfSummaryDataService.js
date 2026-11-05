@@ -58,10 +58,12 @@ export const getPTDDateRanges = async () => {
 
     const cpStart = String(rows[0].cp_start).slice(0, 10);
     const today = new Date();
-    // Format today as YYYY-MM-DD in local time
-    const todayStr = today.toISOString().slice(0, 10);
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(today.getTime() + (today.getTimezoneOffset() * 60000) + istOffsetMs);
+    istNow.setDate(istNow.getDate() - 1);
+    const todayStr = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
 
-    // duration = days from cpStart to today (0-based)
+    // duration = days from cpStart to system day - 1 (0-based)
     const dStart = new Date(cpStart);
     const dToday = new Date(todayStr);
     const duration = Math.floor((dToday - dStart) / (1000 * 60 * 60 * 24));

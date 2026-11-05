@@ -235,7 +235,7 @@ const getDynamicMaxDate = async (platform, channel, category, brand, metric) => 
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel, msl, brand } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel, msl, brand, maxAllowedDate } = filters;
     const platform = filters.platform || 'All';
 
     // Get dynamic sources
@@ -260,6 +260,17 @@ const getMapIntellectData = async (filters) => {
         } else {
             const monthsBack = parseInt(months, 10) || 1;
             startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+        }
+    }
+
+    // QC date clamping: non-QC users are limited to maxAllowedDate (current day - 1)
+    if (maxAllowedDate) {
+        const maxDay = dayjs(maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxDay)) {
+            endDate = maxDay;
+        }
+        if (startDate.isAfter(maxDay)) {
+            startDate = maxDay;
         }
     }
 

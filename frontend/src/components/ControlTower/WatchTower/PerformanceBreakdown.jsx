@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
+import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../../utils/FilterContext";
 
@@ -55,18 +55,52 @@ async function authFetch(endpoint, options = {}) {
 }
 async function authGet(endpoint, options) { return authFetch(endpoint, { ...options, method: "GET" }); }
 
-function getPresetDateRange(key) {
-    const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+function getPresetDateRange(key, contextFilters = {}) {
+    if (key === "previous_period" || key === "prev_period") {
+        if (contextFilters.compareStartDate && contextFilters.compareEndDate) {
+            return {
+                start: new Date(contextFilters.compareStartDate),
+                end: new Date(contextFilters.compareEndDate)
+            };
+        }
+    }
+    const baseEnd = contextFilters.dateEnd ? new Date(contextFilters.dateEnd) : new Date();
+    const baseStart = contextFilters.dateStart ? new Date(contextFilters.dateStart) : new Date(baseEnd.getFullYear(), baseEnd.getMonth(), 1);
+
     switch (key) {
-        case "last_week": { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
-        case "last_month": { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
-        case "mtd": { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-        case "last_3_months": { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
-        case "ytd": { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+        case "previous_period":
+        case "prev_period": {
+            const duration = baseEnd.getTime() - baseStart.getTime();
+            const e = new Date(baseStart.getTime() - 86400000);
+            const s = new Date(e.getTime() - duration);
+            return { start: s, end: e };
+        }
+        case "last_week": {
+            const e = new Date(baseStart.getTime() - 86400000);
+            const s = new Date(e.getTime() - 6 * 86400000);
+            return { start: s, end: e };
+        }
+        case "last_month": {
+            const e = new Date(baseEnd.getFullYear(), baseEnd.getMonth(), 0);
+            return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e };
+        }
+        case "mtd": {
+            const s = new Date(baseEnd.getFullYear(), baseEnd.getMonth(), 1);
+            return { start: s, end: baseEnd };
+        }
+        case "last_3_months": {
+            const e = new Date(baseEnd.getFullYear(), baseEnd.getMonth(), 0);
+            return { start: new Date(e.getFullYear(), e.getMonth() - 2, 1), end: e };
+        }
+        case "ytd": {
+            const s = new Date(baseEnd.getFullYear(), 0, 1);
+            return { start: s, end: baseEnd };
+        }
         default: return null;
     }
 }
 function formatDateRangeShort(range) {
+    if (!range || !range.start || !range.end || isNaN(range.start) || isNaN(range.end)) return "";
     const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const sm = m[range.start.getMonth()], em = m[range.end.getMonth()];
     return range.start.getMonth() === range.end.getMonth() ? `${sm} ${range.start.getDate()}-${range.end.getDate()}` : `${sm} ${range.start.getDate()} - ${em} ${range.end.getDate()}`;
@@ -77,6 +111,7 @@ const GROUP_DIMENSIONS = [
     { value: "brand", label: "Brand", icon: "🏷️" },
 ];
 const PRESET_PERIODS = [
+    { key: "previous_period", label: "Prev Period", type: "preset" },
     { key: "last_week", label: "Last Week", type: "preset" },
     { key: "last_month", label: "Last Month", type: "preset" },
     { key: "mtd", label: "MTD", type: "preset" },
@@ -201,6 +236,7 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
 // PeriodComparisonPanel
 function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onToggle }) {
     const { darkMode } = useTheme();
+    const { filters } = useFilters();
     const panelRef = useRef(null);
     const [showCustomForm, setShowCustomForm] = useState(false);
     const [customLabel, setCustomLabel] = useState("");
@@ -251,7 +287,7 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
                             </div>
                             <div className="flex flex-wrap gap-2 mb-4">
                                 {PRESET_PERIODS.map((preset) => {
-                                    const dr = getPresetDateRange(preset.key);
+                                    const dr = getPresetDateRange(preset.key, filters);
                                     const dl = dr ? formatDateRangeShort(dr) : "";
                                     return (<button key={preset.key} onClick={() => togglePreset(preset)} className={`${chipBase} ${isPresetSelected(preset.key) ? chipSel : chipUn}`}>
                                         {isPresetSelected(preset.key) && <Check className="w-3 h-3 inline mr-1" />}
@@ -393,7 +429,24 @@ export function AggregatedViewTable() {
     const [periodComparison, setPeriodComparison] = useState(null);
     const [isPeriodPanelOpen, setIsPeriodPanelOpen] = useState(false);
     const [pmPlatforms, setPmPlatforms] = useState([]);
-    const [localPlatformFilter, setLocalPlatformFilter] = useState("All");
+    const [localPlatformFilter, setLocalPlatformFilter] = useState([]);
+    const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
+    const platformDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (platformDropdownRef.current && !platformDropdownRef.current.contains(e.target) && showPlatformDropdown) {
+                setShowPlatformDropdown(false);
+            }
+        };
+        if (showPlatformDropdown) {
+            const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100);
+            return () => {
+                clearTimeout(t);
+                document.removeEventListener("mousedown", handleClickOutside);
+            };
+        }
+    }, [showPlatformDropdown]);
 
     useEffect(() => {
         const fetchPmPlatforms = async () => {
@@ -402,17 +455,83 @@ export function AggregatedViewTable() {
                 const validPlatforms = res.data.filter(p => p !== "All");
                 setPmPlatforms(validPlatforms);
                 // Set default to first valid platform
-                setLocalPlatformFilter(validPlatforms[0]);
+                setLocalPlatformFilter([validPlatforms[0]]);
             }
         };
         fetchPmPlatforms();
     }, []);
 
+    const togglePlatform = (platformName) => {
+        setLocalPlatformFilter((prev) => {
+            const current = Array.isArray(prev) ? prev : (prev && prev !== "All" ? [prev] : []);
+            let next;
+            if (current.includes(platformName)) {
+                next = current.filter((p) => p !== platformName);
+            } else {
+                next = [...current, platformName];
+            }
+            setCurrentPage(1);
+            return next;
+        });
+    };
+
+    const isAllPlatformsSelected = pmPlatforms.length > 0 && Array.isArray(localPlatformFilter) && localPlatformFilter.length === pmPlatforms.length;
+
+    const toggleSelectAllPlatforms = () => {
+        if (isAllPlatformsSelected) {
+            setLocalPlatformFilter([]);
+        } else {
+            setLocalPlatformFilter([...pmPlatforms]);
+        }
+        setCurrentPage(1);
+    };
+
+    const platformButtonLabel = useMemo(() => {
+        if (!pmPlatforms || pmPlatforms.length === 0) return "Platform";
+        const selected = Array.isArray(localPlatformFilter) ? localPlatformFilter : (localPlatformFilter && localPlatformFilter !== "All" ? [localPlatformFilter] : []);
+        if (selected.length === 0 || selected.length === pmPlatforms.length) {
+            return "All Platforms";
+        }
+        if (selected.length === 1) {
+            return selected[0];
+        }
+        if (selected.length === 2) {
+            return `${selected[0]}, ${selected[1]}`;
+        }
+        return `${selected[0]} + ${selected.length - 1} more`;
+    }, [localPlatformFilter, pmPlatforms]);
+
     const [selectedPeriods, setSelectedPeriods] = useState([
+        { key: "previous_period", label: "Prev Period", type: "preset" },
         { key: "last_week", label: "Last Week", type: "preset" },
         { key: "mtd", label: "MTD", type: "preset" },
         { key: "last_3_months", label: "Last 3M", type: "preset" },
     ]);
+    const [activeComparePeriodKey, setActiveComparePeriodKey] = useState("previous_period");
+    const [showCompareSelectDropdown, setShowCompareSelectDropdown] = useState(false);
+    const compareSelectDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (compareSelectDropdownRef.current && !compareSelectDropdownRef.current.contains(e.target) && showCompareSelectDropdown) {
+                setShowCompareSelectDropdown(false);
+            }
+        };
+        if (showCompareSelectDropdown) {
+            const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100);
+            return () => {
+                clearTimeout(t);
+                document.removeEventListener("mousedown", handleClickOutside);
+            };
+        }
+    }, [showCompareSelectDropdown]);
+
+    const activeComparePeriod = useMemo(() => {
+        if (!selectedPeriods || selectedPeriods.length === 0) return null;
+        const found = selectedPeriods.find((p) => p.key === activeComparePeriodKey);
+        return found || selectedPeriods[0];
+    }, [selectedPeriods, activeComparePeriodKey]);
+
     const fetchIdRef = useRef(0);
     // slicerFilters removed — filter panel hidden
 
@@ -439,7 +558,16 @@ export function AggregatedViewTable() {
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
 
-            if (localPlatformFilter && localPlatformFilter !== "All") {
+            if (Array.isArray(localPlatformFilter)) {
+                if (localPlatformFilter.length > 0 && localPlatformFilter.length < pmPlatforms.length) {
+                    const joined = localPlatformFilter.join(",");
+                    params.set("platform", joined);
+                    params.set("platform_uuid", joined);
+                } else if (localPlatformFilter.length === pmPlatforms.length || localPlatformFilter.length === 0) {
+                    params.set("platform", "All");
+                    params.set("platform_uuid", "All");
+                }
+            } else if (localPlatformFilter && localPlatformFilter !== "All") {
                 params.set("platform", localPlatformFilter);
                 params.set("platform_uuid", localPlatformFilter);
             } else if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
@@ -462,11 +590,16 @@ export function AggregatedViewTable() {
             // Pass the global context dates if they exist
             if (filters.dateStart) params.set("startDate", filters.dateStart);
             if (filters.dateEnd) params.set("endDate", filters.dateEnd);
+            if (filters.compareStartDate) params.set("compareStartDate", filters.compareStartDate);
+            if (filters.compareEndDate) params.set("compareEndDate", filters.compareEndDate);
 
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
                 const periodParams = selectedPeriods.map(p => {
+                    if ((p.key === 'previous_period' || p.key === 'prev_period') && filters.compareStartDate && filters.compareEndDate) {
+                        return `previous_period:${filters.compareStartDate}:${filters.compareEndDate}`;
+                    }
                     if (p.type === 'custom' && p.startDate && p.endDate) {
                         return `${p.key}:${p.startDate}:${p.endDate}`;
                     }
@@ -529,36 +662,42 @@ export function AggregatedViewTable() {
     }, [fetchData]);
 
     const isQuickcommPlatform = (platformName, channelName) => {
-        const p = String(platformName || '').toLowerCase();
         const c = String(channelName || '').toLowerCase();
         if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return true;
         if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return false;
-        if (!p || p === 'all') return false;
-        return (
-            p.includes('zepto') ||
-            p.includes('blinkit') ||
-            p.includes('instamart') ||
-            p.includes('swiggy') ||
-            p.includes('dunzo') ||
-            p.includes('bbnow') ||
-            p.includes('quick')
-        );
+        const list = Array.isArray(platformName) ? platformName : (platformName ? [platformName] : []);
+        if (list.length === 0 || list.includes('All') || list.includes('all')) return false;
+        return list.every(item => {
+            const p = String(item || '').toLowerCase();
+            return (
+                p.includes('zepto') ||
+                p.includes('blinkit') ||
+                p.includes('instamart') ||
+                p.includes('swiggy') ||
+                p.includes('dunzo') ||
+                p.includes('bbnow') ||
+                p.includes('quick')
+            );
+        });
     };
 
     const isEcommercePlatform = (platformName, channelName) => {
-        const p = String(platformName || '').toLowerCase();
         const c = String(channelName || '').toLowerCase();
         if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return true;
         if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return false;
-        if (!p || p === 'all') return false;
-        return (
-            p.includes('amazon') ||
-            p.includes('flipkart') ||
-            p.includes('myntra') ||
-            p.includes('nykaa') ||
-            p.includes('jiomart') ||
-            p.includes('ecom')
-        );
+        const list = Array.isArray(platformName) ? platformName : (platformName ? [platformName] : []);
+        if (list.length === 0 || list.includes('All') || list.includes('all')) return false;
+        return list.every(item => {
+            const p = String(item || '').toLowerCase();
+            return (
+                p.includes('amazon') ||
+                p.includes('flipkart') ||
+                p.includes('myntra') ||
+                p.includes('nykaa') ||
+                p.includes('jiomart') ||
+                p.includes('ecom')
+            );
+        });
     };
 
     const isQuick = isQuickcommPlatform(localPlatformFilter, selectedChannel);
@@ -592,7 +731,95 @@ export function AggregatedViewTable() {
 
     const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} Lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)} K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
-    const getPeriodData = (tag, periodKey) => { if (!periodComparison || !periodComparison[periodKey]) return null; return periodComparison[periodKey].find((d) => d.tag === tag) || null; };
+    const getPeriodData = (tag, periodKey) => {
+        if (!periodComparison || !periodComparison[periodKey]) return null;
+        const clean = String(tag || '').trim().toLowerCase();
+        return periodComparison[periodKey].find((d) => String(d.tag || '').trim().toLowerCase() === clean) || null;
+    };
+
+    const calculateDelta = (currentVal, compareVal) => {
+        if (currentVal === null || currentVal === undefined || compareVal === null || compareVal === undefined) return null;
+        const cur = parseFloat(currentVal);
+        const prev = parseFloat(compareVal);
+        if (isNaN(cur) || isNaN(prev)) return null;
+        if (prev === 0) {
+            if (cur === 0) return 0;
+            return 100;
+        }
+        return ((cur - prev) / Math.abs(prev)) * 100;
+    };
+
+    const renderDelta = (delta, isInverse = false) => {
+        if (delta === null || delta === undefined || isNaN(delta)) {
+            return <span className={`text-[10px] leading-tight ${darkMode ? "text-slate-500" : "text-slate-400"}`}>—</span>;
+        }
+        const isZero = Math.abs(delta) < 0.05;
+        const isGood = isInverse ? delta < 0 : delta > 0;
+        const isBad = isInverse ? delta > 0 : delta < 0;
+
+        let colorClass = darkMode ? "text-slate-400" : "text-slate-500";
+        if (!isZero) {
+            if (isGood) {
+                colorClass = darkMode ? "text-emerald-400" : "text-emerald-600";
+            } else if (isBad) {
+                colorClass = darkMode ? "text-rose-400" : "text-rose-600";
+            }
+        }
+
+        const Icon = delta > 0.05 ? ArrowUp : delta < -0.05 ? ArrowDown : null;
+        const sign = delta > 0 ? "+" : "";
+
+        return (
+            <span className={`inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold leading-tight mt-0.5 ${colorClass}`}>
+                {Icon && <Icon className="w-2.5 h-2.5 flex-shrink-0 stroke-[2.5]" />}
+                {sign}{delta.toFixed(1)}%
+            </span>
+        );
+    };
+
+    const activeCompareTotals = useMemo(() => {
+        if (!activeComparePeriod || !periodComparison || !periodComparison[activeComparePeriod.key]) {
+            return null;
+        }
+        const list = periodComparison[activeComparePeriod.key];
+        if (!Array.isArray(list) || list.length === 0) return null;
+
+        const acc = list.reduce((a, row) => {
+            a.impressions += (parseFloat(row.impressions) || 0);
+            a.clicks += (parseFloat(row.clicks) || 0);
+            a.atc += (parseFloat(row.atc) || 0);
+            a.spends += (parseFloat(row.spends) || 0);
+            a.orders += (parseFloat(row.orders) || 0);
+            a.sales += (parseFloat(row.sales) || 0);
+            return a;
+        }, { impressions: 0, clicks: 0, atc: 0, spends: 0, orders: 0, sales: 0 });
+
+        const totalClicks = acc.clicks + acc.atc;
+        acc.ctr = acc.impressions > 0 ? (totalClicks / acc.impressions) * 100 : 0;
+        acc.cpc = totalClicks > 0 ? (acc.spends / totalClicks) : 0;
+        acc.cvr = totalClicks > 0 ? (acc.orders / totalClicks) * 100 : 0;
+        acc.aov = acc.orders > 0 ? (acc.sales / acc.orders) : 0;
+        acc.spend_percent_share = 100;
+        return acc;
+    }, [activeComparePeriod, periodComparison]);
+
+    const totalsDeltas = useMemo(() => {
+        if (!totals || !activeCompareTotals) return null;
+        return {
+            impressions: calculateDelta(totals.impressions, activeCompareTotals.impressions),
+            clicks: calculateDelta(totals.clicks, activeCompareTotals.clicks),
+            atc: calculateDelta(totals.atc, activeCompareTotals.atc),
+            ctr: calculateDelta(totals.ctr, activeCompareTotals.ctr),
+            spend_percent_share: 0,
+            spends: calculateDelta(totals.spends, activeCompareTotals.spends),
+            cpc: calculateDelta(totals.cpc, activeCompareTotals.cpc),
+            orders: calculateDelta(totals.orders, activeCompareTotals.orders),
+            aov: calculateDelta(totals.aov, activeCompareTotals.aov),
+            cvr: calculateDelta(totals.cvr, activeCompareTotals.cvr),
+            sales: calculateDelta(totals.sales, activeCompareTotals.sales),
+        };
+    }, [totals, activeCompareTotals]);
+
     const thCls = (dm) => `px-2 py-3 text-right text-xs font-semibold uppercase tracking-wider ${dm ? "text-slate-400" : "text-slate-500"}`;
 
     return (
@@ -607,30 +834,194 @@ export function AggregatedViewTable() {
                         </div>
                         <div>
                             <h3 className={`text-base sm:text-lg font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>Performance Breakdown</h3>
-                            <p className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>Analyze by dimensions</p>
+                            <p className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>Analyze by dimensions{activeComparePeriod ? ` • vs ${activeComparePeriod.label} delta` : ""}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
 
 
-                        {/* PM Platform Filter */}
-                        <div className="relative">
-                            <select
-                                value={localPlatformFilter}
-                                onChange={(e) => { setLocalPlatformFilter(e.target.value); setCurrentPage(1); }}
-                                className={`px-4 py-2 pr-8 rounded-xl border text-sm font-medium transition-all appearance-none cursor-pointer ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}
+                        {/* PM Platform Multi-Select Filter */}
+                        <div className="relative" ref={platformDropdownRef}>
+                            <button
+                                onClick={() => {
+                                    setShowPlatformDropdown(!showPlatformDropdown);
+                                    if (!showPlatformDropdown) {
+                                        setShowDropdown(false);
+                                        setIsPeriodPanelOpen(false);
+                                    }
+                                }}
+                                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer ${
+                                    showPlatformDropdown
+                                        ? darkMode
+                                            ? "bg-violet-500/20 border-violet-500/50 text-violet-400"
+                                            : "bg-violet-50 border-violet-300 text-violet-700"
+                                        : darkMode
+                                            ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white"
+                                            : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"
+                                }`}
                             >
-                                {pmPlatforms.map(p => (
-                                    <option key={p} value={p}>{p}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-slate-400" />
+                                <span className="capitalize">{platformButtonLabel}</span>
+                                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showPlatformDropdown ? "rotate-180" : ""}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {showPlatformDropdown && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        className={`absolute left-0 mt-2 min-w-[200px] max-w-[260px] max-h-[320px] overflow-y-auto rounded-xl border shadow-xl z-50 ${
+                                            darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
+                                        }`}
+                                    >
+                                        <div className="p-2 space-y-1">
+                                            {/* Select All Option */}
+                                            <button
+                                                onClick={toggleSelectAllPlatforms}
+                                                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${
+                                                    isAllPlatformsSelected
+                                                        ? darkMode
+                                                            ? "bg-violet-500/20 text-violet-300"
+                                                            : "bg-violet-50 text-violet-700"
+                                                        : darkMode
+                                                            ? "hover:bg-slate-700 text-slate-300"
+                                                            : "hover:bg-slate-50 text-slate-700"
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                        isAllPlatformsSelected
+                                                            ? "bg-violet-600 border-violet-600"
+                                                            : darkMode
+                                                                ? "border-slate-500"
+                                                                : "border-slate-300"
+                                                    }`}
+                                                >
+                                                    {isAllPlatformsSelected && <Check className="w-3 h-3 text-white" />}
+                                                </div>
+                                                <span className="flex-1">Select All</span>
+                                                <span className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                                                    ({pmPlatforms.length})
+                                                </span>
+                                            </button>
+
+                                            <div className={`h-px my-1 ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} />
+
+                                            {/* Platform Items */}
+                                            {pmPlatforms.map((p) => {
+                                                const isSelected = localPlatformFilter.includes(p);
+                                                return (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => togglePlatform(p)}
+                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                                                            isSelected
+                                                                ? darkMode
+                                                                    ? "bg-violet-500/20 text-violet-300 font-medium"
+                                                                    : "bg-violet-50 text-violet-700 font-medium"
+                                                                : darkMode
+                                                                    ? "hover:bg-slate-700 text-slate-300"
+                                                                    : "hover:bg-slate-50 text-slate-700"
+                                                        }`}
+                                                    >
+                                                        <div
+                                                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                                isSelected
+                                                                    ? "bg-violet-600 border-violet-600"
+                                                                    : darkMode
+                                                                        ? "border-slate-500"
+                                                                        : "border-slate-300"
+                                                            }`}
+                                                        >
+                                                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                                                        </div>
+                                                        <span className="flex-1 capitalize truncate">{p}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
-                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => { setIsPeriodPanelOpen(!isPeriodPanelOpen); if (!isPeriodPanelOpen) setShowDropdown(false); }} />
+                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => { setIsPeriodPanelOpen(!isPeriodPanelOpen); if (!isPeriodPanelOpen) { setShowDropdown(false); setShowPlatformDropdown(false); setShowCompareSelectDropdown(false); } }} />
+                        {selectedPeriods && selectedPeriods.length > 0 && (
+                            <div className="relative" ref={compareSelectDropdownRef}>
+                                <button
+                                    onClick={() => {
+                                        setShowCompareSelectDropdown(!showCompareSelectDropdown);
+                                        if (!showCompareSelectDropdown) {
+                                            setShowDropdown(false);
+                                            setShowPlatformDropdown(false);
+                                            setIsPeriodPanelOpen(false);
+                                        }
+                                    }}
+                                    title="Comparison baseline for % change deltas"
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs sm:text-sm font-medium transition-all cursor-pointer ${
+                                        showCompareSelectDropdown
+                                            ? darkMode
+                                                ? "bg-violet-500/20 border-violet-500/50 text-violet-300"
+                                                : "bg-violet-50 border-violet-300 text-violet-700"
+                                            : darkMode
+                                                ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-slate-200"
+                                                : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                                    }`}
+                                >
+                                    <span className="text-slate-400 font-normal">vs</span>
+                                    <span className="font-semibold">{activeComparePeriod?.label || "Period"}</span>
+                                    {selectedPeriods.length > 1 && (
+                                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showCompareSelectDropdown ? "rotate-180" : ""}`} />
+                                    )}
+                                </button>
+
+                                {selectedPeriods.length > 1 && (
+                                    <AnimatePresence>
+                                        {showCompareSelectDropdown && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                                className={`absolute left-0 mt-2 min-w-[160px] rounded-xl border shadow-xl z-50 p-1.5 ${
+                                                    darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
+                                                }`}
+                                            >
+                                                <div className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                                                    Delta Compared To
+                                                </div>
+                                                {selectedPeriods.map((p) => {
+                                                    const isCurrent = activeComparePeriod?.key === p.key;
+                                                    return (
+                                                        <button
+                                                            key={p.key}
+                                                            onClick={() => {
+                                                                setActiveComparePeriodKey(p.key);
+                                                                setShowCompareSelectDropdown(false);
+                                                            }}
+                                                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs font-medium transition-colors ${
+                                                                isCurrent
+                                                                    ? darkMode
+                                                                        ? "bg-violet-500/20 text-violet-300"
+                                                                        : "bg-violet-50 text-violet-700"
+                                                                    : darkMode
+                                                                        ? "hover:bg-slate-700 text-slate-300"
+                                                                        : "hover:bg-slate-50 text-slate-700"
+                                                            }`}
+                                                        >
+                                                            <span>{p.label}</span>
+                                                            {isCurrent && <Check className="w-3.5 h-3.5 text-violet-500" />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                )}
+                            </div>
+                        )}
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}
                         <div className="relative" ref={categoryDropdownRef}>
-                            <button onClick={() => { setShowDropdown(!showDropdown); if (!showDropdown) setIsPeriodPanelOpen(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
+                            <button onClick={() => { setShowDropdown(!showDropdown); if (!showDropdown) { setIsPeriodPanelOpen(false); setShowPlatformDropdown(false); } }} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
                                 <span className="text-lg">{currentDimension.icon}</span>
                                 <span className="text-sm font-medium">{currentDimension.label}</span>
                                 <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
@@ -774,18 +1165,89 @@ export function AggregatedViewTable() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                         {totals && (
                             <tr className={darkMode ? "bg-gradient-to-r from-violet-500/10 to-purple-500/10" : "bg-gradient-to-r from-violet-50/50 to-purple-50/50"}>
-                                <td className={`px-4 py-3 font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}><div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-violet-500" />Total</div></td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.impressions)}</td>
-                                {showClicks && <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>}
-                                {showAtc && <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>}
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>100.00%</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.cpc)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.orders)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.aov)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.cvr)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.sales)}</td>
+                                <td className={`px-4 py-2.5 font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                                        <div>
+                                            <div>Total</div>
+                                            {activeComparePeriod && (
+                                                <div className={`text-[10px] font-normal leading-tight ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                                                    vs {activeComparePeriod.label}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.impressions)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.impressions)}
+                                    </div>
+                                </td>
+                                {showClicks && (
+                                    <td className="px-2 py-2.5 text-right">
+                                        <div className="flex flex-col items-end justify-center">
+                                            <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</span>
+                                            {activeComparePeriod && renderDelta(totalsDeltas?.clicks)}
+                                        </div>
+                                    </td>
+                                )}
+                                {showAtc && (
+                                    <td className="px-2 py-2.5 text-right">
+                                        <div className="flex flex-col items-end justify-center">
+                                            <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</span>
+                                            {activeComparePeriod && renderDelta(totalsDeltas?.atc)}
+                                        </div>
+                                    </td>
+                                )}
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.ctr)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>100.00%</span>
+                                        {activeComparePeriod && renderDelta(0)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.spends)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.cpc)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.cpc, true)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.orders)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.orders)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.aov)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.aov)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.cvr)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.cvr)}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <div className="flex flex-col items-end justify-center">
+                                        <span className={`text-sm font-semibold leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.sales)}</span>
+                                        {activeComparePeriod && renderDelta(totalsDeltas?.sales)}
+                                    </div>
+                                </td>
                             </tr>
                         )}
                         {loading ? (
@@ -796,33 +1258,64 @@ export function AggregatedViewTable() {
                             <tr><td colSpan={totalCols} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
                         ) : (
                             paginatedData.map((row, idx) => {
-                                const rowValues = [formatNumber(row.impressions)];
-                                if (showClicks) rowValues.push(formatNumber(row.clicks));
-                                if (showAtc) rowValues.push(formatNumber(row.atc));
-                                rowValues.push(
-                                    formatPercent(row.ctr),
-                                    `${(row.spend_percent_share || 0).toFixed(1)}%`,
-                                    formatCurrency(row.spends),
-                                    formatCurrency(row.cpc),
-                                    formatNumber(row.orders),
-                                    formatCurrency(row.aov),
-                                    formatPercent(row.cvr),
-                                    formatCurrency(row.sales)
+                                const pd = activeComparePeriod ? getPeriodData(row.tag, activeComparePeriod.key) : null;
+                                const pdTotalClicks = (pd?.clicks || 0) + (pd?.atc || 0);
+                                const pdCtr = pd?.ctr !== undefined && pd?.ctr !== null
+                                    ? pd.ctr
+                                    : (pd?.impressions > 0 ? (pdTotalClicks / pd.impressions) * 100 : null);
+                                const pdCpc = pd?.cpc !== undefined && pd?.cpc !== null
+                                    ? pd.cpc
+                                    : (pdTotalClicks > 0 ? pd.spends / pdTotalClicks : null);
+                                const pdCvr = pd?.cvr !== undefined && pd?.cvr !== null
+                                    ? pd.cvr
+                                    : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : null);
+                                const pdAov = pd?.aov !== undefined && pd?.aov !== null
+                                    ? pd.aov
+                                    : (pd?.orders > 0 ? pd.sales / pd.orders : null);
+                                const pdSpendShare = pd?.spend_percent_share !== undefined && pd?.spend_percent_share !== null
+                                    ? pd.spend_percent_share
+                                    : null;
+
+                                const rowCells = [
+                                    { formatted: formatNumber(row.impressions), delta: calculateDelta(row.impressions, pd?.impressions) },
+                                ];
+                                if (showClicks) {
+                                    rowCells.push({ formatted: formatNumber(row.clicks), delta: calculateDelta(row.clicks, pd?.clicks) });
+                                }
+                                if (showAtc) {
+                                    rowCells.push({ formatted: formatNumber(row.atc), delta: calculateDelta(row.atc, pd?.atc) });
+                                }
+                                rowCells.push(
+                                    { formatted: formatPercent(row.ctr), delta: calculateDelta(row.ctr, pdCtr) },
+                                    { formatted: `${(row.spend_percent_share || 0).toFixed(1)}%`, delta: calculateDelta(row.spend_percent_share, pdSpendShare) },
+                                    { formatted: formatCurrency(row.spends), delta: calculateDelta(row.spends, pd?.spends) },
+                                    { formatted: formatCurrency(row.cpc), delta: calculateDelta(row.cpc, pdCpc), isInverse: true },
+                                    { formatted: formatNumber(row.orders), delta: calculateDelta(row.orders, pd?.orders) },
+                                    { formatted: formatCurrency(row.aov), delta: calculateDelta(row.aov, pdAov) },
+                                    { formatted: formatPercent(row.cvr), delta: calculateDelta(row.cvr, pdCvr) },
+                                    { formatted: formatCurrency(row.sales), delta: calculateDelta(row.sales, pd?.sales) }
                                 );
                                 const spendShareIdx = (showClicks && showAtc) ? 4 : 3;
 
                                 return (
                                     <React.Fragment key={row.tag || idx}>
                                         <motion.tr initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }} className={`transition-colors cursor-pointer ${darkMode ? "hover:bg-slate-700/30" : "hover:bg-slate-50"}`} onClick={() => comparePeriods && toggleRowExpand(row.tag)}>
-                                            <td className={`px-4 py-3 ${darkMode ? "text-white" : "text-slate-900"}`}>
+                                            <td className={`px-4 py-2.5 ${darkMode ? "text-white" : "text-slate-900"}`}>
                                                 <div className="flex items-center gap-2">
                                                     {comparePeriods && (<motion.div animate={{ rotate: expandedRows.has(row.tag) ? 90 : 0 }} className="flex-shrink-0"><ChevronRight className="w-4 h-4 text-slate-400" /></motion.div>)}
                                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${idx === 0 ? "bg-emerald-500" : idx === 1 ? "bg-blue-500" : idx === 2 ? "bg-violet-500" : "bg-slate-400"}`} />
                                                     <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
                                                 </div>
                                             </td>
-                                            {rowValues.map((val, ci) => (
-                                                <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === spendShareIdx ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
+                                            {rowCells.map((cell, ci) => (
+                                                <td key={ci} className={`px-2 py-2.5 text-right`}>
+                                                    <div className="flex flex-col items-end justify-center">
+                                                        <span className={`text-sm leading-tight ${ci === spendShareIdx ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700 font-medium")}`}>
+                                                            {cell.formatted}
+                                                        </span>
+                                                        {activeComparePeriod && renderDelta(cell.delta, cell.isInverse)}
+                                                    </div>
+                                                </td>
                                             ))}
                                         </motion.tr>
                                         <AnimatePresence>
@@ -848,7 +1341,7 @@ export function AggregatedViewTable() {
                                                         <td className={`px-4 py-2 ${darkMode ? "text-slate-400" : "text-slate-600"}`}>
                                                             <div className="flex items-center gap-2 pl-6">
                                                                 <Calendar className="w-3 h-3" /><span className="text-sm">{period.label}</span>
-                                                                {period.type === "preset" && (() => { const r = getPresetDateRange(period.key); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
+                                                                {period.type === "preset" && (() => { const r = getPresetDateRange(period.key, filters); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
                                                             </div>
                                                         </td>
                                                         {periodValues.map((v, i) => (

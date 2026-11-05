@@ -876,12 +876,15 @@ const VisiblityAnalysisData = ({
     ];
 
     const KPI_INFO_TOOLTIPS = {
-      'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.",
-      'Sponsored SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
-      'Ad SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
-      'Ad SOs': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Overall SOS': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.",
+      'Overall SOS (Share of Search)': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.",
+      'Sponsored SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
+      'Ad SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
+      'Ad SOs': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
       'Organic SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.",
-      'Organic Weighted SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results."
+      'Organic Weighted SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.",
+      'Avg. Position (Organic)': "The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.",
+      'Avg. Position (Ad)': "The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords."
     };
 
     // Use real API data only — no random generators
@@ -894,6 +897,15 @@ const VisiblityAnalysisData = ({
         const changeMatch = card.change ? card.change.match(/([▲▼])(\d+\.?\d*)/) : null;
         const deltaVal = changeMatch ? parseFloat(changeMatch[2]) * (changeMatch[1] === '▲' ? 1 : -1) : 0;
 
+        const datesList = card.dates || card.months || [];
+        const cardEndDate = card.endDate || parentFilters?.endDate || apiData?.overview?.endDate;
+        const trendData = (Array.isArray(card.sparklineData) && datesList.length === card.sparklineData.length)
+          ? card.sparklineData.map((val, i) => ({
+              value: val,
+              label: datesList[i]
+            }))
+          : (card.sparklineData || []);
+
         return {
           id: `vis-${idx}`,
           title: card.title,
@@ -903,7 +915,9 @@ const VisiblityAnalysisData = ({
           deltaLabel: card.change || '',
           icon: icons[idx] || PieChart,
           gradient: gradients[idx % gradients.length],
-          trend: card.sparklineData || [],
+          trend: trendData,
+          dates: datesList,
+          endDate: cardEndDate,
           isComingSoon: card.isComingSoon || false,
           extra: card.extra,
           extraChange: card.extraChange,
@@ -916,7 +930,7 @@ const VisiblityAnalysisData = ({
 
     // Fallback: return empty cards when API data is not yet available
     return [];
-  }, [apiData?.overview]);
+  }, [apiData?.overview, parentFilters?.endDate]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";

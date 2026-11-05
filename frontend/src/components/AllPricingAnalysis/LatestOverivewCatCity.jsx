@@ -68,7 +68,7 @@ const formatKpiValue = (value, kpiKey) => {
     }
 
     if (kpiKey === 'discount') return `${num.toFixed(1)}%`;
-    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp') return `${currency}${num.toFixed(2)}`;
+    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp' || kpiKey === 'mrp') return `${currency}${num.toFixed(2)}`;
     if (kpiKey === 'rpi') return `${num.toFixed(1)}`;
     if (kpiKey === 'offtake') return formatNumber(num, 1);
     
@@ -79,6 +79,7 @@ const kpiLabels = {
     discount: 'Discount %',
     pricePerUnit: 'Wt. Price per Unit',
     asp: 'Average Selling Price',
+    mrp: 'MRP',
 };
 
 
@@ -94,6 +95,7 @@ const LatestOverivewCatCity = ({
         { key: 'discount', label: 'Discount %' },
         { key: 'pricePerUnit', label: 'Wt. Price per Unit', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
         { key: 'asp', label: 'Average Selling Price' },
+        { key: 'mrp', label: 'MRP' },
     ], [propKpis]);
 
     const {
@@ -117,7 +119,7 @@ const LatestOverivewCatCity = ({
 
     // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'asp'])
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'asp', 'mrp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -128,7 +130,7 @@ const LatestOverivewCatCity = ({
         sapCodes: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'pricePerUnit', 'asp'],
+        kpis: ['discount', 'pricePerUnit', 'asp', 'mrp'],
         filterLogic: 'OR',
     })
 

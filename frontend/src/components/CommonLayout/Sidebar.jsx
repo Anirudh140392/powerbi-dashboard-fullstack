@@ -45,6 +45,7 @@ const getStaticFallbackLogo = (dbName) => {
 };
 
 import { useAuth } from "../../utils/AuthContext";
+import { isTabPermitted, hasExplicitTabPerm } from "../ProtectedRoute";
 import {
   Box,
   Typography,
@@ -94,6 +95,7 @@ import {
   KeyboardArrowLeft as KeyboardArrowLeftIcon,
   KeyboardArrowRight as KeyboardArrowRightIcon,
   CloudDownload as CloudDownloadIcon,
+  TableChart as TableChartIcon,
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
@@ -377,6 +379,8 @@ const Sidebar = ({
   const openPlatformPopover = Boolean(platformAnchorEl);
 
   const currentPath = location.pathname;
+  // Channel tabs and platform selector don't apply to these top-level pages
+  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing'].includes(currentPath);
 
   const menuSections = {
     "MAIN MENU": [
@@ -386,17 +390,16 @@ const Sidebar = ({
       { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar'] },
-      //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
-      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
+      { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
       { label: "Content Score", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Content Analysis", path: "/content-analysis", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       { label: "PDS Score", path: "/pds-score", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Review Rating", path: "/review-rating", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
-
-      // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
-      // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'hm_zydus', 'mars_petcare'] },
       { label: "Download Report", path: "/download-report", icon: <CloudDownloadIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Primary Summary", path: "/primary-overview", icon: <DashboardIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['drl'] },
@@ -752,7 +755,7 @@ const Sidebar = ({
                     }
                     setIsSwitchingDb(true);
                     setDbDropdownAnchor(null);
-                    await switchDb(dbItem.dbName);
+                    await switchDb(dbItem.dbName, null, dbItem.dbId);
                     setIsSwitchingDb(false);
                   }}
                   sx={{
@@ -829,7 +832,11 @@ const Sidebar = ({
         justifyContent: 'center',
       }}>
         {/* MAIN MENU Header (Top) */}
-        {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
+        {!isCollapsed && (
+          isTabPermitted(user?.tabPermissions, 'Business Overview') ||
+          isTabPermitted(user?.tabPermissions, 'Report Studio') ||
+          isTabPermitted(user?.tabPermissions, 'Scheduled Reports')
+        ) && (
           <Typography
             variant="overline"
             sx={{
@@ -860,7 +867,7 @@ const Sidebar = ({
         {!isCollapsed && (
           <>
             <Box sx={{ px: 0, pb: 1, width: '100%' }}>
-              {user?.tabPermissions?.['Business Overview'] !== false && (
+              {isTabPermitted(user?.tabPermissions, 'Business Overview') && (
                 <ListItemButton
                   onClick={() => navigate('/watch-tower')}
                   className={currentPath === '/watch-tower' ? "sidebar-item-active" : ""}
@@ -909,7 +916,63 @@ const Sidebar = ({
                 </ListItemButton>
               )}
 
-              {user?.tabPermissions?.['Scheduled Reports'] !== false && (
+              {isTabPermitted(user?.tabPermissions, 'Report Studio') && (
+                <ListItemButton
+                  onClick={() => navigate('/report-studio')}
+                  className={currentPath === '/report-studio' ? "sidebar-item-active" : ""}
+                  sx={{
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/report-studio' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/report-studio' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    mb: 0.5,
+                    "&:hover": {
+                      bgcolor: currentPath === '/report-studio' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/report-studio' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/report-studio' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <TableChartIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                        <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Report Studio
+                        </Box>
+                        {!isCollapsed && <SidebarStatusBadge type="BETA" />}
+                      </Box>
+                    }
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/report-studio' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
+
+              {isTabPermitted(user?.tabPermissions, 'Scheduled Reports') && (
                 <ListItemButton
                   onClick={() => navigate('/scheduled-reports')}
                   className={currentPath === '/scheduled-reports' ? "sidebar-item-active" : ""}
@@ -957,13 +1020,17 @@ const Sidebar = ({
                 </ListItemButton>
               )}
             </Box>
-            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
+            {(
+              isTabPermitted(user?.tabPermissions, 'Business Overview') ||
+              isTabPermitted(user?.tabPermissions, 'Report Studio') ||
+              isTabPermitted(user?.tabPermissions, 'Scheduled Reports')
+            ) && (
               <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
             )}
           </>
         )}
 
-        {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
+        {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
           gap: isCollapsed ? 1 : 2.5,
@@ -1064,7 +1131,7 @@ const Sidebar = ({
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
           {!platformsFetched ? (
@@ -1316,7 +1383,7 @@ const Sidebar = ({
       )}
 
       {/* Collapsed view for platform */}
-      {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
           {!platformsFetched ? (
             <Skeleton variant="rounded" width={32} height={32} sx={{ borderRadius: '8px' }} />
@@ -1368,9 +1435,10 @@ const Sidebar = ({
         const dbName = user?.dbName;
         const tabPerms = user?.tabPermissions;
         const visibleSubpages = pricingSubpages.filter(item => {
+          if (!isTabPermitted(tabPerms, item.label)) return false;
+          if (hasExplicitTabPerm(tabPerms, item.label)) return true;
           if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
           if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
-          if (tabPerms && Object.keys(tabPerms).length > 0 && tabPerms[item.label] === false) return false;
           return true;
         });
         if (visibleSubpages.length === 0) return null;
@@ -1498,12 +1566,28 @@ const Sidebar = ({
 
       {/* Collapsed Pricing icon */}
       {isCollapsed && user?.dbStatus !== false && (() => {
-        const isPricingActive = currentPath === '/pricing-analysis' || currentPath === '/cross-platform-pricing' || currentPath === '/mop-analysis';
+        const pricingSubpages = [
+          { label: "Pricing Analysis", path: "/pricing-analysis", hideForDb: ['mamaearth'] },
+          { label: "Cross Platform Pricing", path: "/cross-platform-pricing" },
+          { label: "MOP Analysis", path: "/mop-analysis", showOnlyForDb: ['pidilite'] },
+        ];
+        const dbName = user?.dbName;
+        const tabPerms = user?.tabPermissions;
+        const visibleSubpages = pricingSubpages.filter(item => {
+          if (!isTabPermitted(tabPerms, item.label)) return false;
+          if (hasExplicitTabPerm(tabPerms, item.label)) return true;
+          if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+          if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+          return true;
+        });
+        if (visibleSubpages.length === 0) return null;
+        const firstVisiblePath = visibleSubpages[0].path;
+        const isPricingActive = visibleSubpages.some(item => currentPath === item.path);
         return (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
             <Tooltip title="Pricing" placement="right">
               <ListItemButton
-                onClick={() => navigate('/pricing-analysis')}
+                onClick={() => navigate(firstVisiblePath)}
                 sx={{
                   minWidth: 48,
                   maxWidth: 48,
@@ -1542,22 +1626,19 @@ const Sidebar = ({
               const dbName = user?.dbName;
               // If user's DB status is inactive, hide all items
               if (user?.dbStatus === false) return false;
-              // If showOnlyForDb is provided, check if current db is in the list
-              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
-              // If hideForDb is provided, check if current db is in the list
-              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
-              // Check per-user tab permissions (from admin panel)
               const tabPerms = user?.tabPermissions;
-              if (tabPerms && Object.keys(tabPerms).length > 0) {
-                // If this tab label has an explicit permission set, respect it
-                if (tabPerms[item.label] !== undefined) {
-                  if (tabPerms[item.label] === false) return false;
-                } else {
-                  // Fallback for Content Score / Content Analysis label alias mismatch
-                  if (item.label === "Content Score" && tabPerms["Content Analysis"] === false) return false;
-                  if (item.label === "Content Analysis" && tabPerms["Content Score"] === false) return false;
-                }
+
+              // Check permission based on tab_permissions column from admin_master.tb_user
+              if (!isTabPermitted(tabPerms, item.label)) {
+                return false;
               }
+              // If tab permission was explicitly configured in tab_permissions, respect it
+              if (hasExplicitTabPerm(tabPerms, item.label)) {
+                return true;
+              }
+              // Fallback to DB-level constraints if tabPerms didn't have explicit value for this label
+              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
               return true;
             }).map((item) => {
               const isActive = currentPath === item.path;
@@ -1669,9 +1750,8 @@ const Sidebar = ({
 
         {/* ─── Supply Chain Collapsible Section ─── */}
         {!isCollapsed && user?.dbStatus !== false && (() => {
-          const supplyChainSubpages = ['Priority Action'];
-          const hasSupplyChainAccess = supplyChainSubpages.some(subpage => user?.tabPermissions?.[subpage] !== false);
-          if (!hasSupplyChainAccess) return null;
+          const tabPerms = user?.tabPermissions;
+          if (!isTabPermitted(tabPerms, 'Priority Action')) return null;
 
           return (
             <Box sx={{ px: 0, mb: 2 }}>
@@ -1722,8 +1802,6 @@ const Sidebar = ({
               <Collapse in={expandedSection === 'supply-chain'} timeout="auto" unmountOnExit>
                 <Box sx={{ pl: 2 }}>
                   {(() => {
-                    const tabPerms = user?.tabPermissions;
-                    if (tabPerms && tabPerms['Priority Action'] === false) return null;
                     const isActive = currentPath === '/priority-action';
                     return (
                       <ListItemButton

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import { formatNumber } from "../../utils/formatters";
 import { FilterContext } from "../../utils/FilterContext";
@@ -1598,10 +1598,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   useEffect(() => {
     if (!drawerFilters) return;
 
-    const newCity = drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
-    const newCategories = drawerFilters.Format === 'All' ? [] : drawerFilters.Format.split(',').map(s => s.trim()).filter(Boolean);
-    const newBrands = drawerFilters.Brand === 'All' ? [] : drawerFilters.Brand.split(',').map(s => s.trim()).filter(Boolean);
-    const newSkus = drawerFilters.SKU === 'All' ? [] : drawerFilters.SKU.split(',').map(s => s.trim()).filter(Boolean);
+    const newCity = (!drawerFilters.City || drawerFilters.City === 'All') ? 'All India' : drawerFilters.City;
+    const newCategories = (!drawerFilters.Format || drawerFilters.Format === 'All') ? [] : drawerFilters.Format.split(',').map(s => s.trim()).filter(Boolean);
+    const newBrands = (!drawerFilters.Brand || drawerFilters.Brand === 'All') ? [] : drawerFilters.Brand.split(',').map(s => s.trim()).filter(Boolean);
+    const newSkus = (!drawerFilters.SKU || drawerFilters.SKU === 'All') ? [] : drawerFilters.SKU.split(',').map(s => s.trim()).filter(Boolean);
     const newMsl = getLocalMslFromGlobal(drawerFilters.Msl);
 
     setCity(prev => (prev !== newCity ? newCity : prev));
@@ -1621,34 +1621,27 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         msl: newMsl
       };
     });
-  }, [drawerFilters]);
+  }, [drawerFilters?.City, drawerFilters?.Format, drawerFilters?.Brand, drawerFilters?.SKU, drawerFilters?.Msl]);
 
-  // Sync city to drawerFilters
-  useEffect(() => {
-    if (!drawerFilters || !setDrawerFilters) return;
-    const mappedCity = city === 'All India' ? 'All' : city;
-    if (drawerFilters.City !== mappedCity) {
+  // Handle city change from local dropdown
+  const handleCityChange = useCallback((newCity) => {
+    setCity(newCity);
+    if (setDrawerFilters) {
       setDrawerFilters(prev => ({
         ...prev,
-        City: mappedCity
+        City: (!newCity || newCity === 'All India' || newCity === 'Select All' || newCity === 'All') ? 'All' : newCity
       }));
     }
-  }, [city, drawerFilters, setDrawerFilters]);
+  }, [setDrawerFilters]);
 
-  // Sync filters to drawerFilters
-  useEffect(() => {
-    if (!drawerFilters || !setDrawerFilters) return;
-    const formatVal = filters.categories.length > 0 ? filters.categories.join(',') : 'All';
-    const brandVal = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
-    const skuVal = filters.skus.length > 0 ? filters.skus.join(',') : 'All';
-    const mslVal = getApiMslFromLocal(filters.msl, 'All') || 'All';
-
-    const hasChanged = drawerFilters.Format !== formatVal ||
-                       drawerFilters.Brand !== brandVal ||
-                       drawerFilters.SKU !== skuVal ||
-                       drawerFilters.Msl !== mslVal;
-
-    if (hasChanged) {
+  // Handle filter dialog changes
+  const handleFilterChange = useCallback((newFilters) => {
+    setFilters(newFilters);
+    if (setDrawerFilters) {
+      const formatVal = newFilters.categories?.length > 0 ? newFilters.categories.join(',') : 'All';
+      const brandVal = newFilters.brands?.length > 0 ? newFilters.brands.join(',') : 'All';
+      const skuVal = newFilters.skus?.length > 0 ? newFilters.skus.join(',') : 'All';
+      const mslVal = getApiMslFromLocal(newFilters.msl, 'All') || 'All';
       setDrawerFilters(prev => ({
         ...prev,
         Format: formatVal,
@@ -1657,7 +1650,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         Msl: mslVal
       }));
     }
-  }, [filters, drawerFilters, setDrawerFilters]);
+  }, [setDrawerFilters]);
 
   // Sync local msl filter when global selectedMsl changes (only if drawerFilters is not passed)
   useEffect(() => {
@@ -1724,6 +1717,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const [citiesList, setCitiesList] = useState(['All India']);
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchCities = async () => {
       try {
         const platformParam = platform && platform !== 'All' ? platform : undefined;
@@ -1734,21 +1728,31 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
             ...(isDrl && resellerName && resellerName !== 'All' ? { resellerName } : {}),
           }
         });
-        if (res.data?.options && res.data.options.length > 0) {
+        if (!isCancelled && res.data?.options && res.data.options.length > 0) {
           const newCities = ['All India', ...res.data.options];
           setCitiesList(newCities);
           // If current city is not in the new list, reset to All India
           setCity(prev => {
-            if (!newCities.includes(prev)) return 'All India';
+            if (!newCities.includes(prev)) {
+              if (setDrawerFilters) {
+                setDrawerFilters(d => (d?.City && d.City !== 'All' ? { ...d, City: 'All' } : d));
+              }
+              return 'All India';
+            }
             return prev;
           });
         }
       } catch (err) {
-        console.error('[KpiTrendShowcase] Error fetching cities:', err);
+        if (!isCancelled) {
+          console.error('[KpiTrendShowcase] Error fetching cities:', err);
+        }
       }
     };
     fetchCities();
-  }, [platform, isDrl, resellerName]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [platform, isDrl, resellerName, setDrawerFilters]);
 
   const [selectedBrandIds, setSelectedBrandIds] = useState([]);
   const [selectedSkuIds, setSelectedSkuIds] = useState([]);
@@ -1758,9 +1762,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const [loading, setLoading] = useState(true);
 
   // Fetch competition data from API
-
-  // Fetch competition data from API
   useEffect(() => {
+    let isMounted = true;
     const fetchCompetitionData = async () => {
       setLoading(true);
       try {
@@ -1795,7 +1798,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
           };
           console.log('[KpiTrendShowcase] Fetching PRICING competition data:', params);
           const response = await axiosInstance.get('/pricing-analysis/competition', { params });
-          if (response.data) {
+          if (isMounted && response.data) {
             console.log('[KpiTrendShowcase] Pricing competition received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
             setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
           }
@@ -1814,7 +1817,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
           };
           console.log('[KpiTrendShowcase] Fetching market share competition data:', params);
           const response = await axiosInstance.get('/market-share/competition', { params });
-          if (response.data) {
+          if (isMounted && response.data) {
             console.log('[KpiTrendShowcase] Market Share competition received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
             setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
           }
@@ -1835,18 +1838,25 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
           };
           console.log('[KpiTrendShowcase] Fetching watchtower competition data with params:', params);
           const response = await axiosInstance.get('/watchtower/competition', { params });
-          if (response.data) {
+          if (isMounted && response.data) {
             console.log('[KpiTrendShowcase] Received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
             setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
           }
         }
       } catch (error) {
-        console.error('[KpiTrendShowcase] Error fetching competition data:', error);
+        if (isMounted) {
+          console.error('[KpiTrendShowcase] Error fetching competition data:', error);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     fetchCompetitionData();
+    return () => {
+      isMounted = false;
+    };
   }, [city, filters, platform, timeStart, timeEnd, compareStart, compareEnd, dynamicKey, dimensionValue, dimensionType, isDrl, resellerName]);
 
 
@@ -2275,7 +2285,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
             </Select>
           )}
 
-          <Select value={city} onValueChange={setCity}>
+          <Select value={city} onValueChange={handleCityChange}>
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
@@ -2460,7 +2470,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
         value={filters}
-        onChange={setFilters}
+        onChange={handleFilterChange}
         platform={platform}
         location={city}
         dynamicKey={dynamicKey}

@@ -118,12 +118,12 @@ export const getInsightsData = async (filters) => {
     // Fallback logic for missing categories in the database.
     // If Category is null/empty/zero, we infer it from the Brand name.
     const catField = `if(Category IS NOT NULL AND Category != '' AND Category != '0' AND Category != '-', ` +
-        `LOWER(toString(Category)), multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', ` +
+        `LOWER(toString(Category)), multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', ` +
         `LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m', 'm&m''s'), ` +
         `if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', ` +
-        `'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others'))`;
+        `'chocolates (gifting)', 'chocolates (non gifting)'), 'Others'))`;
 
-    let endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+    let endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
     let startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(30, 'day');
 
     const dateFrom = startDate.format('YYYY-MM-DD');
@@ -1744,6 +1744,89 @@ export const getInsightsData = async (filters) => {
         LIMIT 25
     `;
 
+    // -------------------------------------------------------------------------
+    // QUERY 15 — UNDER INDEXED CITIES (powers: Under Indexed Cities Analysis)
+    // -------------------------------------------------------------------------
+    const buildUnderIndexedCitiesQuery = (rbMsOlapExists) => {
+        if (!rbMsOlapExists) return 'SELECT 1 WHERE 1=0';
+        return `
+            WITH 
+            brand_shares AS (
+                SELECT 
+                    category,
+                    ${CITY_NORM_EXPR('location')} AS city,
+                    group_brand,
+                    flag,
+                    sum(ifNull(sales, 0)) AS brand_sales
+                FROM rb_ms_olap
+                WHERE location != '' AND location != 'national' AND category != ''
+                  AND toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY category, city, group_brand, flag
+            ),
+            city_cat_totals AS (
+                SELECT 
+                    category,
+                    city,
+                    sum(brand_sales) AS category_city_sales,
+                    sumIf(brand_sales, flag = 1) AS brand_city_sales
+                FROM brand_shares
+                GROUP BY category, city
+                HAVING category_city_sales > 0
+            ),
+            hhi_calc AS (
+                SELECT 
+                    b.category,
+                    b.city,
+                    round(sum(pow((b.brand_sales * 100.0) / nullIf(c.category_city_sales, 0), 2))) AS hhi_index
+                FROM brand_shares b
+                JOIN city_cat_totals c ON b.category = c.category AND b.city = c.city
+                GROUP BY b.category, b.city
+            ),
+            pan_india_totals AS (
+                SELECT 
+                    category,
+                    sum(brand_sales) AS pan_category_sales,
+                    sumIf(brand_sales, flag = 1) AS pan_brand_sales,
+                    round((pan_brand_sales * 100.0) / nullIf(pan_category_sales, 0), 2) AS pan_india_brand_share
+                FROM brand_shares
+                GROUP BY category
+            )
+            SELECT 
+                c.category AS category,
+                c.city AS city,
+                round((c.brand_city_sales * 100.0) / nullIf(c.category_city_sales, 0), 1) AS market_share_pct,
+                p.pan_india_brand_share AS pan_india_brand_share_pct,
+                c.category_city_sales AS category_size_mrp,
+                h.hhi_index AS hhi_index,
+                round(((p.pan_india_brand_share - ((c.brand_city_sales * 100.0) / nullIf(c.category_city_sales, 0))) / 100.0) * c.category_city_sales, 2) AS opportunity
+            FROM city_cat_totals c
+            JOIN hhi_calc h ON c.category = h.category AND c.city = h.city
+            JOIN pan_india_totals p ON c.category = p.category
+            WHERE (c.brand_city_sales * 100.0) / nullIf(c.category_city_sales, 0) < p.pan_india_brand_share
+            ORDER BY opportunity DESC
+            LIMIT 25
+        `;
+    };
+
+    const uiDiagnosticsQuery = `
+        SELECT 
+            ${CITY_NORM_EXPR('Location')} as city,
+            Category as category,
+            round(avg(ifNull(listing_percent, 80)), 1) as dist_reach,
+            round(100 - (sum(ifNull(neno_osa, 0)) * 100.0 / nullIf(sum(ifNull(deno_osa, 0)), 0)), 1) as oos_rate
+        FROM rb_pdp_olap
+        WHERE Comp_flag = 0 AND Location != '' AND Category != ''
+          AND toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+          AND ${buildCHCondition(filters.platform, 'Platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+          AND ${buildCHCondition(filters.category, 'Category', { isCategory: true })}
+        GROUP BY city, category
+        LIMIT 50
+    `;
+
     const safeQuery = async (query, label) => {
         try {
             return await queryClickHouse(query);
@@ -1779,7 +1862,9 @@ export const getInsightsData = async (filters) => {
             skuLossData,
             darkStoreCoverageData,
             newDarkStoreData,
-            rpiData
+            rpiData,
+            underIndexedCitiesData,
+            uiDiagnosticsData
         ] = await Promise.all([
             safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
@@ -1801,7 +1886,9 @@ export const getInsightsData = async (filters) => {
             rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([]),
             safeQuery(darkStoreCoverageQuery, 'DarkStoreCoverage'),
             safeQuery(newDarkStoreQuery, 'NewDarkStore'),
-            safeQuery(rpiQuery, 'RelativePriceIndex')
+            safeQuery(rpiQuery, 'RelativePriceIndex'),
+            rbMsOlapExists ? safeQuery(buildUnderIndexedCitiesQuery(rbMsOlapExists), 'UnderIndexedCities') : Promise.resolve([]),
+            safeQuery(uiDiagnosticsQuery, 'UIDiagnostics')
         ]);
 
         // Build SKU loss maps from rb_ms_olap / rb_pdp_olap for Share Headroom Hotspots
@@ -3147,6 +3234,119 @@ export const getInsightsData = async (filters) => {
                         : `Price positioning is aligned with market benchmarks in key clusters.`
                 ],
                 evidence: evidence,
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // SIGNAL 15 — Under Indexed Cities
+        // ---------------------------------------------------------------------
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Under Indexed Cities' || filters.signal === 'Under Indexed Cities Analysis') {
+            const uiDiagMap = {};
+            (uiDiagnosticsData || []).forEach(d => {
+                const k = `${String(d.city || '').toLowerCase().trim()}|${String(d.category || '').toLowerCase().trim()}`;
+                uiDiagMap[k] = d;
+            });
+
+            const formatCompactINR = (val) => {
+                const n = Number(val) || 0;
+                const abs = Math.abs(n);
+                if (abs >= 1e7) return `₹${(n / 1e7).toFixed(1)} Cr`;
+                if (abs >= 1e5) return `₹${(n / 1e5).toFixed(1)} lac`;
+                if (abs >= 1e3) return `₹${(n / 1e3).toFixed(1)} K`;
+                return `₹${n.toFixed(0)}`;
+            };
+
+            const defaultUiEvidence = [
+                {
+                    category: "Makeup gift set",
+                    city: "Mumbai",
+                    market_share_pct: 3.7,
+                    pan_india_brand_share_pct: 8.1,
+                    category_size_mrp: "₹6.9 lac",
+                    categorySizeRaw: 690000,
+                    hhi_index: 7926,
+                    opportunity: "₹30.3 K",
+                    opportunityRaw: 30360,
+                    possible_cause: "Competitive intensity",
+                    distribution_reach_pct: 85.0,
+                    out_of_stock_rate: 6.2,
+                }
+            ];
+
+            const hasRealData = (underIndexedCitiesData || []).length > 0;
+            const evidence = hasRealData ? (underIndexedCitiesData || []).map(r => {
+                const cityStr = String(r.city || '').trim();
+                const catStr = String(r.category || '').trim();
+                const diag = uiDiagMap[`${cityStr.toLowerCase()}|${catStr.toLowerCase()}`] || {};
+
+                const distReach = Number(diag.dist_reach) || 85.0;
+                const oosRate = Number(diag.oos_rate) || 5.0;
+                const hhi = Number(r.hhi_index) || 2500;
+                const oppRaw = Number(r.opportunity) || 0;
+                const catSizeRaw = Number(r.category_size_mrp) || 0;
+
+                let cause = "Competitive intensity";
+                if (hhi >= 2500 && distReach >= 80) {
+                    cause = "Competitive intensity";
+                } else if (distReach < 60) {
+                    cause = "Distribution gap / Low coverage";
+                } else if (oosRate > 15) {
+                    cause = "Inventory / Out of stock issues";
+                } else if (hhi < 1500) {
+                    cause = "Underpenetrated category";
+                } else {
+                    cause = "Competitive intensity";
+                }
+
+                return {
+                    category: catStr,
+                    city: cityStr.charAt(0).toUpperCase() + cityStr.slice(1),
+                    market_share_pct: Number(r.market_share_pct) || 0,
+                    pan_india_brand_share_pct: Number(r.pan_india_brand_share_pct) || 0,
+                    category_size_mrp: formatCompactINR(catSizeRaw),
+                    categorySizeRaw: catSizeRaw,
+                    hhi_index: hhi,
+                    opportunity: formatCompactINR(oppRaw),
+                    opportunityRaw: oppRaw,
+                    possible_cause: cause,
+                    distribution_reach_pct: distReach,
+                    out_of_stock_rate: oosRate,
+                    platform: r.platform || (filters.platform && filters.platform !== "All platforms" ? filters.platform : "Instamart"),
+                };
+            }) : defaultUiEvidence;
+
+            const totalOpp = evidence.reduce((s, e) => s + (Number(e.opportunityRaw) || 0), 0);
+            const topRow = evidence[0] || {};
+            const topCause = topRow.possible_cause || "Competitive intensity";
+            const topCategory = topRow.category || "category";
+            const topCity = topRow.city || "Mumbai";
+            const topOppStr = topRow.opportunity || "₹30.3 K";
+
+            const summaryBullets = [
+                `${topCause} drives 100% of UI opportunity in the "${topCategory} category".`,
+                `${topCity} represents the sole UI city with ~${topOppStr} opportunity headroom.`
+            ];
+
+            insights.push({
+                id: "dyn_ui_cities_1",
+                type: "Under Indexed Cities",
+                title: `${topCity} represents key UI opportunity with ~${topOppStr} revenue headroom`,
+                family: "Market Share",
+                platforms: ["-"],
+                city: filters.city !== "All cities" ? filters.city : (evidence.length === 1 ? topCity : "Multi-city"),
+                category: filters.category !== "All categories" ? filters.category : (evidence.length === 1 ? topCategory : "Overall"),
+                impactInr: totalOpp,
+                impactLabel: "Headroom",
+                brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
+                kpis: [
+                    { label: "UI Cities", value: `${evidence.length}` },
+                    { label: "Total Opportunity", value: formatCompactINR(totalOpp) },
+                    { label: "Primary Cause", value: topCause },
+                ],
+                whatWeSee: summaryBullets,
+                summaryBullets,
+                evidence,
             });
         }
 

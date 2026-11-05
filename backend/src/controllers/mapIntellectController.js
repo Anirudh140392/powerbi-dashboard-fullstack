@@ -4,6 +4,7 @@
  */
 
 import mapIntellectService from '../services/mapIntellectService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /**
  * GET /api/map-intellect/data
@@ -11,7 +12,7 @@ import mapIntellectService from '../services/mapIntellectService.js';
  */
 export const getMapIntellectData = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[MapIntellect Controller] API call received with filters:', filters);
         const data = await mapIntellectService.getMapIntellectData(filters);
         res.json(data);
@@ -27,7 +28,8 @@ export const getMapIntellectData = async (req, res) => {
  */
 export const getMapIntellectCategories = async (req, res) => {
     try {
-        const { metric, platform, channel } = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const { metric, platform, channel } = filters;
         console.log('[MapIntellect Controller] Fetching categories for:', { metric, platform, channel });
         const categories = await mapIntellectService.getMapIntellectCategories(metric, platform, channel);
         res.json(categories);
@@ -43,7 +45,8 @@ export const getMapIntellectCategories = async (req, res) => {
  */
 export const getMapIntellectBrands = async (req, res) => {
     try {
-        const { platform, channel, metric } = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const { platform, channel, metric } = filters;
         console.log('[MapIntellect Controller] Fetching brands for:', { platform, channel, metric });
         const brands = await mapIntellectService.getMapIntellectBrands(platform, channel, metric);
         res.json(brands);

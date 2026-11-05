@@ -65,7 +65,7 @@ const inventoryAnalysisService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
                 const duration = endDate.diff(startDate, 'day') + 1;
 
@@ -453,7 +453,7 @@ const inventoryAnalysisService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
 
                 const buildSqlWhere = (start, end) => {
@@ -539,7 +539,7 @@ const inventoryAnalysisService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
                 const periodDays = endDate.diff(startDate, 'day') + 1;
 

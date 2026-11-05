@@ -288,10 +288,16 @@ export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap'
 
     const compClause = tableName === 'rb_kw_olap' ? '' : 'AND (Comp_flag = 0 OR Comp_flag IS NULL)';
 
+    const now = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+    istNow.setDate(istNow.getDate() - 1);
+    const dayMinus1 = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
+
     try {
         const rows = await queryAdminDB(`
             WITH latest_date AS (
-                SELECT MAX(DATE) AS max_date
+                SELECT if(toString(MAX(DATE)) != '' AND toString(MAX(DATE)) < '${dayMinus1}', MAX(DATE), toDate('${dayMinus1}')) AS max_date
                 FROM \`${dbName}\`.\`${tableName}\`
                 WHERE DATE IS NOT NULL ${platClause} ${compClause}
             )

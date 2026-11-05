@@ -20,34 +20,32 @@ export const getCompanyLogo = async (dbId) => {
 };
 
 export const getLatestDataDate = async (dbName) => {
+    // 1. Calculate system date - 1 day (IST)
+    const now = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+    istNow.setDate(istNow.getDate() - 1);
+    const systemDayMinus1 = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
+
     try {
         const rows = await queryAdminDB(`
             SELECT toString(MAX(DATE)) AS max_date
             FROM \`${dbName}\`.rb_pdp_olap
             WHERE DATE IS NOT NULL
         `);
-        const maxDate = rows.length > 0 ? rows[0].max_date : null;
-        if (maxDate && maxDate !== '1970-01-01' && maxDate !== '0000-00-00') {
-            console.log(`[AlertData] Latest data date for ${dbName}: ${maxDate}`);
-            return maxDate;
+        const dbMaxDate = rows.length > 0 ? rows[0].max_date : null;
+        if (dbMaxDate && /^\d{4}-\d{2}-\d{2}$/.test(dbMaxDate) && dbMaxDate !== '1970-01-01' && dbMaxDate !== '0000-00-00') {
+            if (dbMaxDate < systemDayMinus1) {
+                console.log(`[AlertData] DB MAX(DATE) (${dbMaxDate}) is smaller than system day - 1 (${systemDayMinus1}). Using DB MAX(DATE): ${dbMaxDate}`);
+                return dbMaxDate;
+            }
         }
-        // Fallback to today - 1 (IST)
-        const now = new Date();
-        const istOffsetMs = 5.5 * 60 * 60 * 1000;
-        const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
-        istNow.setDate(istNow.getDate() - 1);
-        const fallback = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
-        console.warn(`[AlertData] MAX(DATE) returned invalid for ${dbName}, using fallback: ${fallback}`);
-        return fallback;
     } catch (err) {
-        console.error(`[AlertData] Failed to fetch latest data date for ${dbName}:`, err.message);
-        // Fallback to today - 1 (IST)
-        const now = new Date();
-        const istOffsetMs = 5.5 * 60 * 60 * 1000;
-        const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
-        istNow.setDate(istNow.getDate() - 1);
-        return `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
+        console.warn(`[AlertData] Failed to fetch DB MAX(DATE) for ${dbName}:`, err.message);
     }
+
+    console.log(`[AlertData] Using system day - 1 date for ${dbName} alert report: ${systemDayMinus1}`);
+    return systemDayMinus1;
 };
 
 export const computeDateRanges = (benchmarkPeriod, latestDateStr) => {
@@ -57,7 +55,9 @@ export const computeDateRanges = (benchmarkPeriod, latestDateStr) => {
     } else {
         const now = new Date();
         const istOffsetMs = 5.5 * 60 * 60 * 1000;
-        maxDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+        const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+        istNow.setDate(istNow.getDate() - 1);
+        maxDate = istNow;
     }
 
     let currentStart = new Date(maxDate);

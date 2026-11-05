@@ -5,9 +5,11 @@ import { Box, CircularProgress, Typography } from "@mui/material";
 import { Lock as LockIcon } from "@mui/icons-material";
 
 // Maps route paths to their corresponding tab permission label (must match sidebar & admin panel)
-const ROUTE_TO_TAB_LABEL = {
+export const ROUTE_TO_TAB_LABEL = {
     "/cross-platform-pricing": "Cross Platform Pricing",
+    "/mop-analysis": "MOP Analysis",
     "/watch-tower": "Business Overview",
+    "/report-studio": "Report Studio",
     "/geo-intelligence": "India Overview",
     "/insights": "Insights",
     "/availability-analysis": "Availability Analysis",
@@ -29,21 +31,93 @@ const ROUTE_TO_TAB_LABEL = {
     "/secondary-overview": "Secondary Summary",
     "/pds-score": "PDS Score",
     "/on-shelf-availability": "Market Coverage",
+    "/priority-action": "Priority Action",
 };
 
 // Ordered list of routes to try when finding the first allowed page (Business Overview /watch-tower is top priority)
-const ROUTE_PRIORITY = [
+export const ROUTE_PRIORITY = [
     "/watch-tower", "/cross-platform-pricing", "/geo-intelligence", "/insights", "/availability-analysis",
-    "/visibility-anlysis", "/market-share", "/pricing-analysis",
-    "/performance-marketing", "/content-score", "/content-analysis", "/inventory",
-    "/scheduled-reports", "/download-report", "/review-rating",
+    "/on-shelf-availability", "/visibility-anlysis", "/market-share", "/sales", "/pricing-analysis",
+    "/mop-analysis", "/performance-marketing", "/volume-cohort", "/content-score", "/content-analysis",
+    "/inventory", "/pds-score", "/review-rating", "/piy", "/category-rca", "/priority-action",
+    "/scheduled-reports", "/report-studio", "/download-report",
     "/primary-overview", "/secondary-overview",
 ];
 
 /**
+ * Resolves the raw value of a tab permission from tabPerms, checking direct keys and known aliases.
+ */
+export function getTabPermValue(tabPerms, label) {
+    if (!tabPerms || typeof tabPerms !== 'object' || Object.keys(tabPerms).length === 0) {
+        return undefined;
+    }
+    if (tabPerms[label] !== undefined) {
+        return tabPerms[label];
+    }
+    // Check known aliases
+    if (label === "Content Score" && tabPerms["Content Analysis"] !== undefined) {
+        return tabPerms["Content Analysis"];
+    }
+    if (label === "Content Analysis" && tabPerms["Content Score"] !== undefined) {
+        return tabPerms["Content Score"];
+    }
+    if (label === "Market Coverage" && tabPerms["On-Shelf Availability"] !== undefined) {
+        return tabPerms["On-Shelf Availability"];
+    }
+    if (label === "On-Shelf Availability" && tabPerms["Market Coverage"] !== undefined) {
+        return tabPerms["Market Coverage"];
+    }
+    if (label === "Review Rating" && tabPerms["Rating"] !== undefined) {
+        return tabPerms["Rating"];
+    }
+    if (label === "Rating" && tabPerms["Review Rating"] !== undefined) {
+        return tabPerms["Review Rating"];
+    }
+    if (label === "Priority Action" && tabPerms["Supply"] !== undefined) {
+        return tabPerms["Supply"];
+    }
+    if (label === "Supply" && tabPerms["Priority Action"] !== undefined) {
+        return tabPerms["Priority Action"];
+    }
+    return undefined;
+}
+
+/**
+ * Checks whether tabPerms contains an explicit setting for this tab label (or alias).
+ */
+export function hasExplicitTabPerm(tabPerms, label) {
+    return getTabPermValue(tabPerms, label) !== undefined;
+}
+
+/**
+ * Checks whether a tab is permitted based on tabPerms.
+ * Handles boolean true/false and object structures like { access: true/false, kpi: { ... } }.
+ */
+export function isTabPermitted(tabPerms, label) {
+    if (!tabPerms || typeof tabPerms !== 'object' || Object.keys(tabPerms).length === 0) {
+        return true; // No permissions defined -> default to visible
+    }
+    const val = getTabPermValue(tabPerms, label);
+    if (val === undefined) {
+        return true; // Tab not mentioned in permissions object -> default to visible
+    }
+    if (val === false) {
+        return false;
+    }
+    if (typeof val === 'object' && val !== null) {
+        if (val.access === false) return false;
+        if (val.access === true) return true;
+    }
+    if (val === true) {
+        return true;
+    }
+    return true;
+}
+
+/**
  * Check if a specific route path is allowed for the current user
  */
-function isRouteAllowed(path, user) {
+export function isRouteAllowed(path, user) {
     // Admin routes and routes without a tab mapping are always allowed
     const tabLabel = ROUTE_TO_TAB_LABEL[path];
     if (!tabLabel) return true;
@@ -51,19 +125,8 @@ function isRouteAllowed(path, user) {
     // If dbStatus is explicitly false, block all dashboard routes
     if (user?.dbStatus === false) return false;
 
-    // Check per-user tab permissions
-    const tabPerms = user?.tabPermissions;
-    if (tabPerms && Object.keys(tabPerms).length > 0) {
-        if (tabPerms[tabLabel] !== undefined) {
-            if (tabPerms[tabLabel] === false) return false;
-        } else {
-            // Fallback for Content Score / Content Analysis label alias mismatch
-            if (tabLabel === "Content Score" && tabPerms["Content Analysis"] === false) return false;
-            if (tabLabel === "Content Analysis" && tabPerms["Content Score"] === false) return false;
-        }
-    }
-
-    return true;
+    // Check per-user / per-db tab permissions
+    return isTabPermitted(user?.tabPermissions, tabLabel);
 }
 
 /**

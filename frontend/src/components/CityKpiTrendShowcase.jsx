@@ -690,6 +690,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
   const isColumnPagination = dynamicKey === "availability" || dynamicKey === "visibility";
+  const colPageSizeOptions = dynamicKey === "visibility" ? [10, 20, 30, 40] : [5, 10, 15, 20];
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -697,7 +698,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
   // Column Pagination State
   const [currentColPage, setCurrentColPage] = useState(1);
-  const [colPageSize, setColPageSize] = useState(5);
+  const [colPageSize, setColPageSize] = useState(colPageSizeOptions[0]);
 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -1203,13 +1204,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
         {/* ------------------ PAGINATION FOOTER ------------------ */}
         <PaginationFooter
-          isVisible={showPagination && (isColumnPagination ? allDataColumns.length > 5 : filteredRows.length > 3)}
+          isVisible={showPagination && (isColumnPagination ? allDataColumns.length > colPageSizeOptions[0] : filteredRows.length > 3)}
           currentPage={isColumnPagination ? currentColPage : currentPage}
           totalPages={isColumnPagination ? totalColPages : totalPages}
           onPageChange={isColumnPagination ? setCurrentColPage : setCurrentPage}
           pageSize={isColumnPagination ? colPageSize : pageSize}
           onPageSizeChange={isColumnPagination ? setColPageSize : setPageSize}
-          pageSizeOptions={isColumnPagination ? [5, 10, 15, 20] : [3, 6, 9, 12]}
+          pageSizeOptions={isColumnPagination ? colPageSizeOptions : [3, 6, 9, 12]}
           itemsLabel={isColumnPagination ? "Cols/page" : "Rows/page"}
         />
       </CardContent>

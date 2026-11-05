@@ -19,9 +19,17 @@ import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
-
+import apiLogs from './routes/apiLogs.js';
+import reportSchedules from './routes/reportSchedules.js';
+import reportTemplates from './routes/reportTemplates.js';
+import reviewRating from './routes/reviewRating.js';
 
 export default (app) => {
+    // Review Rating routes
+    reviewRating(app);
+
+    // API Logs routes
+    apiLogs(app);
     // Admin routes
     admin(app);
 
@@ -70,6 +78,12 @@ export default (app) => {
 
     // Reports routes
     reports(app);
+
+    // Scheduled report emails
+    reportSchedules(app);
+
+    // Saved Report Studio templates
+    reportTemplates(app);
 
     // Map Intellect routes
     mapIntellect(app);

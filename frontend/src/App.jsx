@@ -25,6 +25,7 @@ import LoginPage from "./pages/Login/LoginPage";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
 import DownloadReport from "./pages/Reports/DownloadReport";
+import ReportStudio from "./pages/ReportStudio/ReportStudio";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
@@ -43,6 +44,8 @@ import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
 import SelectWorkspacePage from "./pages/Login/SelectWorkspacePage";
 import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 import MopAnalysis from "./pages/Analytics/MopAnalysis";
+import ApiLogsPage from "./pages/ApiLogs/ApiLogsPage";
+import VisitorTracker from "./components/VisitorTracker";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -53,8 +56,10 @@ function AppContent() {
   const sessionKey = isLoggedIn ? (user?.email || "authenticated") : "guest";
 
   return (
-    <HelpProvider>
-      <FilterProvider key={sessionKey}>
+    <>
+      <VisitorTracker />
+      <HelpProvider>
+        <FilterProvider key={sessionKey}>
         <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -83,6 +88,12 @@ function AppContent() {
             <Route path="/watch-tower" element={
               <ProtectedRoute>
                 <WatchTower />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/report-studio" element={
+              <ProtectedRoute>
+                <ReportStudio />
               </ProtectedRoute>
             } />
 
@@ -225,8 +236,14 @@ function AppContent() {
             } />
 
             <Route path="/admin" element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true}>
                 <AdminPanel />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/api-logs" element={
+              <ProtectedRoute adminOnly={true}>
+                <ApiLogsPage />
               </ProtectedRoute>
             } />
 
@@ -238,6 +255,7 @@ function AppContent() {
         </SocketProvider>
       </FilterProvider>
     </HelpProvider>
+    </>
   );
 }
 

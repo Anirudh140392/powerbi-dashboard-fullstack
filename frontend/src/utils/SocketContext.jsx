@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
+import dayjs from "dayjs";
 
 const SocketContext = createContext({
   socketMaxDates: {},
@@ -16,7 +17,7 @@ export const useSocket = () => useContext(SocketContext);
  * Stores max dates per table: { rb_pdp_olap, rb_ms_olap, rb_kw_olap, rb_pm_olap, tb_content_score_data }
  */
 export function SocketProvider({ children }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [socketMaxDates, setSocketMaxDates] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
@@ -69,7 +70,33 @@ export function SocketProvider({ children }) {
 
     socket.on("maxDateUpdate", (data) => {
       console.log("[Socket] 📥 Received maxDateUpdate:", data);
-      setSocketMaxDates(data);
+      const isQc = Number(user?.qcUser ?? user?.qc_user) === 1;
+      const today = dayjs().format("YYYY-MM-DD");
+      const maxAllowed = isQc ? today : dayjs().subtract(1, 'day').format("YYYY-MM-DD");
+
+      const clampVal = (val) => {
+        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+          return val > maxAllowed ? maxAllowed : val;
+        }
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          const res = {};
+          for (const [k, v] of Object.entries(val)) {
+            res[k] = clampVal(v);
+          }
+          return res;
+        }
+        return val;
+      };
+
+      if (data && typeof data === 'object') {
+        const clamped = {};
+        for (const [k, v] of Object.entries(data)) {
+          clamped[k] = clampVal(v);
+        }
+        setSocketMaxDates(clamped);
+      } else {
+        setSocketMaxDates(data);
+      }
     });
 
     socket.on("connect_error", (err) => {
@@ -80,7 +107,7 @@ export function SocketProvider({ children }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user]);
 
   return (
     <SocketContext.Provider value={{ socketMaxDates, isConnected }}>

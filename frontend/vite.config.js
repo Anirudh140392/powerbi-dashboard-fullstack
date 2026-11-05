@@ -69,12 +69,43 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      // ── Dedicated Report Backend API proxy (port 5001) ──
+      '/api/reports/download': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/download-pdp-report': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/download-promo-violation-report': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/studio': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
       // ── Main backend API proxy (catch-all for other /api/*) ──
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,       // 10 minutes for large report downloads
         proxyTimeout: 10 * 60 * 1000,   // 10 minutes proxy timeout
+        bypass(req) {
+          // Do not proxy frontend SPA routes (like /api-logs) to the backend
+          if (!req.url.startsWith('/api/') && req.url !== '/api') {
+            return req.url;
+          }
+        },
       },
       // Proxy for trailytics_ratings backend API (port 3001)
       // DS frontend calls /ratings-api/... → ratings Express server /api/...
@@ -87,6 +118,12 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
         ws: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ECONNABORTED') return;
+            console.warn('[vite] ws proxy error:', err.message);
+          });
+        },
       },
     },
   },

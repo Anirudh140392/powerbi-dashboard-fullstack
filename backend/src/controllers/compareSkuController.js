@@ -3,10 +3,12 @@
  * Handles API requests for the Compare SKU feature.
  */
 import compareSkuService from '../services/compareSkuService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 export const getCompareSkuDateRange = async (req, res) => {
     try {
-        const data = await compareSkuService.getCompareSkuDateRange();
+        const filters = applyQcDateFilter(req.query, req);
+        const data = await compareSkuService.getCompareSkuDateRange(filters);
         res.json(data);
     } catch (error) {
         console.error('[getCompareSkuDateRange] Error:', error);
@@ -26,7 +28,7 @@ export const getCompareSkuFilters = async (req, res) => {
 
 export const getCompareSkuProducts = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || req.query['platform[]'],
             brand: req.query.brand || req.query['brand[]'],
             category: req.query.category || req.query['category[]'],
@@ -38,7 +40,7 @@ export const getCompareSkuProducts = async (req, res) => {
             maxAsp: req.query.maxAsp,
             location: req.query.location || req.query['location[]'],
             locations: req.query.locations || req.query['locations[]']
-        };
+        }, req);
         const data = await compareSkuService.getCompareSkuProducts(filters);
         res.json(data);
     } catch (error) {
@@ -49,7 +51,7 @@ export const getCompareSkuProducts = async (req, res) => {
 
 export const getCompareSkuMetrics = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             skuNames: req.query.skuNames || req.query['skuNames[]'],
             skuPlatforms: req.query.skuPlatforms || req.query['skuPlatforms[]'],
             startDate: req.query.startDate,
@@ -59,7 +61,7 @@ export const getCompareSkuMetrics = async (req, res) => {
             brands: req.query.brands || req.query['brands[]'],
             categories: req.query.categories || req.query['categories[]'],
             locations: req.query.locations || req.query['locations[]'],
-        };
+        }, req);
         const data = await compareSkuService.getCompareSkuMetrics(filters);
         res.json(data);
     } catch (error) {
@@ -70,7 +72,7 @@ export const getCompareSkuMetrics = async (req, res) => {
 
 export const getCompareSkuTrend = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             metricId: req.query.metricId,
@@ -80,7 +82,7 @@ export const getCompareSkuTrend = async (req, res) => {
             brands: req.query.brands || req.query['brands[]'],
             categories: req.query.categories || req.query['categories[]'],
             locations: req.query.locations || req.query['locations[]'],
-        };
+        }, req);
         const data = await compareSkuService.getCompareSkuTrend(filters);
         res.json(data);
     } catch (error) {

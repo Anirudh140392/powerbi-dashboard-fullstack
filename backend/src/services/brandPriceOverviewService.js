@@ -130,7 +130,8 @@ async function getBrandPriceOverview(filters = {}) {
                 platform: row.Platform,
                 gramSize: gramSize,
                 ecp: ecp,
-                ecpWithoutDisc: mrp,
+                mrp: mrp, // Separate MRP field
+                ecpWithoutDisc: mrp, // Keep for backward compatibility
                 discount: discount,
                 trend: discount > 15 ? 'down' : 'up' // Simple trend based on discount
             };

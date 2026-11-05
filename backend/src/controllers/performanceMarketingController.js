@@ -1,10 +1,9 @@
 import performanceMarketingService from '../services/performanceMarketingService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 export const KpisOverview = async (req, res) => {
     try {
-        const filters = req.query;
-        // Call the service method we implemented earlier (it was defined in previous steps but controller was mocked here)
-        // Importing service to use it
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await performanceMarketingService.getKpisOverview(filters);
         res.json(data);
     } catch (error) {
@@ -15,8 +14,8 @@ export const KpisOverview = async (req, res) => {
 
 export const GetKeywords = async (req, res) => {
     try {
-        const { category } = req.query;
-        const keywords = await performanceMarketingService.getKeywords(category);
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const keywords = await performanceMarketingService.getKeywords(filters.category, filters);
         res.json(keywords);
     } catch (error) {
         console.error('Error fetching PM keywords:', error);
@@ -26,8 +25,8 @@ export const GetKeywords = async (req, res) => {
 
 export const GetZones = async (req, res) => {
     try {
-        const { brand } = req.query; // Extract brand from query params
-        const zones = await performanceMarketingService.getZones(brand);
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const zones = await performanceMarketingService.getZones(filters.brand, filters);
         res.json(zones);
     } catch (error) {
         console.error('Error fetching zones:', error);
@@ -37,7 +36,8 @@ export const GetZones = async (req, res) => {
 
 export const GetPlatforms = async (req, res) => {
     try {
-        const platforms = await performanceMarketingService.getPlatforms();
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const platforms = await performanceMarketingService.getPlatforms(filters);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching PM platforms:', error);
@@ -47,8 +47,8 @@ export const GetPlatforms = async (req, res) => {
 
 export const GetBrands = async (req, res) => {
     try {
-        const { platform } = req.query;
-        const brands = await performanceMarketingService.getBrands(platform);
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const brands = await performanceMarketingService.getBrands(filters.platform, filters);
         res.json(brands);
     } catch (error) {
         console.error('Error fetching PM brands:', error);
@@ -58,7 +58,7 @@ export const GetBrands = async (req, res) => {
 
 export const GetCampaignQuadrants = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const quadrants = await performanceMarketingService.getCampaignQuadrants(filters);
         res.json(quadrants);
     } catch (error) {
@@ -69,7 +69,7 @@ export const GetCampaignQuadrants = async (req, res) => {
 
 export const GetFormatPerformance = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await performanceMarketingService.getFormatPerformance(filters);
         res.json(data);
     } catch (error) {
@@ -80,7 +80,7 @@ export const GetFormatPerformance = async (req, res) => {
 
 export const GetKeywordTypePerformance = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await performanceMarketingService.getKeywordTypePerformance(filters);
         res.json(data);
     } catch (error) {
@@ -91,7 +91,8 @@ export const GetKeywordTypePerformance = async (req, res) => {
 
 export const GetCategories = async (req, res) => {
     try {
-        const categories = await performanceMarketingService.getCategories();
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const categories = await performanceMarketingService.getCategories(filters);
         res.json(categories);
     } catch (error) {
         console.error('Error fetching PM categories:', error);
@@ -101,7 +102,7 @@ export const GetCategories = async (req, res) => {
 
 export const GetKeywordAnalysis = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await performanceMarketingService.getKeywordAnalysis(filters);
         res.json(data);
     } catch (error) {

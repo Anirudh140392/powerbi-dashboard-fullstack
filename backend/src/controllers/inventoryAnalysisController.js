@@ -1,11 +1,12 @@
 import inventoryAnalysisService from '../services/inventoryAnalysisService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /**
  * Get Inventory Overview with DOH, DRR, and Total Boxes Required
  */
 export const GetInventoryOverview = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await inventoryAnalysisService.getInventoryOverview(filters);
         res.json(data);
     } catch (error) {
@@ -102,7 +103,7 @@ export const GetInventoryMsls = async (req, res) => {
  */
 export const GetInventoryMatrix = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await inventoryAnalysisService.getInventoryMatrix(filters);
         res.json(data);
     } catch (error) {
@@ -110,12 +111,13 @@ export const GetInventoryMatrix = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
 /**
  * Get City-SKU Inventory Matrix for drilldown
  */
 export const GetCitySkuMatrix = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const data = await inventoryAnalysisService.getCitySkuMatrix(filters);
         res.json(data);
     } catch (error) {

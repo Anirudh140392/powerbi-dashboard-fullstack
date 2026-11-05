@@ -1,4 +1,5 @@
 import clickhouse from '../../config/clickhouse.js';
+import { buildWebPidCondition } from '../../utils/webPidHelper.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -37,8 +38,8 @@ export const getSummary = async (req, res) => {
             }
         }
         if (web_pid) {
-            where.push(`rs.web_pid = {webPid:String}`);
-            queryParams.webPid = web_pid;
+            const cond = buildWebPidCondition(web_pid, 'rs.web_pid', queryParams, 'webPid');
+            if (cond) where.push(cond);
         }
         if (brand) {
             where.push(`(ilike(rs.brand, {brand:String}) OR coalesce(rs.is_competitor, 0) = 1)`);
@@ -170,8 +171,8 @@ export const getSummary = async (req, res) => {
             snapParams.paretoStatus = pareto_status;
         }
         if (web_pid) {
-            snapWhere.push(`sc.web_pid = {webPid:String}`);
-            snapParams.webPid = web_pid;
+            const cond = buildWebPidCondition(web_pid, 'sc.web_pid', snapParams, 'webPid');
+            if (cond) snapWhere.push(cond);
         }
         const snapPriceExpr = price_mode === 'rp' ? 'sc.resolved_price_rp' : 'coalesce(sc.resolved_price_sp, sc.resolved_price_rp)';
         if (price_min !== undefined && price_min !== '') {
@@ -292,8 +293,8 @@ export const getTrends = async (req, res) => {
             queryParams.paretoStatus = pareto_status;
         }
         if (web_pid) {
-            extraFilters.push(`r.web_pid = {webPid:String}`);
-            queryParams.webPid = web_pid;
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
         }
         if (price_min !== undefined && price_min !== '') {
             const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
@@ -361,7 +362,7 @@ export const getTrends = async (req, res) => {
             ORDER BY change DESC
         `;
 
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const escalating = rows.filter(r => r.change > 0.01 && r.recent_neg_rate > 0.10).slice(0, 10).map(r => ({
@@ -386,7 +387,10 @@ export const getTimeline = async (req, res) => {
         if (platform && platform !== 'all') { extraFilters.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
         if (filterCategory) { extraFilters.push(`ilike(r.category, {category:String})`); queryParams.category = filterCategory; }
         if (pareto_status) { extraFilters.push(`r.pareto_status = {paretoStatus:String}`); queryParams.paretoStatus = pareto_status; }
-        if (web_pid) { extraFilters.push(`r.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
+        }
         if (date_from) { extraFilters.push(`r.review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
         if (date_to) { extraFilters.push(`r.review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
         
@@ -447,7 +451,7 @@ export const getTimeline = async (req, res) => {
             ORDER BY month, category
         `;
         
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const monthMap = {};
@@ -474,7 +478,8 @@ export const getRatingTrend = async (req, res) => {
         if (!web_pid) return res.status(400).json({ error: 'web_pid param required' });
         const daysClamped = Math.max(1, Math.min(parseInt(days, 10) || 180, 365));
 
-        const queryParams = { companyId: String(req.companyId), webPid: String(web_pid), daysClamped: Number(daysClamped) };
+        const queryParams = { companyId: String(req.companyId), daysClamped: Number(daysClamped) };
+        const webPidCond = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
         let platformClause = '';
         if (platform && platform !== 'all') {
             queryParams.platform = String(platform);
@@ -488,12 +493,12 @@ export const getRatingTrend = async (req, res) => {
                        rating_wow_delta, rating_count_wow_delta, crosses_discontinuity
                 FROM weekly_rating_trend
                 WHERE company_id = {companyId:String}
-                  AND web_pid = {webPid:String}
+                  AND ${webPidCond}
                   ${platformClause}
                   AND week_start >= addDays(today(), -{daysClamped:Int32})
                 ORDER BY week_start ASC, platform ASC
             `;
-            console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+            const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const wrows = await chRes.json();
             
             return res.json({
@@ -522,13 +527,13 @@ export const getRatingTrend = async (req, res) => {
                    round(avg(price_sp), 2) AS price_sp
             FROM product_snapshots
             WHERE company_id = {companyId:String}
-              AND web_pid = {webPid:String}
+              AND ${webPidCond}
               ${platformClause}
               AND snapshot_date >= addDays(today(), -{daysClamped:Int32})
             GROUP BY snapshot_date, platform
             ORDER BY snapshot_date ASC, platform ASC
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         res.json({
@@ -583,9 +588,10 @@ export const getExecutiveHealth = async (req, res) => {
         }
 
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
-            latestSnapshotFilters += ` AND ps.web_pid = {webPid:String}`;
-            reviewScopeFilter += ` AND r.web_pid = {webPid:String}`;
+            const condPs = buildWebPidCondition(web_pid, 'ps.web_pid', queryParams, 'webPid');
+            const condR = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (condPs) latestSnapshotFilters += ` AND ${condPs}`;
+            if (condR) reviewScopeFilter += ` AND ${condR}`;
         }
 
         let primaryReviewFilter = '';
@@ -640,7 +646,7 @@ export const getExecutiveHealth = async (req, res) => {
                         CASE WHEN pareto_status = 'Pareto' THEN 'Pareto' WHEN pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END, 
                         CASE WHEN pareto_status = 'Pareto' THEN 3 WHEN pareto_status = 'NPD' THEN 2 ELSE 1 END
                     ) AS bucket
-                    FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''} GROUP BY product_external_id
+                    FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? `AND ${buildWebPidCondition(web_pid, 'mp.product_external_id', queryParams, 'webPid')}` : ''} GROUP BY product_external_id
                 ) GROUP BY bucket
             `, query_params: queryParams, format: 'JSONEachRow' });
             const catRows = await catRes.json();
@@ -650,7 +656,7 @@ export const getExecutiveHealth = async (req, res) => {
 
         const catalogSkuScope = totalCatalogSkus > 0 ? `
                   UNION DISTINCT
-                  SELECT product_external_id AS web_pid FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
+                  SELECT product_external_id AS web_pid FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? `AND ${buildWebPidCondition(web_pid, 'mp.product_external_id', queryParams, 'webPid')}` : ''}
         ` : '';
         const catalogOnlyFilter = totalCatalogSkus > 0 ? `AND mp.web_pid IS NOT NULL` : '';
 
@@ -747,7 +753,7 @@ export const getExecutiveHealth = async (req, res) => {
               ORDER BY pdp_rating ASC
               SETTINGS max_memory_usage = 2000000000;
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const classifyPareto = (status) => {
@@ -864,7 +870,10 @@ export const getExecutiveHealth = async (req, res) => {
             } else {
                 prWhere += ` AND r.review_date >= addMonths(today(), -${trendPeriod})`;
             }
-            if (web_pid) { prParams.webPid = String(web_pid); prWhere += ` AND r.web_pid = {webPid:String}`; }
+            if (web_pid) {
+                const cond = buildWebPidCondition(web_pid, 'r.web_pid', prParams, 'webPid');
+                if (cond) prWhere += ` AND ${cond}`;
+            }
             let prCatClause = '';
             if (filterCategory) { prParams.filterCategory = filterCategory; prCatClause = ` WHERE ilike(trim(rev.resolved_category), {filterCategory:String})`; }
             if (totalCatalogSkus > 0) { prWhere += ` AND mp.web_pid IS NOT NULL`; }
@@ -940,7 +949,7 @@ export const getRatingMismatch = async (req, res) => {
              ORDER BY abs(r.rating - r.ml_inferred_rating) DESC, r.review_date DESC
              LIMIT {limit:Int32}
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const sumSql = `
@@ -967,13 +976,14 @@ export const getReviewTimeline = async (req, res) => {
     try {
         const { web_pid, platform, limit = 500 } = req.query;
         if (!web_pid) return res.status(400).json({ error: 'web_pid is required' });
-        const where = ['company_id = {companyId:String}', 'web_pid = {webPid:String}', "review_date >= addDays(today(), -365)"];
-        const queryParams = { companyId: String(req.companyId), webPid: String(web_pid) };
+        const queryParams = { companyId: String(req.companyId) };
+        const webPidCond = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+        const where = ['company_id = {companyId:String}', webPidCond, "review_date >= addDays(today(), -365)"];
         if (platform && platform !== 'all') { where.push(`lower(platform) = lower({platform:String})`); queryParams.platform = platform; }
         const lim = Math.min(parseInt(limit, 10) || 500, 2000);
         queryParams.limit = lim;
 
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: `
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: `
             SELECT id, rating, sentiment, review_date, review_title, review_text,
                    specific_issue, sentiment_category, platform
               FROM reviews
@@ -1042,7 +1052,7 @@ export const getPriceVariance = async (req, res) => {
             FROM agg a LEFT JOIN own_brand_baseline ob ON ob.master_category = a.master_category
             ORDER BY a.master_category, a.sku_count DESC
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
         res.json({ rows });
     } catch (err) {
@@ -1077,7 +1087,10 @@ export const getProductHealth = async (req, res) => {
             where.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`);
             queryParams.paretoStatus = pareto_status;
         }
-        if (web_pid) { where.push(`r.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (cond) where.push(cond);
+        }
 
         if (price_min !== undefined && price_min !== '') {
             const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
@@ -1155,7 +1168,7 @@ export const getProductHealth = async (req, res) => {
             ORDER BY total DESC
             LIMIT 30
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         // Also get monthly ratings per product (top 20 only)
@@ -1290,20 +1303,21 @@ export const getBenchmarkData = async (req, res) => {
         let skuTargetCte = '';
         let skuCondition = '';
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
+            const condPs2 = buildWebPidCondition(web_pid, 'ps2.web_pid', queryParams, 'webPid');
+            const condR = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
             skuTargetCte = `,
             sku_target AS (
                 SELECT category FROM (
                     SELECT coalesce(nullIf(ps2.category, ''), nullIf(mp2.category, '')) AS category
                     FROM product_snapshots ps2
-                    LEFT JOIN products mp2 ON mp2.company_id = ps2.company_id AND mp2.product_external_id = ps2.web_pid AND lower(mp2.platform) = lower(ps2.platform)
-                    WHERE ps2.company_id = {companyId:String} AND ps2.web_pid = {webPid:String}
+                    LEFT JOIN products mp2 ON mp2.company_id = ps2.company_id AND lower(mp2.product_external_id) = lower(ps2.web_pid) AND lower(mp2.platform) = lower(ps2.platform)
+                    WHERE ps2.company_id = {companyId:String} AND ${condPs2}
                     ORDER BY ps2.snapshot_date DESC
                     LIMIT 1
                 )
             )`;
             skuCondition = `AND (
-                (coalesce(r.is_competitor, 0) = 0 AND r.web_pid = {webPid:String})
+                (coalesce(r.is_competitor, 0) = 0 AND ${condR})
                 OR (coalesce(r.is_competitor, 0) = 1 AND coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')) IN (SELECT category FROM sku_target))
             )`;
         }
@@ -1381,7 +1395,7 @@ export const getBenchmarkData = async (req, res) => {
             ORDER BY t.total_reviews DESC
         `;
         
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rawRows = await chRes.json();
         const rows = rawRows.map(row => {
             const category_scores = {};
@@ -1436,10 +1450,12 @@ export const getCategoryHealth = async (req, res) => {
         // SKU (web_pid) drill-down — scopes the whole category-health response to a single SKU
         let webPidFilterPlain = ''; let webPidFilterLs = ''; let webPidFilterR = '';
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
-            webPidFilterPlain = ' AND web_pid = {webPid:String}';
-            webPidFilterLs = ' AND ls.web_pid = {webPid:String}';
-            webPidFilterR = ' AND r.web_pid = {webPid:String}';
+            const condPlain = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+            const condLs = buildWebPidCondition(web_pid, 'ls.web_pid', queryParams, 'webPid');
+            const condR = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (condPlain) webPidFilterPlain = ` AND ${condPlain}`;
+            if (condLs) webPidFilterLs = ` AND ${condLs}`;
+            if (condR) webPidFilterR = ` AND ${condR}`;
         }
         const catFilters = [];
         const snapCatFilters = [];
@@ -1665,7 +1681,7 @@ export const getCategoryHealth = async (req, res) => {
                     multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
                     count(DISTINCT mp.product_external_id) AS catalogue_sku_count
                 FROM products mp
-                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${snapBrandFilter} ${masterPlatformFiltStr} ${masterParetoFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${snapBrandFilter} ${masterPlatformFiltStr} ${masterParetoFilter} ${web_pid ? `AND ${buildWebPidCondition(web_pid, 'mp.product_external_id', queryParams, 'webPid')}` : ''}
                 GROUP BY cat_name
             ),
             combined_cats AS (
@@ -1690,11 +1706,8 @@ export const getCategoryHealth = async (req, res) => {
             SETTINGS max_memory_usage = 2000000000;
         `;
         
-        console.log("SQL:", sql);
-        console.log("PARAMS:", queryParams);
         const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
-        console.log("FIRST ROW:", rows[0]);
         
         const totals = { skuCount: 0, catalogueSkuCount: 0, reviewSkuCount: 0, totalRatings: 0, reviewCount: 0, paretoCount: 0, nonParetoCount: 0, npdCount: 0, totalAvgPlatformRatingNumerator: 0, totalAvgPlatformRatingDenominator: 0 };
         const categories = rows.map(r => {
@@ -1769,8 +1782,8 @@ export const getStarDistribution = async (req, res) => {
             queryParams.platform = platform;
         }
         if (web_pid) {
-            conditions.push(`upper(ps.web_pid) = upper({webPid:String})`);
-            queryParams.webPid = web_pid;
+            const cond = buildWebPidCondition(web_pid, 'ps.web_pid', queryParams, 'webPid');
+            if (cond) conditions.push(cond);
         }
 
         const sql = `

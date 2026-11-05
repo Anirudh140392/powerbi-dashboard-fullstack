@@ -94,7 +94,11 @@ export function getOlapTableName(dbName) {
     return process.env.OLAP_TABLE_NAME || 'rb_review_olap';
 }
 
-// Initial async fetch on module load
-refreshOlapEnabledDbs().catch(() => {});
+// Initial async fetch after event loop tick so circular clickhouse client import is initialized
+setImmediate(() => {
+    refreshOlapEnabledDbs().catch(() => {});
+});
+
+export { buildWebPidCondition, normalizeWebPid } from './webPidHelper.js';
 
 
