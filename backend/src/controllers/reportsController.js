@@ -2482,7 +2482,7 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
     const query = `
-        SELECT 
+        SELECT
             k.kam AS kam,
             k.asm AS asm,
             lower(trim(p.platform_name)) AS platform_name,
@@ -2511,6 +2511,8 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
 
     const groups = new Map();
     const allLocationsSet = new Set();
+    // New: pincodeDayDiscounts structure: { location: { pincode: { date: discountPercentage } } }
+    const pincodeDayDiscounts = {};
 
     for (const row of rawRows) {
         const plat = row.platform_name || '';
@@ -2527,6 +2529,8 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
                 rpList: [],
                 spList: [],
                 guardrailList: [],
+                // New: store daily discount data per location per pincode per date
+                dailyDiscounts: new Map(), // { location: { pincode: { date: discount } } }
             });
         }
 
@@ -2543,6 +2547,45 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
                 if (row.date_str) {
                     pinMap.get(row.pincode).add(row.date_str);
                 }
+
+                // Calculate daily discount for this pincode/date
+                if (row.price_rp > 0 && row.price_sp > 0) {
+                    const dailyDiscount = ((Number(row.price_rp) - Number(row.price_sp)) / Number(row.price_rp)) * 100;
+
+                    // Store in item's dailyDiscounts for later aggregation
+                    if (!item.dailyDiscounts.has(loc)) {
+                        item.dailyDiscounts.set(loc, new Map());
+                    }
+                    const locMap = item.dailyDiscounts.get(loc);
+                    if (!locMap.has(row.pincode)) {
+                        locMap.set(row.pincode, new Map());
+                    }
+                    // If multiple rows for same pincode/date, average them
+                    const dateKey = row.date_str;
+                    const pinDateMap = locMap.get(row.pincode);
+                    if (!pinDateMap.has(dateKey)) {
+                        pinDateMap.set(dateKey, { sum: dailyDiscount, count: 1 });
+                    } else {
+                        const existing = pinDateMap.get(dateKey);
+                        existing.sum += dailyDiscount;
+                        existing.count += 1;
+                    }
+
+                    // Also store in global pincodeDayDiscounts for the preview response
+                    if (!pincodeDayDiscounts[loc]) {
+                        pincodeDayDiscounts[loc] = {};
+                    }
+                    if (!pincodeDayDiscounts[loc][row.pincode]) {
+                        pincodeDayDiscounts[loc][row.pincode] = {};
+                    }
+                    if (!pincodeDayDiscounts[loc][row.pincode][dateKey]) {
+                        pincodeDayDiscounts[loc][row.pincode][dateKey] = { sum: dailyDiscount, count: 1 };
+                    } else {
+                        const existing = pincodeDayDiscounts[loc][row.pincode][dateKey];
+                        existing.sum += dailyDiscount;
+                        existing.count += 1;
+                    }
+                }
             }
         }
 
@@ -2553,6 +2596,18 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
     }
 
     const locationsList = Array.from(allLocationsSet).sort();
+
+    // Convert pincodeDayDiscounts to final format with averages
+    const finalPincodeDayDiscounts = {};
+    for (const [loc, pinMap] of Object.entries(pincodeDayDiscounts)) {
+        finalPincodeDayDiscounts[loc] = {};
+        for (const [pin, dateMap] of Object.entries(pinMap)) {
+            finalPincodeDayDiscounts[loc][pin] = {};
+            for (const [date, val] of Object.entries(dateMap)) {
+                finalPincodeDayDiscounts[loc][pin][date] = Math.round((val.sum / val.count) * 100) / 100;
+            }
+        }
+    }
 
     const finalTableRows = [];
     for (const item of groups.values()) {
@@ -2576,6 +2631,8 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
 
         const pincodeCounts = {};
         const pincodeStrings = {};
+        // New: per-row pincodeDayDiscounts for this specific platform+sku
+        const rowPincodeDayDiscounts = {};
 
         for (const loc of locationsList) {
             if (item.locationsMap.has(loc)) {
@@ -2598,6 +2655,20 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
                 pincodeCounts[loc] = '';
                 pincodeStrings[loc] = '';
             }
+
+            // Build row-level daily discounts for this location
+            if (item.dailyDiscounts.has(loc)) {
+                const locDiscounts = item.dailyDiscounts.get(loc);
+                rowPincodeDayDiscounts[loc] = {};
+                for (const [pin, dateMap] of locDiscounts.entries()) {
+                    rowPincodeDayDiscounts[loc][pin] = {};
+                    for (const [date, val] of dateMap.entries()) {
+                        rowPincodeDayDiscounts[loc][pin][date] = Math.round((val.sum / val.count) * 100) / 100;
+                    }
+                }
+            } else {
+                rowPincodeDayDiscounts[loc] = {};
+            }
         }
 
         finalTableRows.push({
@@ -2605,6 +2676,7 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
             sku_name: item.sku_name,
             pincodeCounts,
             pincodeStrings,
+            pincodeDayDiscounts: rowPincodeDayDiscounts, // New: per-row daily discounts
             mrp: Math.round(avgMRP * 100) / 100,
             sp: Math.round(avgSP * 100) / 100,
             guardrail: Math.round(guardrail * 100) / 100,
@@ -2614,7 +2686,7 @@ async function fetchAndProcessPromoViolationData(reqQuery, req) {
     }
 
     const breachedRows = finalTableRows.filter(r => r.isBreached);
-    return { locationsList, breachedRows, allRows: finalTableRows };
+    return { locationsList, breachedRows, allRows: finalTableRows, pincodeDayDiscounts: finalPincodeDayDiscounts };
 }
 
 /**
@@ -2745,7 +2817,7 @@ export const previewPromoViolationReport = async (req, res) => {
         const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
         const offset = (page - 1) * limit;
 
-        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query, req);
+        const { locationsList, breachedRows, pincodeDayDiscounts } = await fetchAndProcessPromoViolationData(req.query, req);
 
         const totalCount = breachedRows.length;
         const paginatedRows = breachedRows.slice(offset, offset + limit);
@@ -2759,7 +2831,8 @@ export const previewPromoViolationReport = async (req, res) => {
             page,
             limit,
             totalPages: Math.ceil(totalCount / limit),
-            kamName: kamSelected
+            kamName: kamSelected,
+            pincodeDayDiscounts
         });
     } catch (error) {
         console.error('[previewPromoViolationReport] Error:', error);
@@ -2775,7 +2848,7 @@ export const downloadPromoViolationReport = async (req, res) => {
     if (proxied) return;
 
     try {
-        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query, req);
+        const { locationsList, breachedRows, pincodeDayDiscounts } = await fetchAndProcessPromoViolationData(req.query, req);
         const kamSelected = req.query.kam ? req.query.kam.split(',')[0] : 'All KAMs';
 
         const headerRow1 = [
@@ -2838,8 +2911,61 @@ export const downloadPromoViolationReport = async (req, res) => {
 
         worksheet['!merges'] = merges;
 
+        // Create a second sheet for daily discount percentages
+        const detailHeaders = [
+            "Platform Name",
+            "SKU Name",
+            "Location",
+            "Pincode",
+            "Date",
+            "Discount Operated (%)"
+        ];
+
+        const detailRows = [];
+        for (const row of breachedRows) {
+            const rowDiscounts = row.pincodeDayDiscounts || {};
+            for (const loc of locationsList) {
+                const locDiscounts = rowDiscounts[loc] || {};
+                for (const [pin, dateMap] of Object.entries(locDiscounts)) {
+                    for (const [date, discount] of Object.entries(dateMap)) {
+                        detailRows.push([
+                            row.platform_name,
+                            row.sku_name,
+                            loc,
+                            pin,
+                            date,
+                            discount
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // Also include global pincodeDayDiscounts (aggregated across all SKUs)
+        if (Object.keys(pincodeDayDiscounts).length > 0) {
+            for (const loc of locationsList) {
+                const locDiscounts = pincodeDayDiscounts[loc] || {};
+                for (const [pin, dateMap] of Object.entries(locDiscounts)) {
+                    for (const [date, discount] of Object.entries(dateMap)) {
+                        detailRows.push([
+                            "ALL SKUS (Aggregated)",
+                            "",
+                            loc,
+                            pin,
+                            date,
+                            discount
+                        ]);
+                    }
+                }
+            }
+        }
+
+        const detailSheetData = [detailHeaders, ...detailRows];
+        const detailWorksheet = XLSX.utils.aoa_to_sheet(detailSheetData);
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Promo Violation Report");
+        XLSX.utils.book_append_sheet(workbook, detailWorksheet, "Daily Discount Details");
 
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
         const fileName = `Promo_Violation_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
