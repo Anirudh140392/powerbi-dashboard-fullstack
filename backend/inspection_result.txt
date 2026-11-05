@@ -1,0 +1,44 @@
+URL: http://13.200.55.131:8123
+DB: colpal
+
+--- Distinct Platforms ---
+[
+  "Blinkit",
+  "Instamart",
+  "Zepto"
+]
+
+--- Distinct Brands (Sample) ---
+[
+  "Colgate",
+  "Palmolive",
+  "Oral-B",
+  "Sensodyne",
+  "Patanjali",
+  "Perfora",
+  "Parodontax",
+  "Dabur",
+  "Pepsodent",
+  "Closeup"
+]
+
+--- Distinct Locations (Sample) ---
+[
+  "Kanpur",
+  "Lucknow",
+  "Surat",
+  "Chennai",
+  "Jaipur",
+  "Meerut",
+  "Delhi",
+  "Mumbai",
+  "Varanasi",
+  "Dehradun"
+]
+
+--- Data Count for Zepto ---
+[
+  {
+    "count": 1518892
+  }
+]

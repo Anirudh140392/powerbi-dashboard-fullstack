@@ -1,0 +1,52 @@
+{
+  "name": "amazon-rating-dashboard-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "server": "node src/server.js",
+    "auth:setup": "node scripts/setup_ratings_auth.cjs",
+    "auth:seed-user": "node scripts/seed_ratings_auth_user.cjs",
+    "auth:seed-super-admins": "node scripts/seed_super_admins.cjs",
+    "migrate:automation": "node scripts/migrations/20260515_automation_schema.cjs",
+    "migrate:mfa": "node scripts/migrations/20260518_mfa.cjs",
+    "migrate:password-reset": "node scripts/migrations/20260518_password_reset.cjs",
+    "migrate:review-source": "node scripts/migrations/20260515_review_source_tracking.cjs",
+    "migrate:clean-ratings": "node scripts/migrations/20260515_clean_rating_zeros.cjs",
+    "sync:mysql:master": "node scripts/sync_mysql_master.cjs",
+    "sync:mysql:reviews": "node scripts/sync_mysql_reviews.cjs",
+    "sync:mysql:prices": "node scripts/sync_prices_from_mysql.cjs",
+    "sync:mysql:all": "node scripts/sync_mysql_all.cjs",
+    "sync:ch:master": "node scripts/sync_clickhouse_master.cjs",
+    "sync:ch:reviews": "node scripts/sync_clickhouse_reviews.cjs",
+    "sync:ch:prices": "node scripts/sync_clickhouse_prices.cjs",
+    "sync:ch:all": "node scripts/sync_clickhouse_all.cjs"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.20.0",
+    "@google/genai": "^1.48.0",
+    "@temporalio/client": "^1.11.8",
+    "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "mjml": "^5.2.1",
+    "mysql2": "^3.11.5",
+    "nodemailer": "^6.9.16",
+    "otplib": "^12.0.1",
+    "pg": "^8.20.0",
+    "playwright": "^1.58.2",
+    "qrcode": "^1.5.4",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.7.2"
+  }
+}
