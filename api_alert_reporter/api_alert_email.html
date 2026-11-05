@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Alert Report</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;">
+
+  <!-- Outer wrapper -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6; padding:24px 0;">
+    <tr>
+      <td align="center">
+
+          <!-- Card -->
+        <table role="presentation" width="760" cellpadding="0" cellspacing="0" border="0" style="max-width:760px; width:100%; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#b91c1c; background-image:linear-gradient(135deg,#dc2626,#991b1b); padding:28px 32px;">
+              <h1 style="margin:0; font-size:22px; font-weight:600; color:#ffffff;">&#9888; API Alert Report</h1>
+              <p style="margin:6px 0 0 0; font-size:14px; color:#fecaca;">Failed APIs &amp; APIs returning empty responses</p>
+            </td>
+          </tr>
+
+          <!-- Intro / summary -->
+          <tr>
+            <td style="padding:24px 32px 8px 32px; color:#374151; font-size:14px; line-height:1.6;">
+              <p style="margin:0 0 12px 0;">Hello Team,</p>
+              <p style="margin:0 0 12px 0;">
+                The following APIs were found <strong>failed</strong> or returned an <strong>empty response</strong>
+                on <strong>{{REPORT_DATE}}</strong>. Please review and take the necessary action.
+              </p>
+              <p style="margin:0; font-size:13px; color:#6b7280;">Total issues found: <strong style="color:#b91c1c;">{{TOTAL_COUNT}}</strong></p>
+            </td>
+          </tr>
+
+          <!-- Table -->
+          <tr>
+            <td style="padding:16px 32px 24px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb;">
+                <thead>
+                  <tr style="background-color:#1f2937;">
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">S.No.</th>
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Date</th>
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Page</th>
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Client DB</th>
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Segment</th>
+                    <th align="left" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">API Endpoint</th>
+                    <th align="center" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Status Code</th>
+                    <th align="center" style="padding:10px 12px; color:#ffffff; font-weight:600; border:1px solid #374151;">Response</th>
+                  </tr>
+                </thead>
+                <tbody>
+
+                  <!-- ===== ROW TEMPLATE: repeat this <tr> for every record =====
+                       Use background #ffffff for odd rows and #f9fafb for even rows.
+                       Status badge colors: 200 with empty response = amber (#fef3c7 / #92400e),
+                       any failed code (4xx/5xx) = red (#fee2e2 / #991b1b) -->
+                  <tr style="background-color:#ffffff;">
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">1</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827; white-space:nowrap;">2026-10-26</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">Dashboard</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">client_db_01</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">High Value</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#b91c1c; word-break:break-all;">/api/v1/dashboard/summary</td>
+                    <td align="center" style="padding:10px 12px; border:1px solid #e5e7eb;"><span style="display:inline-block; padding:3px 10px; border-radius:12px; background-color:#fef3c7; color:#92400e; font-weight:600; font-size:12px;">200</span></td>
+                    <td align="center" style="padding:10px 12px; border:1px solid #e5e7eb;"><span style="display:inline-block; padding:3px 10px; border-radius:12px; background-color:#fef3c7; color:#92400e; font-weight:600; font-size:12px;">Empty</span></td>
+                  </tr>
+                  <tr style="background-color:#f9fafb;">
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">2</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827; white-space:nowrap;">2026-10-26</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">Reports</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">client_db_02</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#111827;">New Users</td>
+                    <td style="padding:10px 12px; border:1px solid #e5e7eb; color:#b91c1c; word-break:break-all;">/api/v1/reports/users</td>
+                    <td align="center" style="padding:10px 12px; border:1px solid #e5e7eb;"><span style="display:inline-block; padding:3px 10px; border-radius:12px; background-color:#fee2e2; color:#991b1b; font-weight:600; font-size:12px;">500</span></td>
+                    <td align="center" style="padding:10px 12px; border:1px solid #e5e7eb;"><span style="display:inline-block; padding:3px 10px; border-radius:12px; background-color:#fee2e2; color:#991b1b; font-weight:600; font-size:12px;">Failed</span></td>
+                  </tr>
+                  <!-- ===== END ROW TEMPLATE ===== -->
+
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f9fafb; padding:18px 32px; border-top:1px solid #e5e7eb; font-size:12px; color:#6b7280; line-height:1.6;">
+              This is an automated email generated from the API Log monitor. Please do not reply to this message.<br>
+              &copy; {{YEAR}} Your Company Name
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

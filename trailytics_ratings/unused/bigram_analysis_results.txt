@@ -1,0 +1,160 @@
+======================================================================
+WHAT IS BROKEN / DAMAGED / FAULTY / MISSING?
+======================================================================
+
+
+BROKEN:
+  What is broken? (before word): received(114), handle(76), got(67), broken(24), glass(21), already(19), delivered(15), came(14), completely(14), part(13), lid(13), get(12)
+  broken what? (after word): handle(181), within(56), after(36), piece(34), lid(27), broken(24), one(16), received(12), down(12), while(11), due(11), into(11)
+
+DAMAGED:
+  What is damaged? (before word): received(259), got(181), totally(34), damaged(24), fully(20), delivered(19), recieved(16), get(13), slightly(13), send(11), used(10), gets(10)
+  damaged what? (after word): piece(64), one(39), after(36), condition(36), within(35), damaged(24), received(22), handle(19), please(14), pan(12), broken(11), even(11)
+
+DEFECTIVE:
+  What is defective? (before word): received(94), got(52), defective(15), seems(12), supplied(10), sent(9), all(9), delivered(8), selling(8), out(8), recieved(8), poor(7)
+  defective what? (after word): piece(138), one(27), defective(15), lid(14), pcs(12), need(11), pieces(10), new(9), peice(8), quality(7), prestige(7), peace(7)
+
+FAULTY:
+  What is faulty? (before word): received(17), got(7), get(5), technically(4), buy(4), looks(4), delivered(4), cooker(3), time(3), bit(3), total(2), review(2)
+  faulty what? (after word): piece(15), cooker(12), one(8), design(5), after(5), pressure(5), gas(4), grinder(4), manufacturing(4), there(3), priduct(3), stove(3)
+
+CRACKED:
+  What is cracked? (before word): lid(26), got(15), gasket(4), received(4), top(3), cooker(3), knob(3), cover(3), handle(3), get(2), already(2), glass(2)
+  cracked what? (after word): within(16), after(11), ordered(6), all(4), inside(3), even(3), mixer(2), without(2), toaster(2), one(2), cooker(2), pls(2)
+
+LEAKING:
+  What is leaking? (before word): started(66), water(13), gas(13), starts(11), steam(10), unsatisfactory(5), already(4), keeps(3), quality(2), start(2), without(2), dangerously(2)
+  leaking what? (after word): within(18), gas(15), through(14), steam(13), after(11), pressure(11), out(10), water(6), even(4), service(4), more(4), attached(3)
+
+MISSING:
+  What is missing? (before word): lid(26), part(22), card(17), parts(13), whistle(8), bowl(7), screw(5), cover(5), one(5), screws(4), spoon(4), weight(4)
+  missing what? (after word): parts(19), warranty(11), while(8), they(8), one(7), accessories(7), green(6), didn(6), there(5), glass(5), though(5), pan(5)
+
+PEELING:
+  What is peeling? (before word): started(40), coating(15), starts(4), paint(4), already(3), use(2), start(2), some(1), off(1), area(1), tawa(1)
+  peeling what? (after word): off(82), within(4), apart(3), after(2), offs(2), out(2), don(1), lost(1), doubt(1)
+
+RUSTED:
+  What is rusted? (before word): got(17), getting(5), purchased(4), already(3), get(3), started(2), why(2), all(2), gets(2), body(2), seem(2), steel(1)
+  rusted what? (after word): within(15), after(5), color(2), frame(2), long(2), even(2), burnor(2), surprising(2), used(1), use(1), bad(1), body(1)
+
+
+======================================================================
+COMPETITOR MENTIONS
+======================================================================
+
+  hawkins: 67
+  pigeon: 42
+  butterfly: 24
+  philips: 22
+  preethi: 20
+  bajaj: 18
+  vinod: 6
+  orient: 4
+  panasonic: 4
+  wonderchef: 3
+  morphy: 3
+  usha: 3
+  havells: 2
+  bosch: 1
+  maharaja: 1
+
+Sample competitor reviews:
+  [2.0] [butterfly] Not so good quality. Broke immediately after warranty period. its been exactly 2 years 3months and one burner's frame b
+  [4.0] [butterfly] Thickness of steel sheet less as compared to other brand. It is ok, but thickness of sheet very less as compared to butt
+  [1.0] [hawkins] Why we returned the Prestige cooker. My mother ordered a 5 Liter Prestige stainless steel Cooker. Issue is that the top 
+  [5.0] [preethi] Genuine product. Just go for it guys better than preethi and vidiem mixer i have first taken demo at vijay sales andFunc
+  [5.0] [preethi] prestige i must say very good product. I have been using this for more than a year this mixer is top notch better than p
+  [2.0] [preethi] Not good. Onion chopper not proper, preethi zodiac is good
+  [1.0] [preethi] Not grind. Not grind ..  chop .. slice  properly.  Go to preethi
+  [1.0] [philips] Useless product. Worst quality, go for Philips always, within 2 months of purchase though we have 2+2 family, this produ
+  [1.0] [hawkins] Quality issue. Its look like Cheap quality product. I want to replace with Hawkins product.so please do the needful and
+  [5.0] [pigeon] Using since 2022. Bought 3 years ago.  Still using very well.  While comparing to pigeon this is the best.
+  [5.0] [pigeon] PRESTIGE PIC 20 1600 WATTS WONDERFUL. Although it has been  only 2 days  of  receipt, but  the performance & features ar
+  [1.0] [hawkins] Not durable coating. The non stick coating is coming off just in 4 months of rarely using it to make only certain dishes
+  [1.0] [hawkins] Pan got BENT. The pan is BENT after a few weeks of normal cooking for a single-person household. I regret going back to 
+  [4.0] [pigeon] Expect burner height 2 inches higher than normal glasstop stove. Excellent product with sturdy design. Easy to clean. Bu
+  [1.0] [preethi] Worst product. Worst product. Started giving problems just after 1 year. My previous rice cooker in Preethi worked for 1
+
+
+======================================================================
+PRODUCT PART BIGRAMS
+======================================================================
+
+LID: glass(255), cooker(70), doesn(52), outer(49), handle(46), top(38), design(36), broke(35), quality(29), quality(28)
+HANDLE: broken(181), broken(76), cooker(56), quality(54), lid(46), side(45), good(39), got(35), plastic(35), gets(30)
+GASKET: rubber(35)
+WHISTLE: cooker(42), sound(28)
+KNOB: one(23), lid(22)
+VALVE: safety(127), weight(29), pressure(28)
+BODY: steel(40)
+BASE: induction(178), heavy(24), thick(22)
+BURNER: one(58), big(54), stove(46), gas(42), small(36), stand(33), gas(32), single(28), jumbo(25), quality(23)
+CORD: power(23), length(22)
+COATING: stick(304), started(71), teflon(65), came(57), nonstick(47), quality(40), quality(39), got(34), inner(24), bad(24)
+GLASS: lid(255), top(158), toughened(27), good(27), cover(26), black(22), top(21), broken(21)
+STEEL: stainless(382), cooker(82), quality(50), quality(49), body(40), pressure(37), lid(25), good(25), utensils(21)
+MOTOR: powerful(24)
+
+
+======================================================================
+DELIVERY PATTERNS
+======================================================================
+
+delivery: fast(151), boy(77), good(73), time(63), flipkart(63), person(52), quick(44), service(37)
+packaging: good(57), nice(19)
+packing: good(98), nice(34), box(26), poor(21), amazon(19)
+received: damaged(259), broken(114), defective(94), damage(40), piece(27), cooker(26), good(24), received(23)
+
+
+======================================================================
+VALUE PATTERNS
+======================================================================
+
+price: range(168), reasonable(120), good(110), best(102), high(72), low(60), good(58), affordable(55)
+money: good(614), nice(256), your(250), value(89), quality(81), don(65), worth(64), best(55)
+worth: every(1078), buying(318), good(68), money(64), quality(49), totally(41), money(34), nice(29)
+value: good(250), money(89), quality(81), buy(48), nice(44), great(44), use(32), purchase(30)
+expensive: bit(24), little(14)
+cheap: quality(159), price(22), plastic(19), like(12), such(12), quality(11), material(11)
+affordable: price(55)
+
+
+======================================================================
+USABILITY PATTERNS
+======================================================================
+
+easy: good(104), quality(62), money(55), use(53), nice(39), super(32), cleaning(30), weight(29)
+clean: easy(19), easy(17), good(17), use(16)
+cleaning: while(38), easy(30)
+use: first(177), after(159), daily(145), time(83), only(70), one(63), month(62), good(54)
+heavy: weight(61), little(34), bit(28), quality(27), bottom(25), good(24), quality(24), base(24)
+light: weight(335), good(19), weighted(18)
+size: small(325), perfect(111), good(108), big(74), small(56), bigger(40), good(36), pan(29)
+fits: perfectly(17)
+
+
+======================================================================
+PERFORMANCE PATTERNS
+======================================================================
+
+fast: delivery(151), cooking(52), super(34), cooks(26), heating(16), really(16)
+heat: distribution(82), up(52), high(23), evenly(18), resistant(17)
+heating: problem(19), issue(16), fast(16), water(16), good(16)
+cooking: while(240), fast(52), rice(51), time(44), after(42), good(42), daily(34), experience(34)
+works: well(186), fine(88), perfectly(56), good(40), great(27), like(27), really(17), good(17)
+working: stopped(537), properly(462), after(240), fine(161), good(130), within(124), good(111), well(110)
+performance: good(51), excellent(46), poor(26)
+
+
+======================================================================
+FEATURES PATTERNS
+======================================================================
+
+features: safety(30), good(14), all(11)
+auto: ignition(131), cut(39), off(17), switch(16), burner(14)
+ignition: auto(131), works(12), system(12)
+timer: function(9)
+temperature: control(24)
+induction: base(178), compatible(157), stove(109), cooktop(100), prestige(76), friendly(47), based(45), cooker(36)
