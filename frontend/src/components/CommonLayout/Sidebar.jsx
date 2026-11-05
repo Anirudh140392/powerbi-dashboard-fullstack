@@ -379,7 +379,7 @@ const Sidebar = ({
 
   const currentPath = location.pathname;
   // Channel tabs and platform selector don't apply to these top-level pages
-  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing'].includes(currentPath);
+  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing', '/ds-tester'].includes(currentPath);
 
   const menuSections = {
     "MAIN MENU": [
@@ -395,7 +395,7 @@ const Sidebar = ({
       { label: "Content Score", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Content Analysis", path: "/content-analysis", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
-      { label: "PDS Score", path: "/pds-score", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "PDS Score", path: "/pds-score", icon: <BarChartIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars', 'mars_petcare', 'mars_korea'] },
       { label: "Review Rating", path: "/review-rating", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
 
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
@@ -1015,6 +1015,59 @@ const Sidebar = ({
                   />
                 </ListItemButton>
               )}
+
+              <ListItemButton
+                onClick={() => navigate('/ds-tester')}
+                className={currentPath === '/ds-tester' ? "sidebar-item-active" : ""}
+                sx={{
+                  minWidth: 44,
+                  maxWidth: "100%",
+                  justifyContent: "flex-start",
+                  px: 2,
+                  py: 1,
+                  borderRadius: "12px",
+                  bgcolor: currentPath === '/ds-tester' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                  color: currentPath === '/ds-tester' ? "#2563eb" : "#64748b",
+                  position: 'relative',
+                  overflow: 'hidden',
+                  "&:hover": {
+                    bgcolor: currentPath === '/ds-tester' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                    color: currentPath === '/ds-tester' ? "#1d4ed8" : "#1e293b",
+                    transform: 'translateX(2px)',
+                  },
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: 1.5,
+                    color: currentPath === '/ds-tester' ? "#2563eb" : "inherit",
+                    display: 'flex',
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '1.15rem',
+                    }
+                  }}
+                >
+                  <ScienceIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        DS Tester
+                      </Box>
+                      <SidebarStatusBadge type="NEW" />
+                    </Box>
+                  }
+                  primaryTypographyProps={{
+                    fontSize: "13px",
+                    fontWeight: currentPath === '/ds-tester' ? 700 : 500,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                  sx={{ my: 0 }}
+                />
+              </ListItemButton>
             </Box>
             {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Report Studio'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
               <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
@@ -1123,7 +1176,7 @@ const Sidebar = ({
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
           {!platformsFetched ? (

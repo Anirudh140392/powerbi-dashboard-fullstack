@@ -20,6 +20,7 @@ import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
 import apiLogs from './routes/apiLogs.js';
+import pdsScore from './routes/pdsScore.js';
 
 
 export default (app) => {
@@ -89,5 +90,6 @@ export default (app) => {
 
     // MOP Analysis routes
     mopAnalysis(app);
+    pdsScore(app);
 };
 
