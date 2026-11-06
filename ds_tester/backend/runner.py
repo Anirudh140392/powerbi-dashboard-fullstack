@@ -48,9 +48,12 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
     # Extract filter metadata for complete verification window visibility
     info = module._get_segment_info(segment, client=target_client) if hasattr(module, "_get_segment_info") else {}
     plat_filter = info.get("platform") or "all"
+    chan_filter = info.get("channel") or "all"
     
     # Dynamically resolve channel associated with this platform / client
-    if hasattr(module, "get_channel_for_platform") and plat_filter:
+    if chan_filter and chan_filter != "all":
+        dynamic_ch = chan_filter
+    elif hasattr(module, "get_channel_for_platform") and plat_filter and plat_filter != "all":
         dynamic_ch = module.get_channel_for_platform(target_client, plat_filter)
     elif hasattr(module, "get_default_channel_for_client"):
         dynamic_ch = module.get_default_channel_for_client(target_client)

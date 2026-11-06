@@ -40,7 +40,7 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
         clean = re.sub(r"(?i)\s*(crore|cr)$", "", clean).strip()
         if unit_norm in ("cr", "crore"):
             multiplier = 1.0
-        elif unit_norm in ("lac", "lakh"):
+        elif unit_norm in ("lac", "lakh", "l"):
             multiplier = 100.0
         else:
             multiplier = 10_000_000.0
@@ -48,7 +48,7 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
         clean = re.sub(r"(?i)\s*(lakh|lac|l)$", "", clean).strip()
         if unit_norm in ("cr", "crore"):
             multiplier = 0.01
-        elif unit_norm in ("lac", "lakh"):
+        elif unit_norm in ("lac", "lakh", "l"):
             multiplier = 1.0
         else:
             multiplier = 100_000.0
@@ -56,7 +56,7 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
         clean = re.sub(r"(?i)\s*m$", "", clean).strip()
         if unit_norm in ("cr", "crore"):
             multiplier = 0.1
-        elif unit_norm in ("lac", "lakh"):
+        elif unit_norm in ("lac", "lakh", "l"):
             multiplier = 10.0
         else:
             multiplier = 1_000_000.0
@@ -64,7 +64,7 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
         clean = re.sub(r"(?i)\s*k$", "", clean).strip()
         if unit_norm in ("cr", "crore"):
             multiplier = 0.0001
-        elif unit_norm in ("lac", "lakh"):
+        elif unit_norm in ("lac", "lakh", "l"):
             multiplier = 0.01
         else:
             multiplier = 1_000.0

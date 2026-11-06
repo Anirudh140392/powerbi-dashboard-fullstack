@@ -26,6 +26,7 @@ async function getPmSource() {
             ad_click: wrap(r('ad_click')),
             ad_quantity_sold: wrap(r('Ad_Quantity_sold')),
             platform: r('Platform'),
+            channel: r('channel'),
             brand: r('brand'),
             category: r('category'),
             date: r('DATE'),
@@ -235,6 +236,24 @@ const performanceMarketingService = {
 
                 // 2. Build Query Conditions (Base)
                 let baseConditions = [];
+                // Channel filter
+                if (filters.channel && filters.channel !== 'All') {
+                    const rawChs = filters.channel.split(',').map(c => c.trim().toLowerCase());
+                    const chList = [];
+                    for (const c of rawChs) {
+                        if (c.includes('quick') || c.includes('qcomm')) {
+                            chList.push("'quickcomm'", "'quick commerce'", "'qcomm'");
+                        } else if (c.includes('ecom')) {
+                            chList.push("'ecommerce'", "'ecom'", "'e-commerce'");
+                        } else {
+                            chList.push(`'${c}'`);
+                        }
+                    }
+                    if (chList.length > 0) {
+                        baseConditions.push(`lower(${f.channel || 'channel'}) IN (${[...new Set(chList)].join(',')})`);
+                    }
+                }
+
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
@@ -705,6 +724,25 @@ const performanceMarketingService = {
                 const r = pmSource.r;
 
                 let conditions = [];
+                // Channel filter
+                if (filters.channel && filters.channel !== 'All') {
+                    const rawChs = filters.channel.split(',').map(c => c.trim().toLowerCase());
+                    const chList = [];
+                    for (const c of rawChs) {
+                        if (c.includes('quick') || c.includes('qcomm')) {
+                            chList.push("'quickcomm'", "'quick commerce'", "'qcomm'");
+                        } else if (c.includes('ecom')) {
+                            chList.push("'ecommerce'", "'ecom'", "'e-commerce'");
+                        } else {
+                            chList.push(`'${c}'`);
+                        }
+                    }
+                    if (chList.length > 0) {
+                        const chSql = `lower(${f.channel || 'channel'}) IN (${[...new Set(chList)].join(',')})`;
+                        conditions.push(chSql);
+                    }
+                }
+
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
@@ -778,6 +816,23 @@ const performanceMarketingService = {
                 const startDateL2M = dayjs(endDateL2M).subtract(60, 'day').startOf('day').format('YYYY-MM-DD');
 
                 let l2mConditions = [];
+                // Channel filter for L2M
+                if (filters.channel && filters.channel !== 'All') {
+                    const rawChs = filters.channel.split(',').map(c => c.trim().toLowerCase());
+                    const chList = [];
+                    for (const c of rawChs) {
+                        if (c.includes('quick') || c.includes('qcomm')) {
+                            chList.push("'quickcomm'", "'quick commerce'", "'qcomm'");
+                        } else if (c.includes('ecom')) {
+                            chList.push("'ecommerce'", "'ecom'", "'e-commerce'");
+                        } else {
+                            chList.push(`'${c}'`);
+                        }
+                    }
+                    if (chList.length > 0) {
+                        l2mConditions.push(`lower(${f.channel || 'channel'}) IN (${[...new Set(chList)].join(',')})`);
+                    }
+                }
                 // Apply the same platform and brand filters for L2M baseline
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
@@ -915,6 +970,24 @@ const performanceMarketingService = {
 
                 // Build base conditions (without date)
                 let baseConditions = [];
+                // Channel filter
+                if (filters.channel && filters.channel !== 'All') {
+                    const rawChs = filters.channel.split(',').map(c => c.trim().toLowerCase());
+                    const chList = [];
+                    for (const c of rawChs) {
+                        if (c.includes('quick') || c.includes('qcomm')) {
+                            chList.push("'quickcomm'", "'quick commerce'", "'qcomm'");
+                        } else if (c.includes('ecom')) {
+                            chList.push("'ecommerce'", "'ecom'", "'e-commerce'");
+                        } else {
+                            chList.push(`'${c}'`);
+                        }
+                    }
+                    if (chList.length > 0) {
+                        baseConditions.push(`lower(${f.channel || 'channel'}) IN (${[...new Set(chList)].join(',')})`);
+                    }
+                }
+
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {

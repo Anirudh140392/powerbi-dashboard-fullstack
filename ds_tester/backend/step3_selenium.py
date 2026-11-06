@@ -159,6 +159,25 @@ def wait_for_loading_complete(driver: webdriver.Chrome, timeout: int = 25):
     time.sleep(0.5)
 
 
+_CLIENT_METADATA_CACHE: Dict[str, Tuple[str, str]] = {}
+
+def get_client_metadata(client_name: str) -> Tuple[str, str]:
+    """Returns (db_id, company_id) from ClickHouse admin_master.tb_database."""
+    norm = (client_name or "").lower().strip()
+    if norm in _CLIENT_METADATA_CACHE:
+        return _CLIENT_METADATA_CACHE[norm]
+    try:
+        from ds_tester.backend.step2_logic import get_clickhouse_client
+        ch = get_clickhouse_client('admin_master')
+        rows = ch.query(f"SELECT toString(db_id), toString(company_id) FROM tb_database WHERE lower(db_name) = '{norm}' LIMIT 1").result_rows
+        if rows:
+            _CLIENT_METADATA_CACHE[norm] = (str(rows[0][0]), str(rows[0][1]))
+            return _CLIENT_METADATA_CACHE[norm]
+    except Exception:
+        pass
+    return ("1", "")
+
+
 def ensure_authenticated(driver: webdriver.Chrome, target_url: str, client: Optional[str] = None):
     """
     Ensures the browser session is authenticated with live platform credentials,
@@ -170,12 +189,15 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str, client: Opti
 
     target_db = client or os.getenv("CLICKHOUSE_DB", "boat")
     jwt_secret = os.getenv("JWT_SECRET", "trailytics_jwt_secret_2026")
+    real_db_id, real_company_id = get_client_metadata(target_db)
+
     token_payload = {
         "userId": "1",
         "email": LOGIN_EMAIL,
         "userName": "Admin",
         "dbName": target_db,
-        "dbId": "1",
+        "dbId": real_db_id,
+        "companyId": real_company_id,
         "role": "admin",
         "qcUser": 0,
         "dbStatus": True,
@@ -186,7 +208,8 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str, client: Opti
         "name": "Admin",
         "role": "admin",
         "dbName": target_db,
-        "dbId": "1",
+        "dbId": real_db_id,
+        "companyId": real_company_id,
         "tabPermissions": {},
     }
 
@@ -202,10 +225,16 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str, client: Opti
         sessionStorage.setItem("workspaceSelected", "true");
         sessionStorage.setItem("activeWorkspaceDb", arguments[2]);
         localStorage.setItem("activeWorkspaceDb", arguments[2]);
+        if (arguments[3]) {
+            localStorage.setItem("companyId", arguments[3]);
+            localStorage.setItem("company_id", arguments[3]);
+        }
+        localStorage.setItem("companyName", arguments[2]);
         """,
         token,
         json.dumps(user_obj),
         target_db,
+        real_company_id,
     )
 
     driver.get(target_url)

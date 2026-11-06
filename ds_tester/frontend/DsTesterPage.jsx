@@ -202,7 +202,7 @@ export default function DsTesterPage() {
 
   // Handle open refresh / period modal
   const handleOpenPeriodModal = (seg) => {
-    if (selectedModule === "content_analysis") {
+    if (selectedModule === "content_analysis" || selectedModule === "review_rating") {
       setTargetSegment(seg);
       handleDirectRun(seg);
       return;
@@ -235,10 +235,14 @@ export default function DsTesterPage() {
     const target = seg || targetSegment;
     if (!target || !selectedModule) return;
 
+    const periodObj = selectedModule === "review_rating"
+      ? { startDate: "Last 6 Months", endDate: "Last 6 Months", preset: "6M" }
+      : { startDate: "Snapshot", endDate: "Snapshot" };
+
     const payload = {
       module: selectedModule,
       segment: target.id,
-      period: { startDate: "Snapshot", endDate: "Snapshot" },
+      period: periodObj,
       client: selectedClient,
       headless: !watchLiveBrowser,
     };
@@ -252,7 +256,7 @@ export default function DsTesterPage() {
           run_id: res.data.run_id,
           module: selectedModule,
           segment: target.id,
-          period: { startDate: "Snapshot", endDate: "Snapshot" },
+          period: periodObj,
           client: selectedClient,
           headless: !watchLiveBrowser,
           status: "running",
@@ -290,7 +294,9 @@ export default function DsTesterPage() {
     let periodPayload = selectedPeriod;
     let segId = targetSegment.id;
 
-    if (selectedModule === "pds_score") {
+    if (selectedModule === "review_rating") {
+      periodPayload = { startDate: "Last 6 Months", endDate: "Last 6 Months", preset: "6M" };
+    } else if (selectedModule === "pds_score") {
       const dates = PDS_PERIOD_DATES[pdsPeriod] || { startDate: "2026-10-04", endDate: "2026-10-31" };
       periodPayload = {
         platform: pdsPlatform,
@@ -902,14 +908,16 @@ export default function DsTesterPage() {
 
                 <Box sx={{ ml: 2 }}>
                   <Typography variant="caption" sx={{ color: "#64748b", display: "block" }}>
-                    {drawerRunData.module === "content_analysis" ? "Scope" : (drawerRunData.module === "pds_score" ? "Financial Period" : "Period")}
+                    {drawerRunData.module === "content_analysis" ? "Scope" : (drawerRunData.module === "review_rating" ? "Analysis Window" : (drawerRunData.module === "pds_score" ? "Financial Period" : "Period"))}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: "#1e293b" }}>
                     {drawerRunData.module === "content_analysis"
                       ? "Current Catalog Snapshot"
-                      : (drawerRunData.module === "pds_score"
-                          ? `${drawerRunData.period?.period || "Period 11"} (${drawerRunData.period?.year || "2026"})`
-                          : `${drawerRunData.period?.startDate} to ${drawerRunData.period?.endDate}`)}
+                      : (drawerRunData.module === "review_rating"
+                          ? "Last 6 Months (6M Rolling)"
+                          : (drawerRunData.module === "pds_score"
+                              ? `${drawerRunData.period?.period || "Period 11"} (${drawerRunData.period?.year || "2026"})`
+                              : `${drawerRunData.period?.startDate} to ${drawerRunData.period?.endDate}`))}
                   </Typography>
                 </Box>
 
@@ -982,7 +990,9 @@ export default function DsTesterPage() {
                         label={
                           drawerRunData.module === "content_analysis"
                             ? "Audit Scope: Current Catalog Snapshot (Undated)"
-                            : `Period: ${drawerRunData.filters?.startDate || drawerRunData.period?.startDate} → ${drawerRunData.filters?.endDate || drawerRunData.period?.endDate}`
+                            : (drawerRunData.module === "review_rating"
+                                ? "Analysis Window: Last 6 Months (6M Rolling)"
+                                : `Period: ${drawerRunData.filters?.startDate || drawerRunData.period?.startDate} → ${drawerRunData.filters?.endDate || drawerRunData.period?.endDate}`)
                         }
                         sx={{ bgcolor: "#f8fafc", color: "#334155", fontWeight: 600, fontSize: "11px", border: "1px solid #cbd5e1" }}
                       />

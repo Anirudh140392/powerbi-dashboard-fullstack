@@ -1020,6 +1020,7 @@ export const FilterProvider = ({ children }) => {
             setChannels,
             selectedChannel,
             setSelectedChannel,
+            channel: selectedChannel,
             brands,
             setBrands,
             selectedBrand,
