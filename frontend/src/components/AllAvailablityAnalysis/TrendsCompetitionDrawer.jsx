@@ -3915,6 +3915,15 @@ export default function TrendsCompetitionDrawer({
                           return match || null;
                         };
 
+                        // Return ALL web_pids for a given SKU name (a sap_code can have multiple web_pid rows)
+                        const getSkuPids = (skuName) => {
+                          if (!skuName || !filterOptions.skuDetails || !filterOptions.skuDetails.length) return [];
+                          return filterOptions.skuDetails
+                            .filter(d => (d.name || d.product_name || '')?.toLowerCase() === skuName.toLowerCase())
+                            .map(d => d.webPid || d.web_pid)
+                            .filter(Boolean);
+                        };
+
                         const filteredSkus = SKU_OPTIONS.filter(opt => {
                           const details = getSkuDetails(opt);
                           const sapCode = details?.sapCode || details?.sap_code;
@@ -3926,66 +3935,84 @@ export default function TrendsCompetitionDrawer({
                           if (!skuSearchTerm) return true;
                           const term = skuSearchTerm.toLowerCase().trim();
                           if (opt.toLowerCase().includes(term)) return true;
-                          const webPid = details?.webPid || details?.web_pid;
-                          if (webPid && String(webPid).toLowerCase().includes(term)) return true;
+                          const pids = getSkuPids(opt);
+                          if (pids.some(p => String(p).toLowerCase().includes(term))) return true;
                           if (isDrlUser && sapCode && String(sapCode).toLowerCase().includes(term)) return true;
                           return false;
                         });
 
-                        const isSkuSelected = (opt) => {
+                        // Build expanded rows: one row per (skuName, webPid) combination so each web_pid is selectable individually
+                        const expandedSkuRows = [];
+                        filteredSkus.forEach(skuName => {
+                          const pids = getSkuPids(skuName);
+                          if (pids.length === 0) {
+                            expandedSkuRows.push({ skuName, webPid: null });
+                          } else {
+                            pids.forEach(pid => expandedSkuRows.push({ skuName, webPid: pid }));
+                          }
+                        });
+
+                        // Parse currently selected webPids from drawerFilters.SKUWebPid
+                        const getSelectedPids = () => {
+                          if (drawerFilters.SKUWebPid === 'All') return null; // null = all selected
+                          if (drawerFilters.SKUWebPid === 'None' || !drawerFilters.SKUWebPid) return [];
+                          return drawerFilters.SKUWebPid.split(',').map(s => s.trim()).filter(Boolean);
+                        };
+
+                        const isRowSelected = (skuName, webPid) => {
                           if (drawerFilters.SKU === 'All') return true;
                           if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return false;
-                          const list = drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase());
-                          return list.includes(opt.toLowerCase());
+                          const selectedPids = getSelectedPids();
+                          if (selectedPids === null) return true;
+                          if (!webPid) return false;
+                          return selectedPids.includes(webPid);
                         };
 
-                        const getCurrentlySelectedList = () => {
-                          if (drawerFilters.SKU === 'All') return [...SKU_OPTIONS];
+                        const getSelectedRows = () => {
+                          if (drawerFilters.SKU === 'All') return [...expandedSkuRows];
                           if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return [];
-                          return drawerFilters.SKU.split(';;').map(s => s.trim()).filter(Boolean);
+                          const selectedPids = getSelectedPids();
+                          if (selectedPids === null) return [...expandedSkuRows];
+                          return expandedSkuRows.filter(row => selectedPids.includes(row.webPid));
                         };
 
-                        const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
+                        const isAllFilteredSelected = expandedSkuRows.length > 0 && expandedSkuRows.every(row => isRowSelected(row.skuName, row.webPid));
 
                         const handleToggleAllFiltered = () => {
                           if (drawerFilters.SKU === 'All' && skuSearchTerm) {
                             // User searched while 'All' was active and clicked 'Select All Matching SKUs'
-                            const selectedWebPids = filteredSkus.map(name => {
-                              const details = getSkuDetails(name);
-                              return details?.webPid || details?.web_pid;
-                            }).filter(Boolean);
+                            const allPids = expandedSkuRows.map(row => row.webPid).filter(Boolean);
+                            const uniqueSkuNames = [...new Set(expandedSkuRows.map(row => row.skuName))];
                             setDrawerFilters(prev => ({
                               ...prev,
-                              SKU: filteredSkus.join(';;'),
-                              SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
+                              SKU: uniqueSkuNames.join(';;'),
+                              SKUWebPid: allPids.length > 0 ? allPids.join(',') : 'All'
                             }));
                             return;
                           }
-                          const currentSelected = getCurrentlySelectedList();
+                          const currentSelected = getSelectedRows();
                           let nextSelected;
                           if (isAllFilteredSelected) {
-                            // Deselect only the currently filtered SKUs
-                            const filteredLower = new Set(filteredSkus.map(s => s.toLowerCase()));
-                            nextSelected = currentSelected.filter(s => !filteredLower.has(s.toLowerCase()));
+                            // Deselect only the currently filtered rows
+                            const filteredKeys = new Set(expandedSkuRows.map(row => row.webPid || row.skuName).filter(Boolean));
+                            nextSelected = currentSelected.filter(row => !filteredKeys.has(row.webPid || row.skuName));
                           } else {
-                            // Select all currently filtered SKUs
-                            const currentLower = new Set(currentSelected.map(s => s.toLowerCase()));
-                            const toAdd = filteredSkus.filter(s => !currentLower.has(s.toLowerCase()));
+                            // Select all currently filtered rows
+                            const currentKeys = new Set(currentSelected.map(row => row.webPid || row.skuName).filter(Boolean));
+                            const toAdd = expandedSkuRows.filter(row => !currentKeys.has(row.webPid || row.skuName));
                             nextSelected = [...currentSelected, ...toAdd];
                           }
 
                           if (nextSelected.length === 0) {
                             setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
-                          } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                          } else if (nextSelected.length >= expandedSkuRows.length) {
                             setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
                           } else {
-                            const selectedWebPids = nextSelected.map(name => {
-                              const details = getSkuDetails(name);
-                              return details?.webPid || details?.web_pid;
-                            }).filter(Boolean);
+                            const selectedWebPids = nextSelected.map(row => row.webPid).filter(Boolean);
+                            const selectedSkuNames = [...new Set(nextSelected.map(row => row.skuName))];
                             setDrawerFilters(prev => ({
                               ...prev,
-                              SKU: nextSelected.join(';;'),
+                              SKU: selectedSkuNames.join(';;'),
                               SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                             }));
                           }
@@ -4012,61 +4039,57 @@ export default function TrendsCompetitionDrawer({
                                 {isAllFilteredSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
                               </Box>
                               <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
-                                {skuSearchTerm ? `Select All Matching SKUs (${filteredSkus.length})` : 'All SKUs'}
+                                {skuSearchTerm ? `Select All Matching SKUs (${expandedSkuRows.length})` : 'All SKUs'}
                               </Typography>
                             </Box>
 
-                            {/* Filtered SKU items */}
-                            {filteredSkus.map(opt => {
-                              const isSelected = isSkuSelected(opt);
+                            {/* Filtered SKU items — one row per web_pid */}
+                            {expandedSkuRows.map(({ skuName: rowSkuName, webPid: rowWebPid }) => {
+                              const isSelected = isRowSelected(rowSkuName, rowWebPid);
                               // Truncate display: show last part in parentheses as variant hint
-                              const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                              const parenMatch = rowSkuName.match(/\(([^)]+)\)\s*$/);
                               const variant = parenMatch ? parenMatch[1] : '';
-                              const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-                              const skuDetails = getSkuDetails(opt);
-                              const webPid = skuDetails?.webPid || skuDetails?.web_pid || null;
+                              const mainName = rowSkuName.length > 60 ? rowSkuName.substring(0, 57) + '...' : rowSkuName;
+                              const skuDetails = getSkuDetails(rowSkuName);
                               const sapCode = skuDetails?.sapCode || skuDetails?.sap_code || null;
 
                               return (
                                 <Box
-                                  key={opt}
+                                  key={rowWebPid || rowSkuName}
                                   onClick={() => {
                                     if (drawerFilters.SKU === 'All') {
-                                      // When 'All' is active and user clicks a particular SKU, select ONLY this SKU
-                                      const details = getSkuDetails(opt);
-                                      const webPid = details?.webPid || details?.web_pid;
+                                      // When 'All' is active and user clicks a particular row, select ONLY this row
                                       setDrawerFilters(prev => ({
                                         ...prev,
-                                        SKU: opt,
-                                        SKUWebPid: webPid || 'All'
+                                        SKU: rowSkuName,
+                                        SKUWebPid: rowWebPid || 'All'
                                       }));
                                       return;
                                     }
-                                    const currentSelected = getCurrentlySelectedList();
-                                    const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                    const currentSelected = getSelectedRows();
+                                    const rowKey = rowWebPid || rowSkuName;
+                                    const exists = currentSelected.some(s => (s.webPid || s.skuName) === rowKey);
                                     let nextSelected;
                                     if (exists) {
-                                      nextSelected = currentSelected.filter(s => s.toLowerCase() !== opt.toLowerCase());
+                                      nextSelected = currentSelected.filter(s => (s.webPid || s.skuName) !== rowKey);
                                     } else {
-                                      nextSelected = [...currentSelected, opt];
+                                      nextSelected = [...currentSelected, { skuName: rowSkuName, webPid: rowWebPid }];
                                     }
                                     if (nextSelected.length === 0) {
                                       setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
-                                    } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                                    } else if (nextSelected.length >= expandedSkuRows.length) {
                                       setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
                                     } else {
-                                      const selectedWebPids = nextSelected.map(name => {
-                                        const details = getSkuDetails(name);
-                                        return details?.webPid || details?.web_pid;
-                                      }).filter(Boolean);
+                                      const selectedWebPids = nextSelected.map(row => row.webPid).filter(Boolean);
+                                      const selectedSkuNames = [...new Set(nextSelected.map(row => row.skuName))];
                                       setDrawerFilters(prev => ({
                                         ...prev,
-                                        SKU: nextSelected.join(';;'),
+                                        SKU: selectedSkuNames.join(';;'),
                                         SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                                       }));
                                     }
                                   }}
-                                  title={[sapCode && `SAP: ${sapCode}`, webPid && `Web PID: ${webPid}`].filter(Boolean).join(' | ') || opt}
+                                  title={[sapCode && `SAP: ${sapCode}`, rowWebPid && `Web PID: ${rowWebPid}`].filter(Boolean).join(' | ') || rowSkuName}
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -4095,9 +4118,9 @@ export default function TrendsCompetitionDrawer({
                                     }}>
                                       {mainName}
                                     </Typography>
-                                    {webPid || (isDrlUser && sapCode) ? (
+                                    {rowWebPid ? (
                                       <Typography sx={{ fontSize: '10px', color: '#64748B', fontWeight: 500, mt: '-1px' }}>
-                                        {isDrlUser && sapCode ? `SAP: ${sapCode}` : ''}{isDrlUser && sapCode && webPid ? ' | ' : ''}{webPid ? `Web PID: ${webPid}` : ''}
+                                        {sapCode ? `SAP: ${sapCode}  |  ` : ''}Web PID: {rowWebPid}
                                       </Typography>
                                     ) : variant ? (
                                       <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
@@ -4108,7 +4131,7 @@ export default function TrendsCompetitionDrawer({
                                 </Box>
                               );
                             })}
-                            {filteredSkus.length === 0 && (
+                            {expandedSkuRows.length === 0 && (
                               <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No SKUs found</Typography>
                             )}
                           </>
