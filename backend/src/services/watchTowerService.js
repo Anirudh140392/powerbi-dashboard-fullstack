@@ -11269,7 +11269,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
 
         // Include all unique base brands into the target list if brands is 'All' or empty
-        if (!isSkuMode && validBrandNames.length > 0) {
+        if (!isSkuMode && targetList.length === 0 && validBrandNames.length > 0) {
             validBrandNames.forEach(brand => {
                 if (!targetList.some(t => t.toLowerCase() === brand.toLowerCase())) {
                     targetList.unshift(brand);
@@ -11712,7 +11712,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 location,
                 category,
                 count: targetList.length,
-                primaryBrand: !isSkuMode && validBrandNames.length > 0 ? validBrandNames[0] : null
+                primaryBrand: !isSkuMode && validBrandNames.length > 0
+                    ? (validBrandNames.find(b => targetList.some(t => t.toLowerCase() === b.toLowerCase())) || null)
+                    : null
             },
             kpiAvailability
         };
