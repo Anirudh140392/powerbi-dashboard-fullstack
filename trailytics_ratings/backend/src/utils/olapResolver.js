@@ -99,4 +99,6 @@ setImmediate(() => {
     refreshOlapEnabledDbs().catch(() => {});
 });
 
+export { buildWebPidCondition, normalizeWebPid } from './webPidHelper.js';
+
 

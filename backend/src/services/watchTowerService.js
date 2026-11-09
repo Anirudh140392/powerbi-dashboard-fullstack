@@ -8991,6 +8991,9 @@ const getKpiTrends = async (filters) => {
     }
 
     const src = await getWatchtowerSource(filters);
+    // Determine DB context early so it's available inside buildKpiConds closure
+    const dbNameForTrends = getCurrentDbName();
+    const isDrlDb = dbNameForTrends === 'drl';
     // 3. Build WHERE conditions for dynamic source
     const buildKpiConds = () => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -9043,12 +9046,12 @@ const getKpiTrends = async (filters) => {
         }
 
         if (hasSapFilter && hasSkuCodeFilter) {
-            // When both sapCode and skuCode (webPid) are provided (common in DRL where webPid may be null on sales rows):
-            // Match sap_code OR webPid so neither sales rows (webPid null) nor crawl rows (sap_code populated, webPid populated) are lost.
+            // When both sapCode and skuCode (webPid) are provided:
+            // Use AND so only rows matching BOTH sap_code AND web_pid are returned.
             const sapClause = src.f.sapCode ? sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ') : '';
-            const codeClause = (src.f.webPid || src.f.skuCode) ? skuCodeArrArr.map(s => `(toString(${src.f.webPid || src.f.skuCode}) LIKE '%${escapeStr(s)}%')`).join(' OR ') : '';
+            const codeClause = (src.f.webPid || src.f.skuCode) ? `toString(${src.f.webPid || src.f.skuCode}) IN (${skuCodeArrArr.map(s => `'${escapeStr(s)}'`).join(',')})` : '';
             if (sapClause && codeClause) {
-                conds.push(`(${sapClause} OR ${codeClause})`);
+                conds.push(`(${sapClause} AND ${codeClause})`);
             } else if (sapClause) {
                 conds.push(`(${sapClause})`);
             } else if (codeClause) {
@@ -9063,13 +9066,18 @@ const getKpiTrends = async (filters) => {
                 conds.push(`(${sapConds})`);
             }
         } else if (hasSkuCodeFilter) {
-            const skuCodeConds = skuCodeArrArr.map(s => {
-                const checks = [];
-                if (src.f.webPid) checks.push(`toString(${src.f.webPid}) LIKE '%${escapeStr(s)}%'`);
-                if (src.f.skuCode) checks.push(`toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`);
-                return checks.length > 0 ? `(${checks.join(' OR ')})` : '1=1';
-            }).join(' OR ');
-            conds.push(`(${skuCodeConds})`);
+            // Exact web_pid match using IN operator for SKU filter selection
+            const webPidValues = skuCodeArrArr.map(s => `'${escapeStr(s)}'`).join(',');
+            if (src.f.webPid) {
+                conds.push(`toString(${src.f.webPid}) IN (${webPidValues})`);
+            } else if (src.f.skuCode) {
+                conds.push(`toString(${src.f.skuCode}) IN (${webPidValues})`);
+            }
+        }
+
+        // For DRL DB: exclude rows with empty web_pid when filtering by sap_code
+        if (isDrlDb && hasSapFilter && src.f.webPid) {
+            conds.push(`toString(${src.f.webPid}) != ''`);
         }
 
         if (!src.isAgg) {
@@ -9127,8 +9135,6 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
-    const dbNameForTrends = getCurrentDbName();
-    const isDrlDb = dbNameForTrends === 'drl';
     const drlResellerInfo = getDrlResellerConds(filters);
     const includeBuyMore = isDrlDb && drlResellerInfo.includeBuyMoreTable;
 
@@ -9148,55 +9154,74 @@ const getKpiTrends = async (filters) => {
     const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
 
     // 4. Query for Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio from dynamic source
+    const kpiQuery = `
+        SELECT 
+            ${groupExpression.replace('DATE', src.f.date)} as date_group,
+            MAX(toDate(${src.f.date})) as ref_date,
+            SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            countIf(${src.isAgg ? 'total_sales > 0' : `Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''}`}) as valid_sales_count,
+            SUM(${src.f.adSales}) as total_Ad_sales,
+            SUM(${src.f.spend}) as total_ad_spend,
+            SUM(${src.f.orders}) as total_ad_orders,
+            SUM(${src.f.clicks}) as total_ad_clicks,
+            SUM(${src.f.impressions}) as total_ad_impressions,
+            SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.spend} ELSE 0 END) as total_cpc_spend,
+            SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.clicks} ELSE 0 END) as total_cpc_clicks,
+            SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.spend} ELSE 0 END) as total_cpm_spend,
+            SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.impressions} ELSE 0 END) as total_cpm_impressions,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END) as total_neno_osa,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END) as total_deno_osa,
+            (toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END)) / NULLIF(toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END)), 0)) * 100 as total_availability,
+            COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
+            AVG(${src.f.sellingPrice}) as avg_selling_price,
+            AVG(${src.f.mrp}) as avg_mrp,
+            (SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
+            SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
+            SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
+            SUM(${src.f.sellingPrice}) as sum_selling_price,
+            0 as sum_weight
+        FROM ${src.table}
+        WHERE ${kpiConds} ${drlResellerInfo.pdpCond ? `AND ${drlResellerInfo.pdpCond}` : ''}
+        GROUP BY date_group
+        ORDER BY ref_date ASC
+    `;
+    const pmQuery = `
+        SELECT 
+            ${groupExpression.replace('DATE', pmSrc.f.date)} as date_group,
+            SUM(${pmSrc.f.adSales}) as pm_ad_sales,
+            SUM(${pmSrc.f.spend}) as pm_ad_spend,
+            SUM(${pmSrc.f.orders}) as pm_ad_orders,
+            SUM(${pmSrc.f.clicks}) as pm_ad_clicks,
+            SUM(${pmSrc.f.impressions}) as pm_ad_impressions,
+            SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpc_spend,
+            SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as pm_cpc_clicks,
+            SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpm_spend,
+            SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as pm_cpm_impressions
+        FROM ${pmSrc.table}
+        WHERE ${pmKpiConds}
+        GROUP BY date_group
+    `;
+
+    // ── LOG QUERIES TO TERMINAL ──
+    console.log('\n╔═════════════════════════════════════════════════════════════════════════════════╗');
+    console.log('║  [TRENDS] KPI Trends SQL Query                                                ║');
+    console.log('╚═════════════════════════════════════════════════════════════════════════════════╝');
+    if (isDrlDb) {
+        console.log('/* ============================================================================ */');
+        console.log('/*  [this is the sales query of drl]                                            */');
+        console.log('/* ============================================================================ */');
+    }
+    console.log(kpiQuery.trim());
+    console.log('\n╔═════════════════════════════════════════════════════════════════════════════════╗');
+    console.log('║  [TRENDS] PM Trends SQL Query                                                 ║');
+    console.log('╚═════════════════════════════════════════════════════════════════════════════════╝');
+    console.log(pmQuery.trim());
+    console.log('\n');
+
     const [kpiResults, pmResults] = await Promise.all([
-        queryClickHouse(`
-            SELECT 
-                ${groupExpression.replace('DATE', src.f.date)} as date_group,
-                MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-                countIf(${src.isAgg ? 'total_sales > 0' : `Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''}`}) as valid_sales_count,
-                SUM(${src.f.adSales}) as total_Ad_sales,
-                SUM(${src.f.spend}) as total_ad_spend,
-                SUM(${src.f.orders}) as total_ad_orders,
-                SUM(${src.f.clicks}) as total_ad_clicks,
-                SUM(${src.f.impressions}) as total_ad_impressions,
-                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.spend} ELSE 0 END) as total_cpc_spend,
-                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.clicks} ELSE 0 END) as total_cpc_clicks,
-                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.spend} ELSE 0 END) as total_cpm_spend,
-                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.impressions} ELSE 0 END) as total_cpm_impressions,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END) as total_neno_osa,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END) as total_deno_osa,
-                (toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END)) / NULLIF(toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END)), 0)) * 100 as total_availability,
-                COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
-                AVG(${src.f.sellingPrice}) as avg_selling_price,
-                AVG(${src.f.mrp}) as avg_mrp,
-                (SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
-                SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
-                SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
-                SUM(${src.f.sellingPrice}) as sum_selling_price,
-                0 as sum_weight
-            FROM ${src.table}
-            WHERE ${kpiConds} ${drlResellerInfo.pdpCond ? `AND ${drlResellerInfo.pdpCond}` : ''}
-            GROUP BY date_group
-            ORDER BY ref_date ASC
-        `),
-        queryClickHouse(`
-            SELECT 
-                ${groupExpression.replace('DATE', pmSrc.f.date)} as date_group,
-                SUM(${pmSrc.f.adSales}) as pm_ad_sales,
-                SUM(${pmSrc.f.spend}) as pm_ad_spend,
-                SUM(${pmSrc.f.orders}) as pm_ad_orders,
-                SUM(${pmSrc.f.clicks}) as pm_ad_clicks,
-                SUM(${pmSrc.f.impressions}) as pm_ad_impressions,
-                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpc_spend,
-                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as pm_cpc_clicks,
-                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpm_spend,
-                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as pm_cpm_impressions
-            FROM ${pmSrc.table}
-            WHERE ${pmKpiConds}
-            GROUP BY date_group
-        `)
+        queryClickHouse(kpiQuery),
+        queryClickHouse(pmQuery)
     ]);
 
     if (isDrlDb) {
@@ -9910,9 +9935,15 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 }
 
                 const webPidCol = resolveColumn(pdpCols, 'Web_Pid');
-                const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, any(${webPidCol}) as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
+                // Exclude rows with empty web_pid (DRL / sap_code scenarios) so only valid SKUs are listed
+                if (isDrl || hasSapCode) {
+                    pdpConditions.push(`${webPidCol} != ''`);
+                }
+                // GROUP BY sku, web_pid so each web_pid gets its own row (not collapsed by any())
+                const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, ${webPidCol} as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku, web_pid ORDER BY sku, web_pid`;
                 const results = await queryClickHouse(query);
-                const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
+                // Deduplicate SKU names so the dropdown shows each SKU once, but skuDetails keeps all web_pids
+                const skuList = [...new Set(results.map(s => s.sku).filter(s => s && s.trim()))].sort();
                 const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, sapCode: s.sap_code || null, webPid: s.web_pid || null }));
                 return { options: [...skuList], skuDetails };
             }
@@ -15153,16 +15184,21 @@ const getProductsWithSap = async (filters = {}) => {
         if (sapArr && sapArr.length > 0 && rawSapCol) {
             conditions.push(`toString(${rawSapCol}) IN (${sapArr.map(s => `'${_esc(s)}'`).join(', ')})`);
         }
+        // Exclude rows with empty web_pid for sap_code / DRL scenarios
+        if (sapArr && sapArr.length > 0) {
+            conditions.push(`${webPidExpr} != ''`);
+        }
 
+        // GROUP BY product_name, web_pid so each web_pid gets its own row
         const query = `
                         SELECT
                             ${src.f.product} AS product_name,
                             any(${sapExpr}) AS sap_code,
-                            any(${webPidExpr}) AS web_pid
+                            ${webPidExpr} AS web_pid
                         FROM ${src.table}
                         WHERE ${conditions.join(' AND ')}
-                        GROUP BY product_name
-                        ORDER BY product_name
+                        GROUP BY product_name, web_pid
+                        ORDER BY product_name, web_pid
                     `;
         const results = await queryClickHouse(query);
         return results
