@@ -22,6 +22,8 @@ import { cn } from '../../../lib/utils'
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
+    { key: 'spOfftake', label: 'SP Offtake' },
+    { key: 'mrpOfftake', label: 'MRP Offtake' },
     { key: 'quantitySold', label: 'Qty Sold' },
     { key: 'spend', label: 'Spend' },
     { key: 'inorgSales', label: 'Inorg Sales' },

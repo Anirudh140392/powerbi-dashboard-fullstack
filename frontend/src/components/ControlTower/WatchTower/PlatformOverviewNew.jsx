@@ -113,6 +113,8 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
+    spOfftake: 'SP Offtake',
+    mrpOfftake: 'MRP Offtake',
     quantitySold: 'Qty Sold',
     spend: 'Spend',
     tacos: 'TACoS',
@@ -137,6 +139,10 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'SP Offtake': 'spOfftake',
+    'MRP Offtake': 'mrpOfftake',
+    'sp_offtake': 'spOfftake',
+    'mrp_offtake': 'mrpOfftake',
     'Qty Sold': 'quantitySold',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
@@ -203,7 +209,7 @@ const mapApiEntityToFrontend = (apiEntity) => {
 
 const getFullDisplayValue = (kpiKey, cell) => {
     if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
-    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes' || kpiKey === 'spOfftake' || kpiKey === 'mrpOfftake') {
         if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
             return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
         }
@@ -290,6 +296,8 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        { key: 'spOfftake', label: 'SP Offtake' },
+        { key: 'mrpOfftake', label: 'MRP Offtake' },
         { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
@@ -503,6 +511,8 @@ const PlatformOverviewNew = ({
     const defaultKpiKeys = useMemo(() => {
         let base = [
             'offtakes',
+            'spOfftake',
+            'mrpOfftake',
             'quantitySold',
             'spend',
             'inorgSales',
@@ -560,6 +570,8 @@ const PlatformOverviewNew = ({
 
     const [glanceKpis, setGlanceKpis] = useState([
         'offtakes',
+        'spOfftake',
+        'mrpOfftake',
         'quantitySold',
         'spend',
         'inorgSales',
