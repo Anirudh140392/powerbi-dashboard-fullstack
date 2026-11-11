@@ -54,7 +54,7 @@ import { FilterContext } from "@/utils/FilterContext";
 // DS Tester API endpoints (proxied through /ds-tester in Vite to FastAPI)
 const DS_TESTER_API = "/ds-tester";
 
-export default function DsTesterPage() {
+export default function DsTesterPage({ isEmbedded = false }) {
   const filterContext = useContext(FilterContext);
   const defaultEnd = filterContext?.timeEnd ? dayjs(filterContext.timeEnd) : dayjs();
   const defaultStart = filterContext?.timeStart ? dayjs(filterContext.timeStart) : defaultEnd.subtract(14, "day");
@@ -212,7 +212,7 @@ export default function DsTesterPage() {
       const cleanPlat = platLabel.charAt(0).toUpperCase() + platLabel.slice(1);
       setPdsPlatform(cleanPlat.includes("Flipkart") ? "Flipkart National" : cleanPlat);
       setPdsYear("2026");
-      setPdsPeriod("Period 11");
+      setPdsPeriod("Period 6");
       setTargetSegment(seg);
       setPeriodModalOpen(true);
       setBusyMessage(null);
@@ -327,7 +327,7 @@ export default function DsTesterPage() {
           run_id: res.data.run_id,
           module: selectedModule,
           segment: targetSegment.id,
-          period: selectedPeriod,
+          period: periodPayload,
           client: selectedClient,
           headless: !watchLiveBrowser,
           status: "running",
@@ -347,7 +347,7 @@ export default function DsTesterPage() {
             run_id: res.data.run_id,
             module: selectedModule,
             segment: targetSegment.id,
-            period: selectedPeriod,
+            period: periodPayload,
             client: selectedClient,
             headless: !watchLiveBrowser,
             status: "running",
@@ -474,9 +474,8 @@ export default function DsTesterPage() {
     return <AutoGraphIcon sx={{ fontSize: 18, color: "#2563eb" }} />;
   };
 
-  return (
-    <CommonContainer title="DS Tester" hideFilters={true}>
-      <Box sx={{ p: 3, maxWidth: 1200, margin: "0 auto" }}>
+  const pageContent = (
+    <Box sx={{ p: isEmbedded ? 0 : 3, maxWidth: isEmbedded ? "100%" : 1200, margin: isEmbedded ? "0" : "0 auto" }}>
         {/* Header Title & Intro */}
         <Box sx={{ mb: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
@@ -916,7 +915,7 @@ export default function DsTesterPage() {
                       : (drawerRunData.module === "review_rating"
                           ? "Last 6 Months (6M Rolling)"
                           : (drawerRunData.module === "pds_score"
-                              ? `${drawerRunData.period?.period || "Period 11"} (${drawerRunData.period?.year || "2026"})`
+                              ? `${drawerRunData.period?.period || "Period 6"} (${drawerRunData.period?.year || "2026"})`
                               : `${drawerRunData.period?.startDate} to ${drawerRunData.period?.endDate}`))}
                   </Typography>
                 </Box>
@@ -964,7 +963,7 @@ export default function DsTesterPage() {
                       />
                       <Chip
                         size="small"
-                        label={`Period: ${drawerRunData.period?.period || "Period 11"}`}
+                        label={`Period: ${drawerRunData.period?.period || "Period 6"}`}
                         sx={{ bgcolor: "#fdf4ff", color: "#86198f", fontWeight: 700, fontSize: "11px" }}
                       />
                       <Chip
@@ -1283,6 +1282,15 @@ export default function DsTesterPage() {
           </Card>
         )}
       </Box>
+  );
+
+  if (isEmbedded) {
+    return pageContent;
+  }
+
+  return (
+    <CommonContainer title="DS Tester" hideFilters={true}>
+      {pageContent}
     </CommonContainer>
   );
 }

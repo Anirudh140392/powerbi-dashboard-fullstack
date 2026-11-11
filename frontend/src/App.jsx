@@ -255,7 +255,7 @@ function AppContent() {
             } />
 
             <Route path="/ds-tester" element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true}>
                 <DsTesterPage />
               </ProtectedRoute>
             } />

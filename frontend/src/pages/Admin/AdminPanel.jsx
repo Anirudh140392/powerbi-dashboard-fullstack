@@ -15,7 +15,8 @@ import {
     Image as ImageIcon,
     Sparkles,
     UserPlus,
-    Activity
+    Activity,
+    FlaskConical
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -29,6 +30,7 @@ import CompanyLogo from "./tabs/CompanyLogo";
 import CustomInsights from "./tabs/CustomInsights";
 import InviteUser from "./tabs/InviteUser";
 import ApiLogsPage from "../ApiLogs/ApiLogsPage";
+import DsTesterPage from "../../../../ds_tester/frontend/DsTesterPage";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -64,7 +66,8 @@ const AdminPanel = () => {
         { id: "updates", label: "Updates", icon: RefreshCw },
         { id: "company-logo", label: "Company Logo", icon: ImageIcon },
         { id: "custom-insights", label: "Custom Insights", icon: Sparkles },
-        { id: "api-logs", label: "API Logs", icon: Activity }
+        { id: "api-logs", label: "API Logs", icon: Activity },
+        { id: "ds-tester", label: "DS Tester", icon: FlaskConical }
     ];
 
     const renderContent = () => {
@@ -78,6 +81,7 @@ const AdminPanel = () => {
             case "company-logo": return <CompanyLogo />;
             case "custom-insights": return <CustomInsights />;
             case "api-logs": return <ApiLogsPage isEmbedded={true} />;
+            case "ds-tester": return <DsTesterPage isEmbedded={true} />;
             default: return null;
         }
     };

@@ -561,85 +561,54 @@ def read_pricing_overview(driver: webdriver.Chrome, headless: bool = False) -> D
         show_live_step_banner(driver, "🔍 DS Tester: Locating & Verifying Pricing Overview KPI Cards...")
 
     driver.execute_script("window.scrollTo({top: 0, behavior: 'smooth'});")
-    if not headless:
-        time.sleep(1.0)
-    else:
-        time.sleep(0.5)
+    time.sleep(1.0)
 
-    # Wait for overview cards to be populated
-    wait = WebDriverWait(driver, 20)
-    try:
-        wait.until(
-            lambda d: len(
-                [
-                    el for el in d.find_elements(
-                        By.XPATH,
-                        "//h3[contains(., 'Discount') or contains(., 'selling price')]//ancestor::div[contains(@class, 'rounded')]//span"
-                    )
-                    if el.text.strip() and el.text.strip() != "-" and "Loading" not in el.text
-                ]
-            ) >= 2
-        )
-    except Exception:
-        pass
+    # Scrape via precision DOM query targeting headline metric cards
+    scraped = driver.execute_script("""
+        const headers = Array.from(document.querySelectorAll("h3, p, span, div")).filter(el => {
+            if (el.children.length > 0) return false;
+            const t = (el.innerText || "").trim().toLowerCase();
+            return t === "discount" || t === "weighted discount" || t === "average selling price" || t === "asp";
+        });
+        const out = { discount: null, weighted_discount: null, asp: null };
+        for (const h of headers) {
+            const card = h.closest("div.rounded-2xl, div[class*='rounded-2xl'], .MuiCard-root");
+            if (!card) continue;
+            const valEl = card.querySelector(".text-3xl span, .text-3xl") || card.querySelector("h5, .MuiTypography-h5");
+            if (valEl && valEl.innerText.trim()) {
+                const title = h.innerText.trim().toLowerCase();
+                const val = valEl.innerText.trim();
+                if (title === "weighted discount") out.weighted_discount = val;
+                else if (title === "discount") out.discount = val;
+                else if (title.includes("selling price") || title === "asp") out.asp = val;
+            }
+        }
+        return out;
+    """) or {}
 
     results: Dict[str, Optional[str]] = {
-        "discount": None,
-        "weighted_discount": None,
-        "asp": None,
+        "discount": scraped.get("discount"),
+        "weighted_discount": scraped.get("weighted_discount"),
+        "asp": scraped.get("asp"),
     }
 
-    try:
-        headers = driver.find_elements(
-            By.XPATH,
-            "//h3[contains(., 'Discount') or contains(., 'selling price') or contains(., 'Price') or contains(., 'ASP')]"
-        )
-        for h in headers:
-            try:
-                title = h.text.strip()
-                card_elem = h.find_element(By.XPATH, "./ancestor::div[contains(@class, 'rounded')][1]")
-                if not headless:
-                    driver.execute_script("arguments[0].style.outline = '2px solid #2563eb';", card_elem)
-
-                val_elem = card_elem.find_element(
-                    By.XPATH,
-                    ".//div[contains(@class, 'text-3xl')]//span | .//div[contains(@class, 'font-bold') and contains(@class, 'text-')]//span"
-                )
-                raw_val = val_elem.text.strip()
-                if "Weighted" in title:
-                    results["weighted_discount"] = raw_val
-                elif "Discount" in title:
-                    results["discount"] = raw_val
-                elif "selling price" in title.lower() or "asp" in title.lower():
-                    results["asp"] = raw_val
-            except Exception:
-                pass
-
-        if not headless:
+    if not headless:
+        try:
+            driver.execute_script("""
+                const headers = Array.from(document.querySelectorAll("h3, p, span")).filter(el => {
+                    const t = (el.innerText || '').trim().toLowerCase();
+                    return t === 'discount' || t === 'weighted discount' || t === 'average selling price' || t === 'asp';
+                });
+                headers.forEach(h => {
+                    const card = h.closest("div.rounded-2xl, div[class*='rounded-2xl'], .MuiCard-root");
+                    if (card) card.style.outline = '2px solid #2563eb';
+                });
+            """)
             time.sleep(1.5)
-
-        # Fallback card scan if needed
-        if not results["discount"] or not results["weighted_discount"] or not results["asp"]:
-            cards = driver.find_elements(By.CSS_SELECTOR, ".MuiCard-root, div.rounded-2xl, div[class*='rounded-2xl']")
-            for card in cards:
-                text = card.text.strip()
-                if not text:
-                    continue
-                lines = [l.strip() for l in text.split("\n") if l.strip()]
-                if "Weighted Discount" in text and not results["weighted_discount"]:
-                    val_line = next((l for l in lines if "%" in l or any(c.isdigit() for c in l)), None)
-                    results["weighted_discount"] = val_line or (lines[0] if lines else None)
-                elif "Discount" in text and "Weighted" not in text and not results["discount"]:
-                    val_line = next((l for l in lines if "%" in l or any(c.isdigit() for c in l)), None)
-                    results["discount"] = val_line or (lines[0] if lines else None)
-                elif ("Average selling price" in text or "ASP" in text) and not results["asp"]:
-                    val_line = next((l for l in lines if "₹" in l or any(c.isdigit() for c in l)), None)
-                    results["asp"] = val_line or (lines[0] if lines else None)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     return results
-
 
 def read_insights(driver: webdriver.Chrome, headless: bool = False) -> Dict[str, Optional[str]]:
     """

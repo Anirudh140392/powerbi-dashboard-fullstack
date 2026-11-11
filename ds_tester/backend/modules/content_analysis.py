@@ -589,7 +589,7 @@ def step3_ui(
     if not headless:
         bring_chrome_to_top(driver)
 
-    # Apply Segment Platform if targeted
+    # Apply Segment Platform if targeted (or reset to All)
     if target_plat and target_plat != "all":
         p_label = format_platform_label(target_plat)
         if on_live_step:
@@ -598,6 +598,12 @@ def step3_ui(
             show_live_step_banner(driver, f"Selecting Platform: {p_label}...")
 
         apply_segment_platform(driver, target_plat)
+        time.sleep(2.0)
+        wait_for_loading_complete(driver, timeout=20)
+    else:
+        if on_live_step:
+            on_live_step("Resetting platform filter to All Platforms...")
+        apply_segment_platform(driver, "all")
         time.sleep(2.0)
         wait_for_loading_complete(driver, timeout=20)
 

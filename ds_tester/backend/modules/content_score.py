@@ -710,12 +710,19 @@ def run_step3_ui(
     if not headless:
         bring_chrome_to_top(driver)
 
+    # 0. Apply Platform (or Reset to All)
+    if plat and plat != "all":
+        apply_segment_platform(driver, plat)
+    else:
+        apply_segment_platform(driver, "all")
+    time.sleep(1.0)
+    wait_for_loading_complete(driver)
+
     # 1. Apply Date Range
     if on_live_step:
         on_live_step(f"Setting date filter: {period.get('startDate')} to {period.get('endDate')}...")
     apply_dashboard_period(driver, period)
-    wait_for_loading_complete(driver)
-    time.sleep(2)
+    time.sleep(2.5)
     wait_for_loading_complete(driver)
 
     if on_live_step:

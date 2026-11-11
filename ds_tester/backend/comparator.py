@@ -175,6 +175,17 @@ def compare_kpi(
             else:
                 reason = "No data returned across all steps for this segment and period"
         elif "UI" in missing and len(missing) == 1:
+            if ui_raw and str(ui_raw).strip().upper() in ("N/A", "NA", "-", "--", "—") and (api_val == 0.0 or api_val is None) and (logic_val == 0.0 or logic_val is None):
+                return {
+                    "key": key,
+                    "label": label,
+                    "api": api_val,
+                    "logic": logic_val,
+                    "ui": 0.0,
+                    "ui_raw": ui_raw,
+                    "status": "PASS",
+                    "reason": "Metric is not applicable/tracked for this platform/client (0/N/A across all steps)",
+                }
             reason = "UI element not found / value unreadable"
         else:
             missing_str = ", ".join(missing)

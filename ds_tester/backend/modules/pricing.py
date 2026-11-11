@@ -432,10 +432,6 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         plat = info.get("platform")
         if plat and plat != "all":
             api_params["platform"] = plat.capitalize()
-        else:
-            default_channel = get_default_channel_for_client(db_name)
-            if default_channel:
-                api_params["channel"] = default_channel
 
         data = call_platform_api(
             endpoint="/api/pricing-analysis/kpis",
@@ -573,12 +569,6 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         channel_filter = ""
         if plat and plat != "all":
             plat_filter = f"AND lower(p.Platform) = '{plat.lower()}'"
-        else:
-            target_ch = get_default_channel_for_client(db_name)
-            if target_ch and target_ch.lower() != "all":
-                ch_col = resolve_table_column(db_name, "rb_pdp_olap", "channel")
-                if ch_col:
-                    channel_filter = f"AND lower(p.{ch_col}) = '{target_ch.lower()}'"
 
         query = f"""
         SELECT
@@ -664,10 +654,6 @@ def step3_ui(
                     "_error": err_msg,
                 }
         else:
-            default_ch = get_default_channel_for_client(client)
-            if default_ch and default_ch.lower() != "all":
-                apply_dashboard_channel(driver, default_ch)
-                time.sleep(0.8)
             if on_live_step:
                 on_live_step("Resetting filters to All Platforms...")
             if not headless:
@@ -687,8 +673,9 @@ def step3_ui(
 
     apply_dashboard_period(driver, period)
 
-    if not headless:
-        time.sleep(1.0)
+    time.sleep(2.5)
+    wait_for_loading_complete(driver, timeout=25)
+    time.sleep(1.0)
 
     # 3. Read section values
     if on_live_step:
