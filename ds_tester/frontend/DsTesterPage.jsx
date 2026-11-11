@@ -569,14 +569,6 @@ export default function DsTesterPage({ isEmbedded = false }) {
         />
       );
     }
-            bgcolor: "#f1f5f9",
-            color: "#64748b",
-            fontWeight: 600,
-            fontSize: "12px",
-          }}
-        />
-      );
-    }
 
     if (run.status === "running") {
       let activeStep = "API";
