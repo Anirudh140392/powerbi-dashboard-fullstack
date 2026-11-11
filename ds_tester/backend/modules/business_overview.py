@@ -617,13 +617,19 @@ def step3_ui(
             const sales = cleanCell(totalRow[10]);
             
             let roas = null;
-            const parseVal = (str) => {
+            const parseAmount = (str) => {
                 if (!str) return 0;
-                const m = str.match(/([\\d.]+)/);
-                return m ? parseFloat(m[1]) : 0;
+                const s = str.toLowerCase();
+                const m = s.match(/([\\d.]+)/);
+                if (!m) return 0;
+                const num = parseFloat(m[1]);
+                if (s.includes('cr')) return num * 10000000;
+                if (s.includes('lac') || s.includes('lakh')) return num * 100000;
+                if (s.includes('k')) return num * 1000;
+                return num;
             };
-            const sVal = parseVal(sales);
-            const spVal = parseVal(spend);
+            const sVal = parseAmount(sales);
+            const spVal = parseAmount(spend);
             if (sVal > 0 && spVal > 0) {
                 roas = (sVal / spVal).toFixed(2);
             }
