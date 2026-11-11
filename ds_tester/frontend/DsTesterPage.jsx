@@ -43,6 +43,8 @@ import {
   Lightbulb as LightbulbIcon,
   TableChart as TableChartIcon,
   Videocam as VideocamIcon,
+  PlayArrow as PlayArrowIcon,
+  HourglassEmpty as HourglassEmptyIcon,
 } from "@mui/icons-material";
 import dayjs from "dayjs";
 import axios from "axios";
@@ -69,6 +71,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
   const [activeRunData, setActiveRunData] = useState(null);
   const [liveScreenMinimized, setLiveScreenMinimized] = useState(false);
   const [busyMessage, setBusyMessage] = useState(null);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchQueue, setBatchQueue] = useState([]);
 
   // Time Period Popup State - dynamically synced with active dashboard FilterContext
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -181,27 +185,43 @@ export default function DsTesterPage({ isEmbedded = false }) {
         }
 
         if (runData.status === "done" || runData.status === "error") {
-          clearInterval(pollingTimerRef.current);
-          setActiveRunId(null);
-          // Keep preview visible for 4.5 seconds after finish so tester can review outcome
-          setTimeout(() => {
-            setActiveRunData((current) => (current?.run_id === runData.run_id ? null : current));
-          }, 4500);
+          // Check if there is a next run in the active batch queue
+          const currentIndex = batchQueue.indexOf(activeRunId);
+          if (currentIndex !== -1 && currentIndex < batchQueue.length - 1) {
+            // Smoothly advance to the next segment in the batch
+            const nextRunId = batchQueue[currentIndex + 1];
+            setActiveRunId(nextRunId);
+            fetchSessionRuns();
+          } else {
+            // All runs in batch (or single run) complete
+            clearInterval(pollingTimerRef.current);
+            setActiveRunId(null);
+            setBatchQueue([]);
+            setIsBatchMode(false);
+            fetchSessionRuns();
+            // Keep preview visible for 4.5 seconds after finish so tester can review outcome
+            setTimeout(() => {
+              setActiveRunData((current) => (current?.run_id === runData.run_id ? null : current));
+            }, 4500);
+          }
         }
       } catch (err) {
         console.error("[DsTester] Polling error:", err);
         clearInterval(pollingTimerRef.current);
         setActiveRunId(null);
+        setBatchQueue([]);
+        setIsBatchMode(false);
       }
     }, 1000);
 
     return () => {
       if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
     };
-  }, [activeRunId, drawerRunData, selectedClient]);
+  }, [activeRunId, drawerRunData, selectedClient, batchQueue]);
 
-  // Handle open refresh / period modal
+  // Handle open refresh / period modal for a single segment
   const handleOpenPeriodModal = (seg) => {
+    setIsBatchMode(false);
     if (selectedModule === "content_analysis" || selectedModule === "review_rating") {
       setTargetSegment(seg);
       handleDirectRun(seg);
@@ -231,7 +251,40 @@ export default function DsTesterPage({ isEmbedded = false }) {
     setBusyMessage(null);
   };
 
+  // Open modal or directly trigger batch run for ALL segments in the module
+  const handleOpenRunAllModal = () => {
+    setIsBatchMode(true);
+    setTargetSegment(null);
+
+    if (selectedModule === "content_analysis" || selectedModule === "review_rating") {
+      executeRunAll();
+      return;
+    }
+
+    if (selectedModule === "pds_score") {
+      setPdsPlatform("Blinkit");
+      setPdsYear("2026");
+      setPdsPeriod("Period 6");
+      setPeriodModalOpen(true);
+      setBusyMessage(null);
+      return;
+    }
+
+    if (selectedClient === "mars") {
+      setTimeStart(dayjs("2026-10-01"));
+      setTimeEnd(dayjs("2026-10-31"));
+      setSelectedPeriod({
+        startDate: "2026-10-01",
+        endDate: "2026-10-31",
+      });
+    }
+
+    setPeriodModalOpen(true);
+    setBusyMessage(null);
+  };
+
   const handleDirectRun = async (seg) => {
+    setIsBatchMode(false);
     const target = seg || targetSegment;
     if (!target || !selectedModule) return;
 
@@ -251,6 +304,7 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const res = await axios.post(`${DS_TESTER_API}/run`, payload);
       if (res.data?.run_id) {
         setActiveRunId(res.data.run_id);
+        setBatchQueue([res.data.run_id]);
         setLiveScreenMinimized(false);
         setActiveRunData({
           run_id: res.data.run_id,
@@ -286,8 +340,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
     }
   };
 
-  // Confirm run
-  const handleConfirmRun = async () => {
+  // Execute single run
+  const executeSingleRun = async () => {
     if (!targetSegment || !selectedModule) return;
     setPeriodModalOpen(false);
 
@@ -322,6 +376,7 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const res = await axios.post(`${DS_TESTER_API}/run`, payload);
       if (res.data?.run_id) {
         setActiveRunId(res.data.run_id);
+        setBatchQueue([res.data.run_id]);
         setLiveScreenMinimized(false);
         setActiveRunData({
           run_id: res.data.run_id,
@@ -340,7 +395,6 @@ export default function DsTesterPage({ isEmbedded = false }) {
           },
         });
         const key = `${selectedModule.toLowerCase()}:${targetSegment.id.toLowerCase()}:${selectedClient.toLowerCase()}`;
-        // Set preliminary running placeholder
         setRunsMap((prev) => ({
           ...prev,
           [key]: {
@@ -372,6 +426,112 @@ export default function DsTesterPage({ isEmbedded = false }) {
     }
   };
 
+  // Execute batch run for ALL segments of current module
+  const executeRunAll = async (overridePeriod) => {
+    if (!selectedModule) return;
+    setPeriodModalOpen(false);
+
+    let periodPayload = overridePeriod || selectedPeriod;
+    if (selectedModule === "review_rating") {
+      periodPayload = { startDate: "Last 6 Months", endDate: "Last 6 Months", preset: "6M" };
+    } else if (selectedModule === "content_analysis") {
+      periodPayload = { startDate: "Snapshot", endDate: "Snapshot" };
+    } else if (selectedModule === "pds_score") {
+      const dates = PDS_PERIOD_DATES[pdsPeriod] || { startDate: "2026-10-04", endDate: "2026-10-31" };
+      periodPayload = {
+        platform: pdsPlatform,
+        year: pdsYear,
+        period: pdsPeriod,
+        startDate: dates.startDate,
+        endDate: dates.endDate,
+      };
+    }
+
+    const payload = {
+      module: selectedModule,
+      period: periodPayload,
+      client: selectedClient,
+      headless: !watchLiveBrowser,
+    };
+
+    try {
+      const res = await axios.post(`${DS_TESTER_API}/run-all`, payload);
+      if (res.data?.run_ids && res.data.run_ids.length > 0) {
+        const { run_ids, batch_id } = res.data;
+        setIsBatchMode(true);
+        setBatchQueue(run_ids);
+        setActiveRunId(run_ids[0]);
+        setLiveScreenMinimized(false);
+
+        // Pre-populate runsMap so every segment row immediately shows its queued status
+        const updatedRuns = {};
+        segments.forEach((seg, idx) => {
+          const key = `${selectedModule.toLowerCase()}:${seg.id.toLowerCase()}:${selectedClient.toLowerCase()}`;
+          const isFirst = idx === 0;
+          updatedRuns[key] = {
+            run_id: run_ids[idx] || `${batch_id}_${seg.id}`,
+            module: selectedModule,
+            segment: seg.id,
+            period: periodPayload,
+            client: selectedClient,
+            headless: !watchLiveBrowser,
+            status: isFirst ? "running" : "pending",
+            overall: isFirst ? "RUNNING" : "PENDING",
+            batch_id: batch_id,
+            batch_index: idx,
+            batch_total: segments.length,
+            steps: {
+              api: { status: isFirst ? "running" : "pending" },
+              logic: { status: "pending" },
+              ui: { status: "pending" },
+            },
+            kpis: [],
+          };
+        });
+        setRunsMap((prev) => ({ ...prev, ...updatedRuns }));
+
+        setActiveRunData({
+          run_id: run_ids[0],
+          module: selectedModule,
+          segment: segments[0]?.id,
+          period: periodPayload,
+          client: selectedClient,
+          headless: !watchLiveBrowser,
+          status: "running",
+          live_step: `Starting batch run (1 of ${segments.length}): ${segments[0]?.label}...`,
+          live_screenshot: null,
+          batch_id: batch_id,
+          batch_index: 0,
+          batch_total: segments.length,
+          steps: {
+            api: { status: "running" },
+            logic: { status: "pending" },
+            ui: { status: "pending" },
+          },
+        });
+      }
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setBusyMessage(
+          err.response.data?.detail || "Another test is currently running. Please wait for it to finish."
+        );
+      } else {
+        setBusyMessage(err.message || "Failed to trigger batch run.");
+      }
+      setIsBatchMode(false);
+      setBatchQueue([]);
+    }
+  };
+
+  // Confirm run handler branches on isBatchMode
+  const handleConfirmRun = async () => {
+    if (isBatchMode) {
+      await executeRunAll();
+    } else {
+      await executeSingleRun();
+    }
+  };
+
   const currentModuleObj = modules.find((m) => m.id === selectedModule) || modules[0];
   const segments = currentModuleObj?.segments || [];
   const currentClientObj = clients.find((c) => c.id === selectedClient) || { id: "boat", label: "boAt" };
@@ -384,6 +544,31 @@ export default function DsTesterPage({ isEmbedded = false }) {
           label="Not Run"
           size="small"
           sx={{
+            bgcolor: "#f1f5f9",
+            color: "#64748b",
+            fontWeight: 600,
+            fontSize: "12px",
+          }}
+        />
+      );
+    }
+
+    if (run.status === "pending") {
+      return (
+        <Chip
+          icon={<HourglassEmptyIcon sx={{ fontSize: "15px !important", color: "#64748b !important" }} />}
+          label="Pending in queue..."
+          size="small"
+          sx={{
+            bgcolor: "#f1f5f9",
+            color: "#64748b",
+            fontWeight: 700,
+            fontSize: "12px",
+            border: "1px dashed #cbd5e1",
+          }}
+        />
+      );
+    }
             bgcolor: "#f1f5f9",
             color: "#64748b",
             fontWeight: 600,
@@ -638,13 +823,38 @@ export default function DsTesterPage({ isEmbedded = false }) {
             overflow: "hidden",
           }}
         >
-          <Box sx={{ p: 2, bgcolor: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography sx={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
-              Segments for {currentModuleObj?.name || "Pricing Analysis"} ({currentClientObj.label})
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#64748b" }}>
-              {segments.length} Segments available for {currentModuleObj?.name || "Module"}
-            </Typography>
+          <Box sx={{ p: 2, bgcolor: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
+                Segments for {currentModuleObj?.name || "Pricing Analysis"} ({currentClientObj.label})
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#64748b" }}>
+                {segments.length} Segments available for {currentModuleObj?.name || "Module"}
+              </Typography>
+            </Box>
+
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={activeRunId && isBatchMode ? <CircularProgress size={16} sx={{ color: "#ffffff" }} /> : <PlayArrowIcon />}
+              onClick={handleOpenRunAllModal}
+              disabled={!!activeRunId || segments.length === 0}
+              sx={{
+                bgcolor: activeRunId && isBatchMode ? "#3b82f6" : "#2563eb",
+                "&:hover": { bgcolor: "#1d4ed8" },
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 700,
+                fontSize: "13px",
+                px: 2,
+                py: 0.7,
+                boxShadow: "0 2px 6px rgba(37, 99, 235, 0.25)",
+              }}
+            >
+              {activeRunId && isBatchMode
+                ? `Running Batch (${(batchQueue.indexOf(activeRunId) + 1 || 1)}/${batchQueue.length || segments.length})...`
+                : `Run All Segments (${segments.length})`}
+            </Button>
           </Box>
 
           <TableContainer>
@@ -739,13 +949,25 @@ export default function DsTesterPage({ isEmbedded = false }) {
           PaperProps={{ sx: { borderRadius: "18px", p: 1 } }}
         >
           <DialogTitle sx={{ fontWeight: 800, fontSize: "18px", pb: 1 }}>
-            {selectedModule === "pds_score" ? "Configure PDS Score Verification" : "Select Verification Period"}
+            {isBatchMode
+              ? `Run All Segments: ${currentModuleObj?.name || "Module"}`
+              : (selectedModule === "pds_score" ? "Configure PDS Score Verification" : "Select Verification Period")}
           </DialogTitle>
           <DialogContent>
             <Typography variant="body2" sx={{ color: "#64748b", mb: 2 }}>
               Target Client: <strong>{currentClientObj.label}</strong>
               <br />
-              Segment: <strong>{targetSegment?.label}</strong>
+              {isBatchMode ? (
+                <>
+                  Scope: <strong>All {segments.length} Segments</strong> ({segments.map((s) => s.label).join(", ")})
+                  <br />
+                  <Typography component="span" sx={{ fontSize: "12px", color: "#2563eb", fontWeight: 600, display: "block", mt: 0.5 }}>
+                    Executes sequentially in 1 shared Chrome session with identical filters applied across all segments.
+                  </Typography>
+                </>
+              ) : (
+                <>Segment: <strong>{targetSegment?.label}</strong></>
+              )}
             </Typography>
 
             {selectedModule === "pds_score" ? (
@@ -856,7 +1078,9 @@ export default function DsTesterPage({ isEmbedded = false }) {
                 px: 2.5,
               }}
             >
-              {watchLiveBrowser ? "Confirm & Run (Watch Live Browser)" : "Confirm & Run (Invisible Headless)"}
+              {isBatchMode
+                ? (watchLiveBrowser ? `Run All ${segments.length} Segments (Live Chrome)` : `Run All ${segments.length} Segments (Invisible Headless)`)
+                : (watchLiveBrowser ? "Confirm & Run (Watch Live Browser)" : "Confirm & Run (Invisible Headless)")}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1140,7 +1364,9 @@ export default function DsTesterPage({ isEmbedded = false }) {
                   }}
                 />
                 <Typography sx={{ fontWeight: 800, fontSize: "13px", color: "#f8fafc", letterSpacing: "0.5px" }}>
-                  {activeRunData.status === "running" ? "LIVE STEP 3: SELENIUM ON SCREEN" : "VERIFICATION COMPLETED"}
+                  {activeRunData.batch_total
+                    ? `BATCH [${(activeRunData.batch_index ?? 0) + 1}/${activeRunData.batch_total}]: ${activeRunData.status === "running" ? "LIVE SELENIUM ON SCREEN" : "VERIFICATION COMPLETED"}`
+                    : (activeRunData.status === "running" ? "LIVE STEP 3: SELENIUM ON SCREEN" : "VERIFICATION COMPLETED")}
                 </Typography>
               </Box>
 

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .modules import MODULES
-from .runner import start_test_run, get_run, get_latest_runs, is_runner_busy
+from .runner import start_test_run, start_module_batch_run, get_run, get_latest_runs, is_runner_busy
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +73,22 @@ class RunResult(BaseModel):
 class RunResponse(BaseModel):
     busy: bool
     run_id: Optional[str] = None
+    message: Optional[str] = None
+
+
+class BatchRunRequest(BaseModel):
+    module: str = Field(..., description="Target module, e.g. 'business_overview'")
+    period: Any = Field(None, description="Time period object with startDate and endDate, or preset")
+    client: Optional[str] = Field("boat", description="Target client database, e.g. 'boat', 'pidilite', 'mars'")
+    headless: Optional[bool] = Field(False, description="Whether to run Selenium invisibly in headless mode")
+    segments: Optional[List[str]] = Field(None, description="Optional subset of segment IDs; if omitted, runs all segments")
+
+
+class BatchRunResponse(BaseModel):
+    busy: bool
+    batch_id: Optional[str] = None
+    run_ids: Optional[List[str]] = None
+    total_segments: Optional[int] = None
     message: Optional[str] = None
 
 
@@ -196,6 +212,40 @@ def trigger_run(payload: RunRequest):
         )
 
     return RunResponse(busy=False, run_id=res["run_id"])
+
+
+@router.post("/run-all", response_model=BatchRunResponse)
+def trigger_batch_run(payload: BatchRunRequest):
+    """
+    Starts a sequential batch run for ALL segments in the module with the given filters.
+    Executes in a single continuous Selenium Chrome session for maximum speed.
+    """
+    mod_name = payload.module.lower()
+    if mod_name not in MODULES:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module '{payload.module}' not found.",
+        )
+
+    res = start_module_batch_run(
+        module_name=mod_name,
+        period=payload.period,
+        client=payload.client or "boat",
+        headless=bool(payload.headless),
+        segments=payload.segments,
+    )
+    if res.get("busy"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=res["message"],
+        )
+
+    return BatchRunResponse(
+        busy=False,
+        batch_id=res.get("batch_id"),
+        run_ids=res.get("run_ids"),
+        total_segments=res.get("total"),
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunResult)
