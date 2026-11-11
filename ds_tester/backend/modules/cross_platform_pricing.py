@@ -415,7 +415,7 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 
         query = f"""
             SELECT 
-                lower({location_col}) as loc,
+                {location_col} as location_raw,
                 countDistinct({product_col}) as total_skus,
                 countIf(
                     toFloat64OrZero(toString({mrp_col})) > 0 
@@ -438,13 +438,16 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
                 GROUP BY {location_col}, {product_col}, {platform_col}
             )
             WHERE lower({location_col}) IN ({tier1_clause})
-            GROUP BY loc
+            GROUP BY location_raw
             ORDER BY breach_count DESC
         """
         rows = execute_select_query(query, database=db_name)
-        breach_map = {str(r[0]).strip().lower(): float(r[2] or 0) for r in rows if r}
+        breach_map: Dict[str, float] = {}
+        for r in rows:
+            if r and r[0]:
+                breach_map[str(r[0]).strip().lower()] = float(r[2] or 0)
 
-        total_breaches = sum(breach_map.values())
+        total_breaches = sum(breach_map.get(c["rawName"], 0.0) for c in tier1_cities)
         results: Dict[str, Optional[float]] = {
             "total_breaches": float(total_breaches),
             "total_cities": float(len(tier1_cities)),

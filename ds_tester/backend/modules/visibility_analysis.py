@@ -274,9 +274,9 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         if rows and rows[0]:
             r = rows[0]
             return {
-                "overall_sos": float(r[0]) if r[0] is not None else None,
-                "sponsored_sos": float(r[1]) if r[1] is not None else None,
-                "organic_sos": float(r[2]) if r[2] is not None else None,
+                "overall_sos": float(r[0]) if r[0] is not None else 0.0,
+                "sponsored_sos": float(r[1]) if r[1] is not None else 0.0,
+                "organic_sos": float(r[2]) if r[2] is not None else 0.0,
             }
     except Exception as e:
         print(f"[DS Tester] Error in step2_logic for visibility_analysis: {e}")
