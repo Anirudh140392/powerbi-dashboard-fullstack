@@ -379,7 +379,7 @@ const Sidebar = ({
 
   const currentPath = location.pathname;
   // Channel tabs and platform selector don't apply to these top-level pages
-  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing', '/ds-tester'].includes(currentPath);
+  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing'].includes(currentPath);
 
   const menuSections = {
     "MAIN MENU": [
