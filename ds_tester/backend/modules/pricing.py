@@ -168,14 +168,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
     """
     platforms = get_platforms_for_client(client)
     
-    segs = [
-        {
-            "id": "pricing_overview",
-            "label": "Pricing Overview (All Platforms)",
-            "section": "overview",
-            "platform": "all",
-        }
-    ]
+    segs = []
 
     for p in platforms:
         p_clean = p.strip().lower()

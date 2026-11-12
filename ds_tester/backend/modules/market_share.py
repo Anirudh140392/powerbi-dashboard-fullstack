@@ -271,14 +271,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
         except Exception:
             return []
 
-    segs = [
-        {
-            "id": "market_share_overview",
-            "label": "Market Share Overview (All Platforms)",
-            "section": "overview",
-            "platform": "all",
-        }
-    ]
+    segs = []
 
     for p in platforms:
         p_clean = p.strip().lower()

@@ -249,14 +249,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
 
     segs = []
     for sec_id, sec_label in sections:
-        # 1. All Platforms
-        segs.append({
-            "id": f"pm_{sec_id}",
-            "label": f"{sec_label} (All Platforms)",
-            "section": sec_id,
-            "channel": "all",
-            "platform": "all",
-        })
+        # 1. All Platforms (removed)
 
         # 2. Quick Commerce (if present)
         if has_quickcomm:

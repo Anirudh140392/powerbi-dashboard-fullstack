@@ -157,14 +157,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
 
     default_plat = platforms[0].lower() if platforms else "all"
 
-    segments: List[Dict[str, Any]] = [
-        {
-            "id": "availability_overview",
-            "label": f"Availability Overview ({platforms[0].capitalize() if platforms and is_quickcom else 'All Platforms'})",
-            "section": "overview",
-            "platform": default_plat if is_quickcom else "all",
-        }
-    ]
+    segments: List[Dict[str, Any]] = []
 
     # Dynamic platform segments for each platform present in workspace
     for p in platforms:
