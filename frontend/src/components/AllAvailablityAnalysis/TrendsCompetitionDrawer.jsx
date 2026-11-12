@@ -4253,6 +4253,8 @@ export default function TrendsCompetitionDrawer({
                 period={range}
                 timeStep={timeStep}
                 onTrendClick={handleRowTrendClick}
+                drawerFilters={drawerFilters}
+                setDrawerFilters={setDrawerFilters}
               />
             ) : dynamicKey === "availability" ? (
               <AvailabilityCompetitionKpiShowcase

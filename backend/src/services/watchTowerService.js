@@ -266,6 +266,7 @@ async function getWatchtowerSource(filters = {}) {
                 brand: r('brand'),
                 location: r('location'),
                 category: PRODUCT_CATEGORY_SQL,
+                categoryCol: r('category'),
                 compFlag: r('comp_flag'),
                 compFlagMapping: r('comp_flag'),
                 mrp: r('mrp'),
@@ -333,6 +334,7 @@ async function getWatchtowerSource(filters = {}) {
             brand: brandCol,
             location: locationCol,
             category: PRODUCT_CATEGORY_SQL,
+            categoryCol: r('Category'),
             compFlag: compFlagCol,
             compFlagMapping: compFlagCol,
             mrp: wrap(mrpCol),
@@ -10076,7 +10078,10 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             if (catArr && catArr.length > 0) {
-                const catCol = src.f.category;
+                // Use the plain category column (src.categoryCol) for the WHERE filter.
+                // src.f.category is PRODUCT_CATEGORY_SQL (a complex if/multiIf expression)
+                // which ClickHouse rejects when wrapped in lower() inside WHERE.
+                const catCol = src.categoryCol || src.f.category;
                 conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
 
@@ -10492,13 +10497,13 @@ const getCompetitionData = async (filters = {}) => {
         // Query per-SKU sales from rb_ms_olap (since rb_pdp_olap competitor sales are 0)
         const [skuSalesQuery, skuSalesQueryPrev] = await Promise.all([
             queryClickHouse(`
-                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as sku_category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsConds.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
             `),
             queryClickHouse(`
-                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as sku_category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsCondsPrev.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
@@ -10509,7 +10514,7 @@ const getCompetitionData = async (filters = {}) => {
             if (r.item_name) {
                 skuMsMap.set(r.item_name.toLowerCase().trim(), {
                     sales: parseFloat(r.sku_sales || 0),
-                    category: r.category ? r.category.toLowerCase().trim() : ''
+                    category: (r.sku_category || r.category) ? (r.sku_category || r.category).toLowerCase().trim() : ''
                 });
             }
         });
@@ -10518,7 +10523,7 @@ const getCompetitionData = async (filters = {}) => {
             if (r.item_name) {
                 skuMsMapPrev.set(r.item_name.toLowerCase().trim(), {
                     sales: parseFloat(r.sku_sales || 0),
-                    category: r.category ? r.category.toLowerCase().trim() : ''
+                    category: (r.sku_category || r.category) ? (r.sku_category || r.category).toLowerCase().trim() : ''
                 });
             }
         });

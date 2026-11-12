@@ -2658,7 +2658,7 @@ const LocationSelect = ({ cities, value, onChange }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick, drawerFilters, setDrawerFilters }) => {
   const { selectedMsl } = useContext(FilterContext);
   // Use filterOptions if provided, otherwise fallback to static constants
   const rawCities = useMemo(() => {
@@ -2691,7 +2691,52 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
     return String(c);
   }, []);
 
-  const cityString = useMemo(() => getLocationParam(city), [city, getLocationParam]);
+  // Derive active filters from drawerFilters when provided (passed by the parent drawer),
+  // otherwise fall back to the local filter state. This makes the drawer Category/Brand/SKU/MSL
+  // filters actually reach the /watchtower/competition API.
+  const activeFilters = useMemo(() => {
+    if (drawerFilters) {
+      return {
+        categories: drawerFilters.Format === 'All' ? [] : String(drawerFilters.Format).split(',').filter(Boolean),
+        brands: drawerFilters.Brand === 'All' ? [] : String(drawerFilters.Brand).split(',').filter(Boolean),
+        skus: drawerFilters.SKU === 'All' ? [] : String(drawerFilters.SKU).split(',').filter(Boolean),
+        msl: drawerFilters.Msl === 'All' ? [] : String(drawerFilters.Msl).split(',').filter(Boolean)
+      };
+    }
+    return filters;
+  }, [drawerFilters, filters]);
+
+  const activeCity = useMemo(() => {
+    if (drawerFilters && drawerFilters.City !== undefined) {
+      const c = drawerFilters.City;
+      if (!c || c === 'All' || c === 'All India' || c === 'All Cities' || c === 'Select All') return ['All Cities'];
+      if (Array.isArray(c)) return c;
+      return String(c).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return city;
+  }, [drawerFilters, city]);
+
+  const activeCityString = useMemo(() => getLocationParam(activeCity), [activeCity, getLocationParam]);
+
+  const handleFilterChange = useCallback((newFilters) => {
+    setFilters(newFilters);
+    if (setDrawerFilters) {
+      const localFormat = newFilters.categories.length > 0 ? newFilters.categories.join(',') : 'All';
+      const localBrand = newFilters.brands.length > 0 ? newFilters.brands.join(',') : 'All';
+      const localSku = newFilters.skus.length > 0 ? newFilters.skus.join(',') : 'All';
+      const localMsl = newFilters.msl && newFilters.msl.length > 0 ? newFilters.msl.join(',') : 'All';
+      setDrawerFilters(prev => ({ ...prev, Format: localFormat, Brand: localBrand, SKU: localSku, Msl: localMsl }));
+    }
+  }, [setDrawerFilters]);
+
+  const handleCityChange = useCallback((newCity) => {
+    const paramVal = getLocationParam(newCity);
+    if (setDrawerFilters) {
+      setDrawerFilters(prev => ({ ...prev, City: paramVal }));
+    } else {
+      setCity(newCity);
+    }
+  }, [setDrawerFilters, getLocationParam]);
 
   // Fetch local Competition Data on filter changes
   useEffect(() => {
@@ -2700,12 +2745,12 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       try {
         const params = {
           platform: selectedItem || 'All',
-          location: getLocationParam(city),
-          category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
-          brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
-          sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+          location: activeCityString,
+          category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : 'All',
+          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : 'All',
+          sku: activeFilters.skus.length > 0 ? activeFilters.skus.join(',') : 'All',
           period: period || '1M',
-          msl: getApiMslFromLocal(filters.msl, selectedMsl)
+          msl: getApiMslFromLocal(activeFilters.msl, selectedMsl)
         };
 
         const res = await axiosInstance.get('/watchtower/competition', { params });
@@ -2721,10 +2766,10 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       }
     };
     fetchCompetitionData();
-  }, [selectedItem, city, filters.categories, filters.brands, filters.skus, filters.msl, selectedMsl, period, getLocationParam]);
+  }, [selectedItem, activeCityString, activeFilters.categories, activeFilters.brands, activeFilters.skus, activeFilters.msl, selectedMsl, period, getLocationParam]);
 
   const selectionCount =
-    filters.categories.length + filters.brands.length + filters.skus.length + (filters.msl || []).length;
+    activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl || []).length;
 
   const brandRows = useMemo(() => {
     return [...apiBrandData].sort((a, b) => {
@@ -2830,8 +2875,11 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       ...prev,
       brands: [brandName],
     }));
+    if (setDrawerFilters) {
+      setDrawerFilters(prev => ({ ...prev, Brand: brandName, SKU: 'All' }));
+    }
     setTab("sku");
-  }, []);
+  }, [setDrawerFilters]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -2854,8 +2902,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         <div className="flex flex-wrap items-center gap-2">
           <LocationSelect
             cities={rawCities}
-            value={city}
-            onChange={setCity}
+            value={activeCity}
+            onChange={handleCityChange}
           />
 
           <Button
@@ -2944,7 +2992,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
               rows={brandRows}
               allRows={brandRows}
               ourBrands={apiOurBrands}
-              filters={filters}
+              filters={activeFilters}
               loading={apiLoading}
               onTrendClick={onTrendClick}
               onDownload={handleDownloadCompetitionExcel}
@@ -2954,8 +3002,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
-              filters={filters}
-              city={cityString}
+              filters={activeFilters}
+              city={activeCityString}
               platform={selectedItem}
               brandRows={brandRows}
               skuRows={skuRows}
@@ -2969,8 +3017,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           {viewMode === "kpi" && (
             <KpiCompareView
               mode="brand"
-              filters={filters}
-              city={cityString}
+              filters={activeFilters}
+              city={activeCityString}
               platform={selectedItem}
               brandRows={brandRows}
               skuRows={skuRows}
@@ -2987,8 +3035,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
-              filters={filters}
-              city={cityString}
+              filters={activeFilters}
+              city={activeCityString}
               platform={selectedItem}
               brandRows={brandRows}
               skuRows={skuRows}
@@ -3002,8 +3050,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           {viewMode === "kpi" && (
             <KpiCompareView
               mode="sku"
-              filters={filters}
-              city={cityString}
+              filters={activeFilters}
+              city={activeCityString}
               platform={selectedItem}
               brandRows={brandRows}
               skuRows={skuRows}
@@ -3019,16 +3067,17 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         open={filterDialogOpen}
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
-        value={filters}
-        onChange={setFilters}
+        value={activeFilters}
+        onChange={handleFilterChange}
         platform={selectedItem}
-        location={cityString}
+        location={activeCityString}
       />
 
       <CrossPlatformMatrixModal
         open={isCrossPlatformOpen}
         onClose={() => setIsCrossPlatformOpen(false)}
         initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+        initialFilters={{ categories: activeFilters.categories }}
         kpiColumns={ALL_KPI_COLUMNS}
       />
     </div>
