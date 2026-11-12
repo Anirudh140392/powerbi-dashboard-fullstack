@@ -10090,7 +10090,7 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             if (skuArr && skuArr.length > 0) {
-                conds.push(`lower(${src.f.product}) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+                conds.push(`(${skuArr.map(s => `lower(${src.f.product}) LIKE lower('%${escapeStr(s)}%')`).join(' OR ')})`);
             }
 
             // Reseller_Name filter for DRL
@@ -10758,48 +10758,48 @@ const getCompetitionData = async (filters = {}) => {
 
         const [currentSkus, skuOsaData, skuOsaDataPrev] = await Promise.all([
             queryClickHouse(`
-                SELECT ${src.f.product} as Product, ${src.f.brand} as Brand,
+                SELECT ${src.f.product} as Product, ${src.f.brand} as Brand, ${src.f.webPid} as Web_Pid,
             any(${src.f.category}) as sku_category,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
-                GROUP BY Product, Brand
+                GROUP BY Product, Brand, Web_Pid
             `),
             queryClickHouse(`
-                SELECT ${src.f.product} as Product,
+                SELECT ${src.f.product} as Product, ${src.f.webPid} as Web_Pid,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.spend}) as total_spend,
             SUM(${src.f.adSales}) as total_Ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
-                GROUP BY Product
+                GROUP BY Product, Web_Pid
             `),
             queryClickHouse(`
-                SELECT ${src.f.product} as Product,
+                SELECT ${src.f.product} as Product, ${src.f.webPid} as Web_Pid,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.spend}) as total_spend,
             SUM(${src.f.adSales}) as total_Ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${momConds}
-                GROUP BY Product
+                GROUP BY Product, Web_Pid
             `)
         ]);
 
@@ -10919,6 +10919,7 @@ const getCompetitionData = async (filters = {}) => {
 
             return {
                 sku_name: sku.Product,
+                webPid: sku.Web_Pid,
                 brand_name: sku.Brand,
                 brand: sku.Product,
                 total_sales: totalSkuSalesVal,

@@ -1434,7 +1434,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
       return ids;
     }
     const rows = skuRows || [];
-    const ids = rows.map((r) => r.label || r.name || r.sku_name || r.Product);
+    const ids = rows.map((r) => r.label || r.sku_name || r.name || r.Product);
     // Add filter-selected SKUs not already in the list
     if (filters.skus && filters.skus.length > 0) {
       filters.skus.forEach(s => { if (!ids.includes(s)) ids.push(s); });
@@ -1909,7 +1909,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
       return rows.map((r) => r.label || r.name || r.brand_name || r.brand).slice(0, 4);
     }
     const rows = skuRows || [];
-    return rows.map((r) => r.label || r.name || r.sku_name || r.Product).slice(0, 4);
+    return rows.map((r) => r.label || r.sku_name || r.name || r.Product).slice(0, 4);
   }, [isBrandMode, brandRows, skuRows]);
 
   const selectedLabels = selectedIds; // IDs are names directly mapped from real API.
@@ -2461,7 +2461,7 @@ const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
                   )}
                 >
                   <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
-                    {row.name || row.sku_name || row.Product}
+                    {row.sku_name || row.name || row.Product}
                   </td>
                   <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
                     {row.brandName || row.brand_name || row.brand}
@@ -2831,7 +2831,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       };
 
       const skuData = (skuRows || []).map(s => ({
-        "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+        "SKU": s.sku_name || s.name || s.Product || s.sku || "N/A",
         "BRAND": s.brand_name || s.brandName || s.brand || "N/A",
         "OSA": safeFormatPercent(s.OSA?.value ?? s.OSA ?? s.osa),
         "PRICE": safeFormatPrice(s.Price?.value ?? s.Price ?? s.price),
