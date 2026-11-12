@@ -795,64 +795,68 @@ def step3_ui(
             matrix_results[f"{p_clean}_organic_sos"] = None
 
         try:
-            scraped = driver.execute_script(r"""
-                const tables = Array.from(document.querySelectorAll("table"));
-                let matrixTable = null;
-                for (const t of tables) {
-                    const txt = t.innerText || '';
-                    if (txt.includes("OVERALL SOS") || txt.includes("Overall SOS") || txt.includes("SPONSORED SOS")) {
-                        matrixTable = t;
-                        break;
-                    }
-                }
-                if (!matrixTable) return null;
-
-                const card = matrixTable.closest("div.rounded-3xl, div.rounded-2xl") || matrixTable;
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                card.style.outline = '2px solid #0284c7';
-
-                const headers = Array.from(matrixTable.querySelectorAll("thead th")).map(th => th.innerText.trim().toLowerCase());
-                const rows = Array.from(matrixTable.querySelectorAll("tbody tr"));
-                const result = {};
-
-                rows.forEach(r => {
-                    const cells = Array.from(r.querySelectorAll("td"));
-                    if (cells.length < 2) return;
-                    const kpiName = cells[0].innerText.trim().toLowerCase();
-                    headers.forEach((h, idx) => {
-                        if (idx === 0 || idx >= cells.length) return;
-                        const cell = cells[idx];
-                        const valEl = cell.querySelector("span.font-mono, span.tabular-nums") || cell;
-                        const valText = valEl ? valEl.innerText.trim() : "";
-                        if (valText) {
-                            result[`${h}|${kpiName}`] = valText;
+            # Poll for up to 15 seconds for matrix table to load
+            for attempt in range(15):
+                scraped = driver.execute_script(r"""
+                    const tables = Array.from(document.querySelectorAll("table"));
+                    let matrixTable = null;
+                    for (const t of tables) {
+                        const txt = t.innerText || '';
+                        if (txt.includes("OVERALL SOS") || txt.includes("Overall SOS") || txt.includes("SPONSORED SOS")) {
+                            matrixTable = t;
+                            break;
                         }
+                    }
+                    if (!matrixTable) return null;
+
+                    const card = matrixTable.closest("div.rounded-3xl, div.rounded-2xl") || matrixTable;
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    card.style.outline = '2px solid #0284c7';
+
+                    const headers = Array.from(matrixTable.querySelectorAll("thead th")).map(th => th.innerText.trim().toLowerCase());
+                    const rows = Array.from(matrixTable.querySelectorAll("tbody tr"));
+                    const result = {};
+
+                    rows.forEach(r => {
+                        const cells = Array.from(r.querySelectorAll("td"));
+                        if (cells.length < 2) return;
+                        const kpiName = cells[0].innerText.trim().toLowerCase();
+                        headers.forEach((h, idx) => {
+                            if (idx === 0 || idx >= cells.length) return;
+                            const cell = cells[idx];
+                            const valEl = cell.querySelector("span.font-mono, span.tabular-nums") || cell;
+                            const valText = valEl ? valEl.innerText.trim() : "";
+                            if (valText) {
+                                result[`${h}|${kpiName}`] = valText;
+                            }
+                        });
                     });
-                });
-                return result;
-            """)
+                    return result;
+                """)
 
-            if isinstance(scraped, dict):
-                for key_combo, val in scraped.items():
-                    parts = key_combo.split("|")
-                    if len(parts) != 2:
-                        continue
-                    plat_col, kpi_name = parts[0].strip(), parts[1].strip()
-                    kpi_key = None
-                    if "overall" in kpi_name:
-                        kpi_key = "overall_sos"
-                    elif "sponsored" in kpi_name or "paid" in kpi_name or "ad" in kpi_name:
-                        kpi_key = "sponsored_sos"
-                    elif "organic" in kpi_name:
-                        kpi_key = "organic_sos"
+                if isinstance(scraped, dict) and len(scraped) >= 3:
+                    for key_combo, val in scraped.items():
+                        parts = key_combo.split("|")
+                        if len(parts) != 2:
+                            continue
+                        plat_col, kpi_name = parts[0].strip(), parts[1].strip()
+                        kpi_key = None
+                        if "overall" in kpi_name:
+                            kpi_key = "overall_sos"
+                        elif "sponsored" in kpi_name or "paid" in kpi_name or "ad" in kpi_name:
+                            kpi_key = "sponsored_sos"
+                        elif "organic" in kpi_name:
+                            kpi_key = "organic_sos"
 
-                    if not kpi_key:
-                        continue
+                        if not kpi_key:
+                            continue
 
-                    for p in platforms:
-                        p_clean = p.lower().strip()
-                        if p_clean in plat_col:
-                            matrix_results[f"{p_clean}_{kpi_key}"] = val
+                        for p in platforms:
+                            p_clean = p.lower().strip()
+                            if p_clean in plat_col:
+                                matrix_results[f"{p_clean}_{kpi_key}"] = val
+                    break
+                time.sleep(1.0)
         except Exception as e:
             print(f"[DS Tester] Error scraping Platform KPI Matrix: {e}")
 
@@ -874,44 +878,70 @@ def step3_ui(
         }
 
         try:
-            scraped = driver.execute_script(r"""
-                const res = {};
-                // Look for heading 'Top Search Terms'
+            # 1. Scroll component into view
+            driver.execute_script(r"""
                 const headings = Array.from(document.querySelectorAll("h1, h2, h3"));
                 const targetH = headings.find(h => (h.innerText || '').includes("Top Search Terms") || (h.innerText || '').includes("Keywords at a Glance"));
                 if (targetH) {
+                    targetH.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     const container = targetH.closest("div.bg-white, div.rounded-2xl, div.rounded-3xl, div[style*='border-radius']") || targetH.parentElement;
-                    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    container.style.outline = '2px solid #0284c7';
+                    if (container) container.style.outline = '2px solid #0284c7';
+                } else {
+                    window.scrollTo(0, document.body.scrollHeight);
                 }
+            """)
+            time.sleep(1.0)
 
-                // Look for aggregate summary row / total keywords badge
-                const allBadges = Array.from(document.querySelectorAll("span, div"));
-                for (const b of allBadges) {
-                    const txt = b.innerText || '';
-                    if (txt.includes("Keywords") && /\d+\s+Keywords/.test(txt) && !res.total_keywords) {
-                        const m = txt.match(/(\d[\d,]*)\s+Keywords/);
-                        if (m) res.total_keywords = m[1].replace(/,/g, '');
-                    }
-                }
-
-                // Extract summary row percentages
-                const summaryRow = document.querySelector("div[style*='linear-gradient'], div.bg-indigo-50, div.bg-slate-50");
-                if (summaryRow) {
-                    const percMatches = (summaryRow.innerText || '').match(/(\d+\.?\d*)%/g);
-                    if (percMatches && percMatches.length >= 3) {
-                        res.overall_sos = percMatches[0];
-                        res.organic_sos = percMatches[1];
-                        res.paid_sos = percMatches[2];
-                    }
-                }
-                return res;
+            # 2. Click "All" keyword type filter button if it's set to Generic/Branded/Competition
+            driver.execute_script(r"""
+                const buttons = Array.from(document.querySelectorAll("button"));
+                const allBtn = buttons.find(b => b.innerText && b.innerText.trim() === 'All' && (b.style.borderRadius.includes('20') || (b.className || '').includes('rounded-full')));
+                if (allBtn) allBtn.click();
             """)
 
-            if isinstance(scraped, dict):
-                for k in kw_results:
-                    if scraped.get(k):
-                        kw_results[k] = scraped[k]
+            # 3. Poll for up to 15 seconds for aggregate summary row to render
+            for attempt in range(15):
+                scraped = driver.execute_script(r"""
+                    const res = {};
+                    const gradients = Array.from(document.querySelectorAll('div')).filter(d => (d.getAttribute('style') || '').includes('gradient') || (d.className || '').includes('bg-indigo-50'));
+                    for (const g of gradients) {
+                        const txt = g.innerText || '';
+                        if (txt.includes("AGGREGATE") || txt.includes("Overview")) {
+                            const mKw = txt.match(/(\d[\d,]*)\s+Keywords/);
+                            if (mKw) res.total_keywords = mKw[1].replace(/,/g, '');
+
+                            const percMatches = txt.match(/(\d+\.?\d*)%/g);
+                            if (percMatches && percMatches.length >= 3) {
+                                res.overall_sos = percMatches[0];
+                                res.organic_sos = percMatches[1];
+                                res.paid_sos = percMatches[2];
+                            }
+                            if (res.total_keywords && res.overall_sos) break;
+                        }
+                    }
+
+                    // Fallback badge scan if gradient div was missed
+                    if (!res.total_keywords) {
+                        const allSpans = Array.from(document.querySelectorAll("span, div"));
+                        for (const b of allSpans) {
+                            const txt = b.innerText || '';
+                            if (/\d+\s+Keywords/.test(txt)) {
+                                const m = txt.match(/(\d[\d,]*)\s+Keywords/);
+                                if (m) res.total_keywords = m[1].replace(/,/g, '');
+                                break;
+                            }
+                        }
+                    }
+
+                    return res;
+                """)
+
+                if isinstance(scraped, dict) and scraped.get("total_keywords") and scraped.get("overall_sos"):
+                    for k in kw_results:
+                        if scraped.get(k):
+                            kw_results[k] = scraped[k]
+                    break
+                time.sleep(1.0)
         except Exception as e:
             print(f"[DS Tester] Error scraping Keywords at a Glance: {e}")
 
@@ -933,47 +963,48 @@ def step3_ui(
         }
 
         try:
-            scraped = driver.execute_script(r"""
-                const res = {};
-                const headings = Array.from(document.querySelectorAll("h2, h3"));
-                const gdH = headings.find(h => (h.innerText || '').includes("Gainers & Drainers"));
-                if (gdH) {
-                    const container = gdH.closest("div[style*='border-radius'], div.rounded-2xl") || gdH.parentElement;
-                    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    container.style.outline = '2px solid #0284c7';
-                }
+            # Poll for up to 15 seconds for Gainers & Drainers tables to render
+            for attempt in range(15):
+                scraped = driver.execute_script(r"""
+                    const res = {};
+                    const headings = Array.from(document.querySelectorAll("h2, h3"));
+                    const gdH = headings.find(h => (h.innerText || '').includes("Gainers & Drainers"));
+                    if (gdH) {
+                        const container = gdH.closest("div[style*='border-radius'], div.rounded-2xl") || gdH.parentElement;
+                        if (container) {
+                            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            container.style.outline = '2px solid #0284c7';
+                        }
+                    }
 
-                // Locate Top Gainers and Top Drainers tables
-                const tables = Array.from(document.querySelectorAll("div[style*='border: 1px solid'], div.rounded-xl"));
-                let gainTable = null;
-                let drainTable = null;
-                for (const t of tables) {
-                    const txt = t.innerText || '';
-                    if (txt.includes("Top Gainers")) gainTable = t;
-                    if (txt.includes("Top Drainers")) drainTable = t;
-                }
+                    // Locate Top Gainers and Top Drainers tables
+                    const tables = Array.from(document.querySelectorAll("div"));
+                    const gainTable = tables.find(t => (t.innerText || '').includes("Top Gainers") && t.querySelector("table"));
+                    const drainTable = tables.find(t => (t.innerText || '').includes("Top Drainers") && t.querySelector("table"));
 
-                if (gainTable) {
-                    const gRows = Array.from(gainTable.querySelectorAll("tbody tr, tr"));
-                    res.top_gainers_count = String(Math.max(1, gRows.length - 1));
-                    const deltas = (gainTable.innerText || '').match(/[▲+]?\s*(\d+\.?\d*)%/);
-                    if (deltas) res.max_gain_pct = `+${deltas[1]}%`;
-                }
+                    if (gainTable) {
+                        const gRows = Array.from(gainTable.querySelectorAll("tbody tr"));
+                        res.top_gainers_count = String(Math.max(1, gRows.length));
+                        const deltas = (gainTable.innerText || '').match(/[▲+]?\s*(\d+\.?\d*)%/);
+                        if (deltas) res.max_gain_pct = `+${deltas[1]}%`;
+                    }
 
-                if (drainTable) {
-                    const dRows = Array.from(drainTable.querySelectorAll("tbody tr, tr"));
-                    res.top_drainers_count = String(Math.max(1, dRows.length - 1));
-                    const deltas = (drainTable.innerText || '').match(/[▼-]?\s*(\d+\.?\d*)%/);
-                    if (deltas) res.max_drain_pct = `-${deltas[1]}%`;
-                }
+                    if (drainTable) {
+                        const dRows = Array.from(drainTable.querySelectorAll("tbody tr"));
+                        res.top_drainers_count = String(Math.max(1, dRows.length));
+                        const deltas = (drainTable.innerText || '').match(/[▼-]?\s*(\d+\.?\d*)%/);
+                        if (deltas) res.max_drain_pct = `-${deltas[1]}%`;
+                    }
 
-                return res;
-            """)
+                    return res;
+                """)
 
-            if isinstance(scraped, dict):
-                for k in gd_results:
-                    if scraped.get(k):
-                        gd_results[k] = scraped[k]
+                if isinstance(scraped, dict) and scraped.get("top_gainers_count") and scraped.get("max_gain_pct"):
+                    for k in gd_results:
+                        if scraped.get(k):
+                            gd_results[k] = scraped[k]
+                    break
+                time.sleep(1.0)
         except Exception as e:
             print(f"[DS Tester] Error scraping Gainers & Drainers: {e}")
 
