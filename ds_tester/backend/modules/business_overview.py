@@ -476,7 +476,7 @@ def step3_ui(
             const metrics = {};
             for (const child of topGrid.children) {
                 const txt = (child.innerText || '').trim();
-                const lines = txt.split('\\n').map(s => s.trim()).filter(Boolean);
+                const lines = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
                 if (lines.length >= 3) {
                     const val = lines[1];
                     const title = lines[lines.length - 1].toLowerCase();
@@ -520,13 +520,14 @@ def step3_ui(
         """)
         time.sleep(1.5)
 
-        res = driver.execute_script("""
+        res = driver.execute_script(r"""
             const platHeader = Array.from(document.querySelectorAll('*')).find(el => el.innerText && el.innerText.trim() === 'Platform Overview');
             if (!platHeader) return {};
             const container = platHeader.closest('div.border') || platHeader.parentElement?.parentElement;
             
             // Find all entity rows inside container
-            const rows = Array.from(container.querySelectorAll('.space-y-2 > div, .space-y-3 > div, div.flex.items-center.rounded-xl'));
+            const entityContainer = container.querySelector('div.space-y-2, div.space-y-3');
+            const rows = entityContainer ? Array.from(entityContainer.children) : Array.from(container.querySelectorAll('.space-y-2 > div, .space-y-3 > div'));
             let allRow = null;
             for (const r of rows) {
                 const titleSpan = r.querySelector('span[title="All"], span');
@@ -542,7 +543,7 @@ def step3_ui(
                 for (const b of btns) {
                     const title = (b.getAttribute('title') || '').toLowerCase();
                     const txt = (b.innerText || '').trim();
-                    const cleanVal = txt.split('\\n')[0].trim();
+                    const cleanVal = txt.replace(/\r?\n.*/s, '').trim();
                     if (title.startsWith('offtakes:')) offtake = cleanVal;
                     else if (title.startsWith('osa:')) osa = cleanVal;
                     else if (title.startsWith('share of search:') || title.startsWith('sos:')) sos = cleanVal;
@@ -642,7 +643,7 @@ def step3_ui(
             bring_chrome_to_top(driver)
             show_live_step_banner(driver, "🔍 DS Tester: Testing Performance Breakdown Table...")
 
-        driver.execute_script("""
+        driver.execute_script(r"""
             let pbHeader = null;
             for (const h of document.querySelectorAll("h3, h4, span, div")) {
                 if ((h.innerText || "").toLowerCase().includes("performance breakdown")) {
@@ -662,7 +663,7 @@ def step3_ui(
         """)
         time.sleep(1.5)
 
-        res = driver.execute_script("""
+        res = driver.execute_script(r"""
             const tables = Array.from(document.querySelectorAll('table'));
             let totalRow = null;
             let targetTable = null;
@@ -689,7 +690,7 @@ def step3_ui(
             const spendIdx = findCol(h => (h === 'spends' || h.endsWith('spends')) && !h.includes('%'));
             const salesIdx = findCol(h => (h.includes('sales') || h.includes('revenue')) && !h.includes('%'));
 
-            const cleanCell = (c) => c ? c.split('\n')[0].trim() : null;
+            const cleanCell = (c) => c ? c.replace(/\r?\n.*/s, '').trim() : null;
             const impr = imprIdx >= 0 && imprIdx < totalRow.length ? cleanCell(totalRow[imprIdx]) : cleanCell(totalRow[1]);
             const ctr = ctrIdx >= 0 && ctrIdx < totalRow.length ? cleanCell(totalRow[ctrIdx]) : cleanCell(totalRow[3]);
             const spend = spendIdx >= 0 && spendIdx < totalRow.length ? cleanCell(totalRow[spendIdx]) : cleanCell(totalRow[5]);
