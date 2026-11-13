@@ -485,7 +485,6 @@ export default function DsTesterPage({ isEmbedded = false }) {
     } else if (selectedModule === "pds_score") {
       const dates = PDS_PERIOD_DATES[pdsPeriod] || { startDate: "2026-10-04", endDate: "2026-10-31" };
       periodPayload = {
-        platform: pdsPlatform,
         year: pdsYear,
         period: pdsPeriod,
         startDate: dates.startDate,
@@ -1264,7 +1263,7 @@ export default function DsTesterPage({ isEmbedded = false }) {
                     <>
                       <Chip
                         size="small"
-                        label={`Platform: ${drawerRunData.period?.platform || "Blinkit"}`}
+                        label={`Platform: ${drawerRunData.period?.platform || drawerRunData.segment?.replace("pds_score_", "").replace("_", " ").toUpperCase() || "Blinkit"}`}
                         sx={{ bgcolor: "#f0fdf4", color: "#15803d", fontWeight: 700, fontSize: "11px" }}
                       />
                       <Chip

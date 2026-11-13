@@ -109,9 +109,9 @@ def _period_to_period_name(period: Any) -> str:
             5: "Period 5", 6: "Period 6", 7: "Period 7", 8: "Period 8",
             9: "Period 10", 10: "Period 11", 11: "Period 12", 12: "Period 13"
         }
-        return p_map.get(m, "Period 11")
+        return p_map.get(m, "Period 6")
     except Exception:
-        return "Period 11"
+        return "Period 6"
 
 
 def _extract_year_from_period(period: Any) -> str:
@@ -187,8 +187,8 @@ def _extract_platform_from_segment(segment_id: str) -> str:
 
 def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
     db_name = client or "mars"
-    plat_param = period.get("platform") if isinstance(period, dict) and period.get("platform") else _extract_platform_from_segment(segment)
-    platform = normalize_platform_key(plat_param)
+    seg_plat = _extract_platform_from_segment(segment)
+    platform = normalize_platform_key(seg_plat)
     year = _extract_year_from_period(period)
     p_name = _period_to_period_name(period)
     start_date, end_date = resolve_period_dates(period, year=year, client=db_name)
@@ -238,8 +238,8 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Di
 
 def step2_logic(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
     db_name = client or "mars"
-    plat_param = period.get("platform") if isinstance(period, dict) and period.get("platform") else _extract_platform_from_segment(segment)
-    platform = normalize_platform_key(plat_param)
+    seg_plat = _extract_platform_from_segment(segment)
+    platform = normalize_platform_key(seg_plat)
     year = _extract_year_from_period(period)
     p_name = _period_to_period_name(period)
     start_date, end_date = resolve_period_dates(period, year=year, client=db_name)
@@ -388,7 +388,8 @@ def step3_selenium(
     time.sleep(1.0)
     wait_for_loading_complete(driver, timeout=20)
 
-    target_platform = period.get("platform") if isinstance(period, dict) and period.get("platform") else _extract_platform_from_segment(segment)
+    seg_plat = _extract_platform_from_segment(segment)
+    target_platform = normalize_platform_key(seg_plat)
     target_year = _extract_year_from_period(period)
     target_period = _period_to_period_name(period)
 

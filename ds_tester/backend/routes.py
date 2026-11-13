@@ -70,8 +70,8 @@ class RunResult(BaseModel):
     filters: Optional[Dict[str, Any]] = None
     started_at: str
     finished_at: Optional[str] = None
-    status: Literal["running", "done", "error"]
-    overall: Literal["RUNNING", "PASS", "FAIL", "ERROR"]
+    status: Literal["pending", "running", "done", "error"]
+    overall: Literal["PENDING", "RUNNING", "PASS", "FAIL", "ERROR"]
     steps: Dict[str, StepStatus]
     kpis: List[KpiResult]
     live_step: Optional[str] = None
