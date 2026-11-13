@@ -149,7 +149,7 @@ API_LOGS_TABLE = os.getenv("API_LOGS_TABLE", "api_logs").strip()
 API_ALERT_TABLE = os.getenv("API_ALERT_TABLE", "api_alert").strip()
 
 # Report Behavior
-DATE_SCOPE = os.getenv("DATE_SCOPE", "latest").strip().lower()
+DATE_SCOPE = os.getenv("DATE_SCOPE", "today").strip().lower()
 SEND_IF_NO_ISSUES = os.getenv("SEND_IF_NO_ISSUES", "false").strip().lower() in ("true", "1", "yes")
 RECIPIENT_BATCH_SIZE = int(os.getenv("RECIPIENT_BATCH_SIZE", "50"))
 SCHEDULE_TIME = os.getenv("SCHEDULE_TIME", "09:00").strip()

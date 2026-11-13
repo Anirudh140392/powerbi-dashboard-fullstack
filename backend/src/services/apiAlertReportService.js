@@ -13,6 +13,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TIMEZONE = process.env.API_LOGGER_TZ || 'Asia/Kolkata';
 import { queryAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,18 +101,21 @@ export async function fetchAlertRecipients() {
 /**
  * Fetch API issues (failed or empty response) from admin_master.api_logs
  */
-export async function fetchApiIssues(dateScope = 'latest') {
+export async function fetchApiIssues(dateScope = 'today') {
     try {
-        let targetDate = dayjs().format('YYYY-MM-DD');
+        // Compute current date according to Indian Standard Time (Asia/Kolkata)
+        let targetDate = dayjs().tz(TIMEZONE).format('YYYY-MM-DD');
 
         if (dateScope === 'latest') {
             const probeRes = await queryAdminDB(`SELECT max(toDate(Date)) as latest_d FROM ${ADMIN_DB}.api_logs`);
             if (probeRes && probeRes[0]?.latest_d) {
                 targetDate = dayjs(probeRes[0].latest_d).format('YYYY-MM-DD');
             }
+        } else if (dateScope && dateScope !== 'today') {
+            targetDate = dateScope;
         }
 
-        console.log(`[ApiAlertReport] Fetching API issues for target date: ${targetDate}...`);
+        console.log(`[ApiAlertReport] Fetching present-day API issues for target date: ${targetDate} (${TIMEZONE})...`);
 
         const query = `
             SELECT 
@@ -299,7 +309,7 @@ export async function sendApiAlertReport(options = {}) {
         return { success: false, reason: 'no_recipients' };
     }
 
-    const { issues, targetDate } = await fetchApiIssues(options.dateScope || 'latest');
+    const { issues, targetDate } = await fetchApiIssues(options.dateScope || 'today');
     if (issues.length === 0 && !options.sendIfNoIssues) {
         console.log('[ApiAlertReport] No failed or empty response APIs detected. Skipping email dispatch.');
         return { success: true, count: 0, skipped: true };

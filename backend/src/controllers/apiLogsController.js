@@ -15,8 +15,11 @@ import {
     isTestRunActive,
     getAllActiveDatabases,
     getPermittedPagesForDb,
-    setSuiteRunning
+    setSuiteRunning,
+    executeFullApiHealthCheck
 } from '../services/apiTestRunner.js';
+import { sendApiAlertReport, fetchAlertRecipients } from '../services/apiAlertReportService.js';
+import { queryAdminDB, insertAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
 
 /**
@@ -236,3 +239,126 @@ export async function getApiLogsDistribution(req, res) {
         });
     }
 }
+
+
+/**
+ * POST /api/api-logs/send-report
+ * Manually trigger or test sending the API Alert Email Report.
+ */
+export async function sendApiAlertReportNow(req, res) {
+    try {
+        const { dateScope = 'today', dryRun = false } = req.body || {};
+        console.log(`[ApiLogsController] Manual trigger for API Alert Report (dateScope=${dateScope}, dryRun=${dryRun})...`);
+        const result = await sendApiAlertReport({ dateScope, dryRun: Boolean(dryRun) });
+        return res.status(200).json({
+            success: true,
+            message: 'API Alert Report executed successfully',
+            result,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in sendApiAlertReportNow:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to send API alert report',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * GET /api/api-logs/recipients
+ * List all active recipient emails for the daily alert email.
+ */
+export async function getAlertRecipients(req, res) {
+    try {
+        const recipients = await fetchAlertRecipients();
+        return res.status(200).json({
+            success: true,
+            data: recipients,
+            recipients,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in getAlertRecipients:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch alert recipients',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * POST /api/api-logs/recipients
+ * Add a new email recipient to admin_master.api_alert.
+ */
+export async function addAlertRecipient(req, res) {
+    try {
+        const { email } = req.body || {};
+        const cleanEmail = (email || '').trim().toLowerCase();
+        const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+$/;
+
+        if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid email address provided',
+            });
+        }
+
+        const existing = await queryAdminDB(`SELECT email FROM ${ADMIN_DB}.api_alert WHERE lower(email) = {email:String}`, { email: cleanEmail });
+        if (existing.length > 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Email is already a registered recipient',
+                email: cleanEmail,
+            });
+        }
+
+        await insertAdminDB('api_alert', [{ email: cleanEmail }]);
+        console.log(`[ApiLogsController] Added new alert recipient: ${cleanEmail}`);
+
+        const updated = await fetchAlertRecipients();
+        return res.status(201).json({
+            success: true,
+            message: `Added recipient: ${cleanEmail}`,
+            recipients: updated,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in addAlertRecipient:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to add recipient',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * DELETE /api/api-logs/recipients/:email
+ * Remove an email recipient from admin_master.api_alert.
+ */
+export async function deleteAlertRecipient(req, res) {
+    try {
+        const email = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, error: 'Email parameter is required' });
+        }
+
+        await queryAdminDB(`ALTER TABLE ${ADMIN_DB}.api_alert DELETE WHERE lower(email) = '${email}'`);
+        console.log(`[ApiLogsController] Removed alert recipient: ${email}`);
+
+        const updated = await fetchAlertRecipients();
+        return res.status(200).json({
+            success: true,
+            message: `Removed recipient: ${email}`,
+            recipients: updated,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in deleteAlertRecipient:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to remove recipient',
+            message: err.message,
+        });
+    }
+}
+
