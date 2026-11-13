@@ -26,6 +26,23 @@ const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Cat
 )`;
 
 /**
+ * Helper to build status=1 condition on rb_sku_platform using web_pid
+ */
+async function getSkuPlatformStatusCondition(src) {
+    try {
+        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+        if (skuPlatCols.has('status') && skuPlatCols.has('web_pid') && src?.f?.skuCode) {
+            const platWebPidCol = skuPlatCols.get('web_pid') || 'web_pid';
+            const platStatusCol = skuPlatCols.get('status') || 'status';
+            return `lower(trimBoth(toString(${src.f.skuCode}))) IN (SELECT lower(trimBoth(${platWebPidCol})) FROM rb_sku_platform WHERE toInt32OrZero(toString(${platStatusCol})) = 1 AND ${platWebPidCol} IS NOT NULL AND trimBoth(${platWebPidCol}) != '')`;
+        }
+    } catch (e) {
+        console.error('[getSkuPlatformStatusCondition] Error:', e.message);
+    }
+    return null;
+}
+
+/**
  * Discover column names for rb_pdp_olap (same pattern as watchTowerService)
  */
 async function getSource() {
@@ -85,7 +102,11 @@ async function getMsSource() {
 export const getCompareSkuDateRange = async (filters = {}) => {
     try {
         const src = await getSource();
-        const whereClause = filters.maxAllowedDate ? `WHERE toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+        const statusCond = await getSkuPlatformStatusCondition(src);
+        const conds = [];
+        if (filters.maxAllowedDate) conds.push(`toDate(${src.f.date}) <= '${filters.maxAllowedDate}'`);
+        if (statusCond) conds.push(statusCond);
+        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
         const result = await queryClickHouse(`
             SELECT 
                 MIN(toDate(${src.f.date})) as minDate,
@@ -110,30 +131,32 @@ export const getCompareSkuDateRange = async (filters = {}) => {
 export const getCompareSkuFilters = async () => {
     try {
         const src = await getSource();
+        const statusCond = await getSkuPlatformStatusCondition(src);
+        const statusClause = statusCond ? `AND ${statusCond}` : '';
 
         const [platformsResult, brandsResult, categoriesResult, locationsResult] = await Promise.all([
             queryClickHouse(`
                 SELECT DISTINCT ${src.f.platform} as name, count() as cnt
                 FROM ${src.table}
-                WHERE ${src.f.platform} IS NOT NULL AND ${src.f.platform} != ''
+                WHERE ${src.f.platform} IS NOT NULL AND ${src.f.platform} != '' ${statusClause}
                 GROUP BY name ORDER BY cnt DESC
             `),
             queryClickHouse(`
                 SELECT DISTINCT ${src.f.brand} as name, count() as cnt
                 FROM ${src.table}
-                WHERE ${src.f.brand} IS NOT NULL AND ${src.f.brand} != ''
+                WHERE ${src.f.brand} IS NOT NULL AND ${src.f.brand} != '' ${statusClause}
                 GROUP BY name ORDER BY cnt DESC
             `),
             queryClickHouse(`
                 SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as name, count() as cnt
                 FROM ${src.table}
-                WHERE ${PRODUCT_CATEGORY_SQL} IS NOT NULL AND ${PRODUCT_CATEGORY_SQL} != '' AND ${PRODUCT_CATEGORY_SQL} != 'Others'
+                WHERE ${PRODUCT_CATEGORY_SQL} IS NOT NULL AND ${PRODUCT_CATEGORY_SQL} != '' AND ${PRODUCT_CATEGORY_SQL} != 'Others' ${statusClause}
                 GROUP BY name ORDER BY cnt DESC
             `),
             queryClickHouse(`
                 SELECT DISTINCT ${src.f.location} as name, count() as cnt
                 FROM ${src.table}
-                WHERE ${src.f.location} IS NOT NULL AND ${src.f.location} != ''
+                WHERE ${src.f.location} IS NOT NULL AND ${src.f.location} != '' ${statusClause}
                 GROUP BY name ORDER BY cnt DESC
             `)
         ]);
@@ -164,6 +187,12 @@ export const getCompareSkuProducts = async (filters = {}) => {
             `${src.f.product} IS NOT NULL`,
             `${src.f.product} != ''`
         ];
+
+        // Filter SKUs with status = 1 from rb_sku_platform using web_pid
+        const statusCond = await getSkuPlatformStatusCondition(src);
+        if (statusCond) {
+            conditions.push(statusCond);
+        }
 
         // Platform filter
         const platArr = normalizeFilterArray(filters.platform);
@@ -246,10 +275,13 @@ export const getCompareSkuProducts = async (filters = {}) => {
         let imageUrlsMap = {};
         if (webPids.length > 0) {
             try {
+                const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+                const statusWhere = skuPlatCols.has('status') ? 'AND toInt32OrZero(toString(status)) = 1' : '';
                 const imgData = await queryClickHouse(`
                     SELECT LOWER(web_pid) as web_pid, any(image_url) as img 
                     FROM rb_sku_platform 
                     WHERE LOWER(web_pid) IN (${webPids.map(id => `'${escapeStr(id)}'`).join(',')}) 
+                      ${statusWhere}
                     GROUP BY web_pid
                 `);
                 imgData.forEach(row => { 
@@ -336,10 +368,16 @@ export const getCompareSkuMetrics = async (filters = {}) => {
         const skuPlatformArr = normalizeFilterArray(filters.skuPlatforms);
         const hasPerSkuPlatform = skuPlatformArr && skuPlatformArr.length === skuArr.length && skuPlatformArr.some(p => p && p.trim());
 
+        const statusCond = await getSkuPlatformStatusCondition(src);
+
         const buildConditions = (sDate, eDate) => {
             const conds = [
                 `toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`,
             ];
+
+            if (statusCond) {
+                conds.push(statusCond);
+            }
 
             // Use per-SKU platform filtering if available
             if (hasPerSkuPlatform) {
@@ -767,12 +805,18 @@ export const getCompareSkuTrend = async (filters = {}) => {
             });
         }
 
+        const statusCond = await getSkuPlatformStatusCondition(src);
+
         // ─── Standard PDP OLAP metrics ──────────────────────────────────
         // Apply filters
         const conditions = [
             `toDate(${src.f.date}) >= '${dStart}'`,
             `toDate(${src.f.date}) <= '${dEnd}'`,
         ];
+
+        if (statusCond) {
+            conditions.push(statusCond);
+        }
 
         // Use per-SKU platform filtering if available
         if (hasPerSkuPlatform) {
@@ -947,8 +991,12 @@ async function _getCompareSkuTrendSos(src, opts) {
     } = opts;
 
     try {
+        const statusCond = await getSkuPlatformStatusCondition(src);
         // Step 1: Build general SKU conditions (Needed for summary calculations below)
         const skuConditions = [`toDate(${src.f.date}) >= '${dStart}'`, `toDate(${src.f.date}) <= '${dEnd}'`];
+        if (statusCond) {
+            skuConditions.push(statusCond);
+        }
         if (hasPerSkuPlatform) {
             const skuConds = skuArr.map((skuName, idx) => {
                 const platform = skuPlatformArr[idx];
@@ -1106,11 +1154,15 @@ async function _getCompareSkuTrendMarketShare(src, opts) {
     } = opts;
 
     try {
+        const statusCond = await getSkuPlatformStatusCondition(src);
         // Step 1: Get daily sales per SKU from rb_pdp_olap
         const conditions = [
             `toDate(${src.f.date}) >= '${dStart}'`,
             `toDate(${src.f.date}) <= '${dEnd}'`,
         ];
+        if (statusCond) {
+            conditions.push(statusCond);
+        }
 
         if (hasPerSkuPlatform) {
             const skuConds = skuArr.map((skuName, idx) => {

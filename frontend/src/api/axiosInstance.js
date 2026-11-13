@@ -28,7 +28,7 @@ axiosInstance.interceptors.request.use(
         const day = String(d.getDate()).padStart(2, '0');
         config.headers["x-current-date"] = `${year}-${month}-${day}`;
 
-        // Attach qc_user state from sessionStorage if available
+        // Attach qc_user and active database state from sessionStorage if available
         try {
             const storedUser = sessionStorage.getItem("user");
             if (storedUser) {
@@ -37,6 +37,19 @@ axiosInstance.interceptors.request.use(
                 if (qcVal !== undefined && qcVal !== null) {
                     config.headers["x-qc-user"] = String(qcVal);
                 }
+                const activeDb = u?.dbName || sessionStorage.getItem("activeWorkspaceDb");
+                if (activeDb) {
+                    config.headers["x-db-name"] = activeDb;
+                }
+                const activeDbId = u?.dbId;
+                if (activeDbId) {
+                    config.headers["x-db-id"] = String(activeDbId);
+                }
+            } else {
+                const activeDb = sessionStorage.getItem("activeWorkspaceDb");
+                if (activeDb) {
+                    config.headers["x-db-name"] = activeDb;
+                }
             }
         } catch (e) { /* ignore */ }
         
@@ -44,6 +57,12 @@ axiosInstance.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        const activeWorkspaceDb = sessionStorage.getItem("activeWorkspaceDb");
+        if (activeWorkspaceDb) {
+            config.headers["x-db-name"] = activeWorkspaceDb;
+        }
+
         return config;
     },
     (error) => {

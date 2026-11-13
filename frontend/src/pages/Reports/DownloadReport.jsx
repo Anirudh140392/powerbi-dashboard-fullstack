@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Box, Paper, Grid, Typography, Button, Autocomplete, TextField,
   CircularProgress, Snackbar, Alert, IconButton, Tooltip,
@@ -18,7 +18,8 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import {
   fetchPdpReportFilters, downloadPdpReport, previewPdpReport,
-  fetchPromoViolationFilters, downloadPromoViolationReport, previewPromoViolationReport
+  fetchPromoViolationFilters, downloadPromoViolationReport, previewPromoViolationReport,
+  fetchPriceViolationFilters, downloadPriceViolationReport, previewPriceViolationReport
 } from "../../api/reportsService";
 import { useAuth } from "../../utils/AuthContext";
 import { saveAs } from "file-saver";
@@ -50,8 +51,13 @@ const PREVIEW_COLUMNS = [
 
 export default function DownloadReport() {
   const { user } = useAuth();
-  const activeDb = user?.database || sessionStorage.getItem("activeWorkspaceDb") || "";
-  const isEmamiDb = activeDb.toLowerCase().includes("emami") || true;
+  const activeDb = (
+    user?.database ||
+    user?.dbName ||
+    sessionStorage.getItem("activeWorkspaceDb") ||
+    ""
+  ).toLowerCase().trim();
+  const isEmamiDb = activeDb.includes("emami");
 
   const [activeTab, setActiveTab] = useState("raw_data");
 
@@ -96,6 +102,7 @@ export default function DownloadReport() {
     kams: [], asms: [], platforms: [], skus: [], minDate: null, maxDate: null
   });
   const [loadingPromoFilters, setLoadingPromoFilters] = useState(false);
+  const initialPromoFiltersRef = useRef(null);
 
   const [promoRows, setPromoRows] = useState([]);
   const [promoLocationsList, setPromoLocationsList] = useState([]);
@@ -106,8 +113,32 @@ export default function DownloadReport() {
   const [isDownloadingPromo, setIsDownloadingPromo] = useState(false);
   const [promoKamName, setPromoKamName] = useState("Girish");
 
+  // ── PRICE VIOLATION TAB STATE ──
+  const [pvSelectedPlatforms, setPvSelectedPlatforms] = useState([]);
+  const [pvSelectedLocations, setPvSelectedLocations] = useState([]);
+  const [pvSelectedSkus, setPvSelectedSkus] = useState([]);
+  const [pvSelectedWebPids, setPvSelectedWebPids] = useState([]);
+  const [pvStartDate, setPvStartDate] = useState(null);
+  const [pvEndDate, setPvEndDate] = useState(null);
+
+  const [pvFilterOptions, setPvFilterOptions] = useState({
+    platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null
+  });
+  const [loadingPvFilters, setLoadingPvFilters] = useState(false);
+  const initialPvFiltersRef = useRef(null);
+
+  const [pvRows, setPvRows] = useState([]);
+  const [pvTotal, setPvTotal] = useState(0);
+  const [pvPage, setPvPage] = useState(0);
+  const [pvLoading, setPvLoading] = useState(false);
+  const [showPvPreview, setShowPvPreview] = useState(false);
+  const [isDownloadingPv, setIsDownloadingPv] = useState(false);
+  const [pvSummary, setPvSummary] = useState({ totalBreaches: 0, uniqueSkus: 0, uniquePlatforms: 0, maxViolation: 0 });
+
   const isQcUserMode = Number(user?.qc_user ?? user?.qcUser) === 1;
-  const clientMaxAllowedDate = isQcUserMode ? dayjs() : dayjs().subtract(1, 'day');
+  const clientMaxAllowedDate = useMemo(() => {
+    return isQcUserMode ? dayjs() : dayjs().subtract(1, 'day');
+  }, [isQcUserMode]);
 
   const buildParams = useCallback(() => {
     const params = {};
@@ -147,6 +178,125 @@ export default function DownloadReport() {
     return params;
   }, [promoSelectedKams, promoSelectedAsms, promoSelectedPlatforms, promoSelectedSkus, promoStartDate, promoEndDate, isQcUserMode, clientMaxAllowedDate]);
 
+  const buildPvParams = useCallback(() => {
+    const params = {};
+    if (pvSelectedPlatforms.length > 0) params.platform = pvSelectedPlatforms.join(",");
+    if (pvSelectedLocations.length > 0) params.location = pvSelectedLocations.join(",");
+    if (pvSelectedSkus.length > 0) params.sku = pvSelectedSkus.join(",");
+    if (pvSelectedWebPids.length > 0) params.webPid = pvSelectedWebPids.join(",");
+    if (pvStartDate) {
+      const s = (!isQcUserMode && pvStartDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : pvStartDate;
+      params.startDate = s.format("YYYY-MM-DD");
+    }
+    if (pvEndDate) {
+      const e = (!isQcUserMode && pvEndDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : pvEndDate;
+      params.endDate = e.format("YYYY-MM-DD");
+    }
+    return params;
+  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedSkus, pvSelectedWebPids, pvStartDate, pvEndDate, isQcUserMode, clientMaxAllowedDate]);
+
+  const loadPvFilters = useCallback(async (customParams = null) => {
+    setLoadingPvFilters(true);
+    try {
+      const p = customParams !== null ? { ...customParams } : {};
+      if (customParams === null) {
+        if (pvSelectedPlatforms.length > 0) p.platform = pvSelectedPlatforms.join(",");
+        if (pvSelectedLocations.length > 0) p.location = pvSelectedLocations.join(",");
+        if (pvSelectedSkus.length > 0) p.sku = pvSelectedSkus.join(",");
+        if (pvSelectedWebPids.length > 0) p.webPid = pvSelectedWebPids.join(",");
+      }
+      const data = await fetchPriceViolationFilters(p);
+      const newOptions = {
+        platforms: data.platforms || [],
+        locations: data.locations || [],
+        skus: data.skus || [],
+        webPids: data.webPids || [],
+        minDate: data.minDate || null,
+        maxDate: data.maxDate || null,
+      };
+      if (Object.keys(p).length === 0 && newOptions.platforms.length > 0) {
+        initialPvFiltersRef.current = newOptions;
+      }
+      setPvFilterOptions(newOptions);
+    } catch (err) {
+      console.error("[DownloadReport] Error loading Price Violation filters:", err);
+      if (initialPvFiltersRef.current) {
+        setPvFilterOptions(initialPvFiltersRef.current);
+      }
+    } finally {
+      setLoadingPvFilters(false);
+    }
+  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedSkus, pvSelectedWebPids]);
+
+  useEffect(() => {
+    if (isEmamiDb && activeTab === "price_violation") {
+      loadPvFilters();
+    }
+  }, [isEmamiDb, activeTab, loadPvFilters]);
+
+  useEffect(() => {
+    if (!isEmamiDb && activeTab !== "raw_data") {
+      setActiveTab("raw_data");
+    }
+  }, [isEmamiDb, activeTab]);
+
+  const handleResetPv = () => {
+    setPvSelectedPlatforms([]);
+    setPvSelectedLocations([]);
+    setPvSelectedSkus([]);
+    setPvSelectedWebPids([]);
+    setPvStartDate(null);
+    setPvEndDate(null);
+    setShowPvPreview(false);
+    setPvRows([]);
+    setPvTotal(0);
+    setPvPage(0);
+    if (initialPvFiltersRef.current) {
+      setPvFilterOptions(initialPvFiltersRef.current);
+    }
+    loadPvFilters({});
+  };
+
+  const fetchPvPreview = useCallback(async (page = 0) => {
+    setPvLoading(true);
+    try {
+      const params = { ...buildPvParams(), page: page + 1, limit: 50 };
+      const data = await previewPriceViolationReport(params);
+      setPvRows(data.rows || []);
+      setPvTotal(data.totalCount || 0);
+      setPvPage(page);
+      setPvSummary(data.summary || { totalBreaches: 0, uniqueSkus: 0, uniquePlatforms: 0, maxViolation: 0 });
+      setShowPvPreview(true);
+    } catch (err) {
+      console.error("[DownloadReport] Price Violation preview failed:", err);
+      const msg = err.response?.data?.error || err.message || "Failed to load Price Violation preview data.";
+      setErrorMessage(msg);
+      setShowError(true);
+    } finally {
+      setPvLoading(false);
+    }
+  }, [buildPvParams]);
+
+  const handleDownloadPv = async () => {
+    setIsDownloadingPv(true);
+    try {
+      const blob = await downloadPriceViolationReport(buildPvParams());
+      const fileName = `Price_Violation_Report_${dayjs().format("YYYYMMDD_HHmmss")}.xlsx`;
+      saveAs(blob, fileName);
+      setShowSuccess(true);
+      fetchPvPreview(0);
+    } catch (err) {
+      console.error("[DownloadReport] Download Price Violation failed:", err);
+      const msg = err.status === 204
+        ? "No price violations found."
+        : (err.response?.data?.error || err.message || "Failed to generate Price Violation report.");
+      setErrorMessage(msg);
+      setShowError(true);
+    } finally {
+      setIsDownloadingPv(false);
+    }
+  };
+
   const loadFilters = useCallback(async () => {
     setLoadingFilters(true);
     try {
@@ -176,38 +326,52 @@ export default function DownloadReport() {
     }
   }, [skuType, selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids]);
 
-  const loadPromoFilters = useCallback(async () => {
+  const loadPromoFilters = useCallback(async (customParams = null) => {
     setLoadingPromoFilters(true);
     try {
-      const p = { ...buildPromoParams() };
-      delete p.startDate;
-      delete p.endDate;
+      const p = customParams !== null ? { ...customParams } : {};
+      if (customParams === null) {
+        if (promoSelectedKams.length > 0) p.kam = promoSelectedKams.join(",");
+        if (promoSelectedAsms.length > 0) p.asm = promoSelectedAsms.join(",");
+        if (promoSelectedPlatforms.length > 0) p.platform = promoSelectedPlatforms.join(",");
+        if (promoSelectedSkus.length > 0) p.sku = promoSelectedSkus.join(",");
+      }
       console.log("[DownloadReport] loadPromoFilters called with params:", p);
       const data = await fetchPromoViolationFilters(p);
       console.log("[DownloadReport] API returned minDate:", data.minDate, "maxDate:", data.maxDate);
-      setPromoFilterOptions({
+      const newOptions = {
         kams: data.kams || [],
         asms: data.asms || [],
         platforms: data.platforms || [],
         skus: data.skus || [],
         minDate: data.minDate || null,
         maxDate: data.maxDate || null,
-      });
+      };
+      if (Object.keys(p).length === 0 && newOptions.kams.length > 0) {
+        initialPromoFiltersRef.current = newOptions;
+      }
+      setPromoFilterOptions(newOptions);
     } catch (err) {
       console.error("[DownloadReport] Error loading promo filters:", err);
+      if (initialPromoFiltersRef.current) {
+        setPromoFilterOptions(initialPromoFiltersRef.current);
+      }
     } finally {
       setLoadingPromoFilters(false);
     }
-  }, [buildPromoParams]);
-
-
-  useEffect(() => {
-    loadFilters();
-  }, [loadFilters]);
+  }, [promoSelectedKams, promoSelectedAsms, promoSelectedPlatforms, promoSelectedSkus]);
 
   useEffect(() => {
-    loadPromoFilters();
-  }, [loadPromoFilters]);
+    if (activeTab === "raw_data") {
+      loadFilters();
+    }
+  }, [activeTab, loadFilters]);
+
+  useEffect(() => {
+    if (isEmamiDb && activeTab === "promo_violation") {
+      loadPromoFilters();
+    }
+  }, [isEmamiDb, activeTab, loadPromoFilters]);
 
   const handleReset = () => {
     setSkuType("our");
@@ -222,6 +386,10 @@ export default function DownloadReport() {
     setPromoSelectedPlatforms([]); setPromoSelectedSkus([]);
     setPromoStartDate(null); setPromoEndDate(null);
     setShowPromoPreview(false); setPromoRows([]); setPromoTotal(0); setPromoPage(0);
+    if (initialPromoFiltersRef.current) {
+      setPromoFilterOptions(initialPromoFiltersRef.current);
+    }
+    loadPromoFilters({});
   };
 
   const fetchPreview = useCallback(async (page = 0) => {
@@ -296,21 +464,33 @@ export default function DownloadReport() {
     }
   };
 
-  const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
-  const maxAllowedDate = isQc ? dayjs() : dayjs().subtract(1, 'day');
-
   const availableDates = filterOptions.dates || [];
-  const minDbDate = availableDates.length > 0 ? dayjs(availableDates[availableDates.length - 1]) : dayjs('2024-01-01');
-  let maxDbDate = availableDates.length > 0 ? dayjs(availableDates[0]) : dayjs();
-  if (!isQc && maxDbDate.isAfter(maxAllowedDate)) {
-    maxDbDate = maxAllowedDate;
-  }
+  const minDbDate = useMemo(() => {
+    return availableDates.length > 0 ? dayjs(availableDates[availableDates.length - 1]) : dayjs('2024-01-01');
+  }, [availableDates]);
 
-  const promoMinDbDate = promoFilterOptions.minDate ? dayjs(promoFilterOptions.minDate) : dayjs('2024-01-01');
-  let promoMaxDbDate = promoFilterOptions.maxDate ? dayjs(promoFilterOptions.maxDate) : dayjs();
-  if (!isQc && promoMaxDbDate.isAfter(maxAllowedDate)) {
-    promoMaxDbDate = maxAllowedDate;
-  }
+  const maxDbDate = useMemo(() => {
+    const d = availableDates.length > 0 ? dayjs(availableDates[0]) : dayjs();
+    return (!isQcUserMode && d.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : d;
+  }, [availableDates, isQcUserMode, clientMaxAllowedDate]);
+
+  const promoMinDbDate = useMemo(() => {
+    return promoFilterOptions.minDate ? dayjs(promoFilterOptions.minDate) : dayjs('2024-01-01');
+  }, [promoFilterOptions.minDate]);
+
+  const promoMaxDbDate = useMemo(() => {
+    const d = promoFilterOptions.maxDate ? dayjs(promoFilterOptions.maxDate) : dayjs();
+    return (!isQcUserMode && d.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : d;
+  }, [promoFilterOptions.maxDate, isQcUserMode, clientMaxAllowedDate]);
+
+  const pvMinDbDate = useMemo(() => {
+    return pvFilterOptions.minDate ? dayjs(pvFilterOptions.minDate) : dayjs('2024-01-01');
+  }, [pvFilterOptions.minDate]);
+
+  const pvMaxDbDate = useMemo(() => {
+    const d = pvFilterOptions.maxDate ? dayjs(pvFilterOptions.maxDate) : dayjs();
+    return (!isQcUserMode && d.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : d;
+  }, [pvFilterOptions.maxDate, isQcUserMode, clientMaxAllowedDate]);
 
   const acSx = { "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#ffffff" } };
   const dpSx = { "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#ffffff" } };
@@ -318,7 +498,7 @@ export default function DownloadReport() {
   return (
     <CommonContainer title="Download Report" hideFilters={true}>
       <Box sx={{ p: { xs: 2, md: 4 } }}>
-        
+
         {/* ── TOGGLE CONTROL (RAW DATA vs PROMO VIOLATION) ── */}
         <Box sx={{ mb: 3, display: "flex", justifyContent: "flex-start" }}>
           <ToggleButtonGroup
@@ -350,7 +530,8 @@ export default function DownloadReport() {
             }}
           >
             <ToggleButton value="raw_data">Availability/OSA</ToggleButton>
-            <ToggleButton value="promo_violation">Promo Compliance</ToggleButton>
+            {isEmamiDb && <ToggleButton value="promo_violation">Promo Compliance</ToggleButton>}
+            {isEmamiDb && <ToggleButton value="price_violation">Price Violation</ToggleButton>}
           </ToggleButtonGroup>
         </Box>
 
@@ -644,7 +825,7 @@ export default function DownloadReport() {
         )}
 
         {/* ── TAB 2: PROMO VIOLATION MODE ── */}
-        {activeTab === "promo_violation" && (
+        {isEmamiDb && activeTab === "promo_violation" && (
           <>
             <Paper
               elevation={0}
@@ -983,6 +1164,330 @@ export default function DownloadReport() {
                   onPageChange={(e, newPage) => fetchPromoPreview(newPage)}
                   rowsPerPage={500}
                   rowsPerPageOptions={[500]}
+                  sx={{
+                    borderTop: "1px solid #e2e8f0",
+                    "& .MuiTablePagination-toolbar": { px: 3 },
+                    "& .MuiTablePagination-displayedRows": { fontWeight: 600, color: "#475569", fontSize: "0.82rem" },
+                  }}
+                />
+              </Paper>
+            )}
+          </>
+        )}
+
+        {/* ── TAB 3: PRICE VIOLATION MODE ── */}
+        {isEmamiDb && activeTab === "price_violation" && (
+          <>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 4, borderRadius: "20px",
+                background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.8) 100%)",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
+                boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.04)",
+              }}
+            >
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", fontFamily: "'Inter', sans-serif" }}>
+                    Export Price Violation Report
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5, fontFamily: "'Inter', sans-serif" }}>
+                    Identifies SKU price violations where Current MRP (from PDP) exceeds Master MRP (from Emami Master DB).
+                  </Typography>
+                </Box>
+                <Tooltip title="Price Violation Report Help">
+                  <IconButton sx={{ color: "#94a3b8" }}><HelpOutlineIcon /></IconButton>
+                </Tooltip>
+              </Box>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Autocomplete
+                    multiple
+                    options={pvFilterOptions.platforms?.length > 0 ? pvFilterOptions.platforms : (initialPvFiltersRef.current?.platforms || [])}
+                    value={pvSelectedPlatforms}
+                    onChange={(e, v) => setPvSelectedPlatforms(v)}
+                    limitTags={1}
+                    disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
+                    renderInput={(p) => (
+                      <TextField {...p} label="Platform Name" placeholder="All Platforms" variant="outlined" InputLabelProps={{ shrink: true }} />
+                    )}
+                    sx={acSx}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Autocomplete
+                    multiple
+                    options={pvFilterOptions.locations?.length > 0 ? pvFilterOptions.locations : (initialPvFiltersRef.current?.locations || [])}
+                    value={pvSelectedLocations}
+                    onChange={(e, v) => setPvSelectedLocations(v)}
+                    limitTags={1}
+                    disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
+                    renderInput={(p) => (
+                      <TextField {...p} label="Location" placeholder="All Locations" variant="outlined" InputLabelProps={{ shrink: true }} />
+                    )}
+                    sx={acSx}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Autocomplete
+                    multiple
+                    options={pvFilterOptions.skus?.length > 0 ? pvFilterOptions.skus : (initialPvFiltersRef.current?.skus || [])}
+                    value={pvSelectedSkus}
+                    onChange={(e, v) => setPvSelectedSkus(v)}
+                    limitTags={1}
+                    disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
+                    renderInput={(p) => (
+                      <TextField {...p} label="SKU Name" placeholder="All SKUs" variant="outlined" InputLabelProps={{ shrink: true }} />
+                    )}
+                    sx={acSx}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Autocomplete
+                    multiple
+                    options={pvFilterOptions.webPids?.length > 0 ? pvFilterOptions.webPids : (initialPvFiltersRef.current?.webPids || [])}
+                    value={pvSelectedWebPids}
+                    onChange={(e, v) => setPvSelectedWebPids(v)}
+                    limitTags={1}
+                    disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
+                    renderInput={(p) => (
+                      <TextField {...p} label="Web PID" placeholder="All Web PIDs" variant="outlined" InputLabelProps={{ shrink: true }} />
+                    )}
+                    sx={acSx}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={12} md={6}>
+                  <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
+                    <DatePicker
+                      label="Start Date"
+                      value={pvStartDate}
+                      onChange={(v) => setPvStartDate(v)}
+                      minDate={pvMinDbDate || undefined}
+                      maxDate={pvEndDate || pvMaxDbDate || undefined}
+                      slotProps={{
+                        textField: { fullWidth: true, variant: "outlined", InputLabelProps: { shrink: true }, sx: dpSx },
+                        field: { clearable: true }
+                      }}
+                    />
+                    <DatePicker
+                      label="End Date"
+                      value={pvEndDate}
+                      onChange={(v) => setPvEndDate(v)}
+                      minDate={pvStartDate || pvMinDbDate || undefined}
+                      maxDate={pvMaxDbDate || undefined}
+                      slotProps={{
+                        textField: { fullWidth: true, variant: "outlined", InputLabelProps: { shrink: true }, sx: dpSx },
+                        field: { clearable: true }
+                      }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, mt: 4, pt: 3, borderTop: "1px solid rgba(226, 232, 240, 0.6)" }}>
+                {loadingPvFilters && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: "auto" }}>
+                    <CircularProgress size={16} sx={{ color: "#2563eb" }} />
+                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 500 }}>Loading filter options...</Typography>
+                  </Box>
+                )}
+                <Button
+                  variant="outlined"
+                  onClick={handleResetPv}
+                  startIcon={<RefreshIcon />}
+                  sx={{
+                    textTransform: "none", borderRadius: "12px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 3, py: 1.2,
+                    "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" }
+                  }}
+                >
+                  Reset Filters
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => fetchPvPreview(0)}
+                  disabled={pvLoading}
+                  startIcon={pvLoading ? <CircularProgress size={18} color="inherit" /> : <FilterAltIcon />}
+                  sx={{
+                    textTransform: "none", borderRadius: "12px", background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    color: "white", fontWeight: 700, px: 4, py: 1.2, boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
+                    "&:hover": { background: "linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)", boxShadow: "0 6px 20px rgba(37, 99, 235, 0.35)" }
+                  }}
+                >
+                  {pvLoading ? "Applying..." : "Apply"}
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleDownloadPv}
+                  disabled={isDownloadingPv}
+                  startIcon={isDownloadingPv ? <CircularProgress size={18} color="inherit" /> : <CloudDownloadIcon />}
+                  sx={{
+                    textTransform: "none", borderRadius: "12px", background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
+                    color: "white", fontWeight: 700, px: 4, py: 1.2, boxShadow: "0 4px 14px rgba(51, 65, 85, 0.25)",
+                    "&:hover": { background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", boxShadow: "0 6px 20px rgba(51, 65, 85, 0.35)" }
+                  }}
+                >
+                  {isDownloadingPv ? "Downloading..." : "Download Report"}
+                </Button>
+              </Box>
+            </Paper>
+
+            {/* Price Violation Preview Table */}
+            {showPvPreview && (
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 3, borderRadius: "16px",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.04)",
+                  overflow: "hidden",
+                }}
+              >
+                <Box sx={{ px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", flexWrap: "wrap", gap: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                    <Chip
+                      label="Price Violation Report"
+                      sx={{
+                        backgroundColor: "#fef3c7",
+                        color: "#92400e",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        fontFamily: "'Inter', sans-serif",
+                        borderRadius: "8px",
+                        border: "1px solid #fde68a"
+                      }}
+                    />
+                    <Chip
+                      label={`${pvTotal} Breached Items`}
+                      size="small"
+                      sx={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca", fontWeight: 700, fontSize: "0.75rem" }}
+                    />
+                    {pvSummary.uniqueSkus > 0 && (
+                      <Chip
+                        label={`Impacted SKUs: ${pvSummary.uniqueSkus}`}
+                        size="small"
+                        sx={{ backgroundColor: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe", fontWeight: 650, fontSize: "0.75rem" }}
+                      />
+                    )}
+                    {pvSummary.uniquePlatforms > 0 && (
+                      <Chip
+                        label={`Platforms: ${pvSummary.uniquePlatforms}`}
+                        size="small"
+                        sx={{ backgroundColor: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontWeight: 650, fontSize: "0.75rem" }}
+                      />
+                    )}
+                    {pvSummary.maxViolation > 0 && (
+                      <Chip
+                        label={`Max Breach: +₹${pvSummary.maxViolation}`}
+                        size="small"
+                        sx={{ backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", fontWeight: 700, fontSize: "0.75rem" }}
+                      />
+                    )}
+                  </Box>
+                  {pvLoading && <CircularProgress size={20} sx={{ color: "#2563eb" }} />}
+                </Box>
+
+                <TableContainer sx={{ maxHeight: 600 }}>
+                  <Table stickyHeader size="small" sx={{ borderCollapse: "separate", borderSpacing: 0 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          SKU Name
+                        </TableCell>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Web PID
+                        </TableCell>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Platform
+                        </TableCell>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Location
+                        </TableCell>
+                        <TableCell align="center" sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Date
+                        </TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          MRP Master (₹)
+                        </TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: "#fff1f2", color: "#be123c", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #fecdd3", py: 1.2 }}>
+                          Current MRP (₹)
+                        </TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Selling Price (₹)
+                        </TableCell>
+                        <TableCell align="center" sx={{ backgroundColor: "#fef2f2", color: "#991b1b", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #fecaca", py: 1.2 }}>
+                          Violation (Diff)
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pvRows.length === 0 && !pvLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={9} align="center" sx={{ py: 6, color: "#94a3b8" }}>
+                            No price violations found for selected filters.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        pvRows.map((row, idx) => (
+                          <TableRow key={idx} hover sx={{ "&:nth-of-type(even)": { backgroundColor: "#fafbfc" }, "&:hover": { backgroundColor: "#f1f5f9" } }}>
+                            <TableCell sx={{ fontSize: "0.78rem", fontWeight: 650, color: "#0f172a", borderBottom: "1px solid #f1f5f9", py: 1, textTransform: "uppercase" }}>
+                              {row.sku}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#64748b", fontFamily: "monospace", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              {row.web_pid}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #f1f5f9", py: 1, textTransform: "capitalize" }}>
+                              {row.platform}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1, textTransform: "capitalize" }}>
+                              {row.location}
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontSize: "0.78rem", color: "#64748b", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              {row.date}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              ₹{Number(row.Mrp_master).toFixed(2)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontSize: "0.78rem", fontWeight: 700, color: "#be123c", backgroundColor: "#fff1f2", borderBottom: "1px solid #ffe4e6", py: 1 }}>
+                              ₹{Number(row.current_mrp).toFixed(2)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              ₹{Number(row.selling_price).toFixed(2)}
+                            </TableCell>
+                            <TableCell align="center" sx={{ borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              <Chip
+                                label={`+₹${Number(row.price_violation).toFixed(2)}`}
+                                size="small"
+                                sx={{
+                                  backgroundColor: "#fee2e2",
+                                  color: "#b91c1c",
+                                  border: "1px solid #fecaca",
+                                  fontWeight: 700,
+                                  fontSize: "0.74rem",
+                                  height: "22px"
+                                }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <TablePagination
+                  component="div"
+                  count={pvTotal}
+                  page={pvPage}
+                  onPageChange={(e, newPage) => fetchPvPreview(newPage)}
+                  rowsPerPage={50}
+                  rowsPerPageOptions={[50]}
                   sx={{
                     borderTop: "1px solid #e2e8f0",
                     "& .MuiTablePagination-toolbar": { px: 3 },

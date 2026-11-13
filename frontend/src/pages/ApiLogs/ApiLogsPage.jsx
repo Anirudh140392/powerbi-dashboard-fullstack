@@ -6,7 +6,9 @@ import {
     ShieldCheck, 
     Activity,
     Layers,
-    Server
+    Server,
+    Play,
+    RefreshCw
 } from 'lucide-react';
 import { 
     Snackbar, 
@@ -193,42 +195,49 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         }
     }, []);
 
-    // Initial Mount: Load filter options and auto-run test suite once on page open
+    // Initial Mount: Load filter options on page open (NO auto-running of API tests)
     useEffect(() => {
         isMounted.current = true;
         loadFilterOptions(true);
-
-        // Run tests automatically when user opens this page
-        if (!hasAutoRunRef.current) {
-            hasAutoRunRef.current = true;
-            (async () => {
-                try {
-                    setRunningTest(true);
-                    const res = await triggerApiTestRun('', '');
-                    if (res && res.success) {
-                        setTimeout(async () => {
-                            if (!isMounted.current) return;
-                            await loadFilterOptions(false);
-                            await loadSummary(filters);
-                            await loadDistribution(filters);
-                            await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
-                            setRunningTest(false);
-                            showToast('API diagnostic health check completed. Results updated.', 'success');
-                        }, 4500);
-                    } else {
-                        setRunningTest(false);
-                    }
-                } catch (err) {
-                    console.error('[ApiLogsPage] Auto-run error on page open:', err);
-                    setRunningTest(false);
-                }
-            })();
-        }
 
         return () => {
             isMounted.current = false;
         };
     }, [loadFilterOptions]);
+
+    // Manual trigger for diagnostic health checks (only when user explicitly clicks button)
+    const handleRunDiagnostics = async () => {
+        if (runningTest) return;
+        try {
+            setRunningTest(true);
+            // If a specific database is selected in filters, test only that DB.
+            // Otherwise, pass 'All' to execute tests one by one for all active databases in tb_database!
+            const targetDb = filters.clientDb && filters.clientDb !== 'All' ? filters.clientDb : 'All';
+            const pageToTest = filters.page && filters.page !== 'All' ? filters.page : 'All';
+
+            const res = await triggerApiTestRun(pageToTest, targetDb);
+            if (res && res.success) {
+                const dbsCount = res.databases?.length || 'all';
+                showToast(`Diagnostic check initiated across ${dbsCount} database(s). Results updating...`, 'info');
+                setTimeout(async () => {
+                    if (!isMounted.current) return;
+                    await loadFilterOptions(false);
+                    await loadSummary(filters);
+                    await loadDistribution(filters);
+                    await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
+                    setRunningTest(false);
+                    showToast('Diagnostic check completed for all databases. Results updated.', 'success');
+                }, 5500);
+            } else {
+                setRunningTest(false);
+                showToast(res?.message || 'Could not start diagnostic run.', 'error');
+            }
+        } catch (err) {
+            console.error('[ApiLogsPage] Manual run error:', err);
+            setRunningTest(false);
+            showToast('Failed to trigger diagnostic run.', 'error');
+        }
+    };
 
     // React to filter / pagination / sort changes
     useEffect(() => {
@@ -332,6 +341,32 @@ export default function ApiLogsPage({ isEmbedded = false }) {
                                 Last Run: <strong className="text-slate-800 font-semibold">{summary?.lastRunAt || summary?.lastRunTime || 'N/A'}</strong>
                             </span>
                         </div>
+
+                        {/* Manual Run Diagnostics Button */}
+                        <button
+                            id="btn-run-diagnostics"
+                            type="button"
+                            onClick={handleRunDiagnostics}
+                            disabled={runningTest}
+                            title="Run diagnostic test on demand"
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all ${
+                                runningTest
+                                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-emerald-500/20 hover:shadow-md'
+                            }`}
+                        >
+                            {runningTest ? (
+                                <>
+                                    <CircularProgress size={12} color="inherit" />
+                                    <span>Running...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Play className="w-3 h-3 fill-current" />
+                                    <span>Run Check</span>
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
 

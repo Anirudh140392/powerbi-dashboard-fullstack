@@ -269,6 +269,31 @@ async function fetchMaxDates(dbName, maxAllowedDate = null) {
         dates.tb_content_score_data = null;
     }
 
+    // rb_review_olap / rb_reviews_olap — Review Rating (Rating Intelligence) page
+    try {
+        const isMarico = dbName && dbName.toLowerCase().includes('marico');
+        let reviewTableName = isMarico ? 'rb_reviews_olap' : 'rb_review_olap';
+        let exists = await tableExists(dbName, reviewTableName);
+        if (!exists) {
+            const altTable = isMarico ? 'rb_review_olap' : 'rb_reviews_olap';
+            if (await tableExists(dbName, altTable)) {
+                reviewTableName = altTable;
+                exists = true;
+            }
+        }
+        if (exists) {
+            const rows = await queryDb(dbName, `SELECT MAX(toDate(review_date)) as maxDate FROM ${reviewTableName} WHERE review_date IS NOT NULL`);
+            const maxD = rows[0]?.maxDate || null;
+            dates.rb_review_olap = maxD;
+            dates[reviewTableName] = maxD;
+        } else {
+            dates.rb_review_olap = null;
+        }
+    } catch (e) {
+        console.warn(`[Socket] review olap query failed for ${dbName}:`, e.message);
+        dates.rb_review_olap = null;
+    }
+
     if (maxAllowedDate) {
         const clampVal = (val) => {
             if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {

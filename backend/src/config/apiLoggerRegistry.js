@@ -396,7 +396,6 @@ export const PAGE_REGISTRY = {
 
     'MOP Analysis': {
         pageName: 'MOP Analysis',
-        targetDb: 'pidilite',
         description: 'Pidilite MOP pricing variance, multi-platform breaches, and product catalog monitoring',
 
         resolveContext: async (baseUrl, authHeaders) => {
@@ -1123,7 +1122,6 @@ export const PAGE_REGISTRY = {
     'Content Analysis': {
         pageName: 'Content Analysis',
         description: 'Product content score auditing, title, image, secondary image, description, and ratings verification',
-        targetDb: 'mars',
 
         resolveContext: async (baseUrl, authHeaders) => {
             const context = {
@@ -2314,7 +2312,6 @@ export const PAGE_REGISTRY = {
     'Primary Summary': {
         pageName: 'Primary Summary',
         description: 'Primary Sales overview, MOM, Quarterly trends, and Brand/Retailer pivot tables',
-        targetDb: 'drl',
 
         resolveContext: async (baseUrl, authHeaders) => {
             const context = {
@@ -2463,7 +2460,6 @@ export const PAGE_REGISTRY = {
     'Secondary Summary': {
         pageName: 'Secondary Summary',
         description: 'Secondary Sales overview, seller-wise analysis, quarterly trends, top brand contributions, and sales timelines',
-        targetDb: 'drl',
 
         resolveContext: async (baseUrl, authHeaders) => {
             const context = {
@@ -2584,7 +2580,6 @@ export const PAGE_REGISTRY = {
     'Download Report': {
         pageName: 'Download Report',
         description: 'Raw PDP Availability data export and Promo Compliance report downloads',
-        targetDb: 'emami',
 
         resolveContext: async (baseUrl, authHeaders) => {
             const context = {

@@ -97,6 +97,15 @@ export const REPORT_FIELDS = [
         columns: { pdp: "Brand", kw: "brand", ms: "group_brand", pm: "brand" },
     },
     {
+        key: "brand_type",
+        label: "Brand Type",
+        description: "Own brand or competitor",
+        group: FIELD_GROUPS.DIMENSION,
+        type: "text",
+        // Read from each table's own-brand flag; ad campaigns are all own-brand.
+        columns: { pdp: "Comp_flag", kw: "flag", ms: "flag", pm: "brand" },
+    },
+    {
         key: "region",
         label: "Region",
         description: "Geographic region of the dark store",
@@ -219,9 +228,16 @@ export const SOURCES_BY_ID = Object.fromEntries(REPORT_SOURCES.map((s) => [s.id,
 
 export const UNIT_SUFFIX = { currency: "₹", percent: "%", ratio: "x" };
 
+/**
+ * Whose rows the report covers. Competitor rows carry no sales, so Offtake and
+ * Quantity Sold are blank for them; ad campaigns are own-brand only.
+ */
+export const BRAND_SCOPES = { own: "Own brands", all: "Own + competitors" };
+
 export const DEFAULT_CONFIG = {
     sources: ["pdp"],
     columns: ["date", "platform", "brand", "offtake", "osa"],
+    brandScope: "own",
 };
 
 

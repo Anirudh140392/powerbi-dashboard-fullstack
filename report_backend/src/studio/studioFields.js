@@ -24,6 +24,7 @@ export const LOCATION_TABLE = 'rb_location_darkstore';
  * is looked up from LOCATION_TABLE by the source's city and platform columns.
  * `item` marks attributes of the ranked/sold item rather than of its context:
  * share KPIs (SOS, market share) keep their all-brand denominator across them.
+ * `ownFlag` reads the source's own-brand test instead of a column.
  * `label` and `display` feed the CSV export.
  */
 export const STUDIO_DIMENSIONS = {
@@ -31,6 +32,8 @@ export const STUDIO_DIMENSIONS = {
     platform: { label: 'Platform', display: 'initcap', columns: { pdp: 'Platform', kw: 'platform_name', ms: 'platform', pm: 'Platform' } },
     category: { label: 'Category', display: 'initcap', columns: { pdp: 'Category', kw: 'keyword_category', ms: 'category', pm: 'category' } },
     brand: { label: 'Brand', display: 'initcap', item: true, columns: { pdp: 'Brand', kw: 'brand', ms: 'group_brand', pm: 'brand' } },
+    // Own or Competitor, from each source's own-brand flag (OWN_BRAND in studioKpis.js).
+    brand_type: { label: 'Brand Type', display: 'initcap', item: true, ownFlag: true },
     region: {
         label: 'Region',
         display: 'initcap',

@@ -367,45 +367,53 @@ const PlatformOverviewNew = ({
     const handleExportToExcel = () => {
         if (!entities || entities.length === 0) return;
 
-        const excelRows = entities.map(e => {
-            const rowObj = {};
-            const dimLabel = currentDimension?.label || 'Entity';
-            rowObj[dimLabel] = e.name || e.key || '';
+        try {
+            const excelRows = entities.map(e => {
+                const rowObj = {};
+                const dimLabel = currentDimension?.label || 'Entity';
+                rowObj[dimLabel] = e.name || e.key || '';
 
-            selectedKpis.forEach(kpi => {
-                const label = kpiLabels[kpi.key] || kpi.label;
-                const cell = e.data?.[kpi.key];
-                const val = getFullDisplayValue(kpi.key, cell);
-                rowObj[label] = val;
+                selectedKpis.forEach(kpi => {
+                    const label = kpiLabels[kpi.key] || kpi.label;
+                    const cell = e.data?.[kpi.key];
+                    const val = getFullDisplayValue(kpi.key, cell);
+                    rowObj[label] = val;
 
-                if (cell?.delta?.value) {
-                    const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
-                    rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
-                } else {
-                    rowObj[`${label} (Change)`] = '-';
-                }
+                    if (cell?.delta?.value) {
+                        const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
+                        rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
+                    } else {
+                        rowObj[`${label} (Change)`] = '-';
+                    }
+                });
+
+                return rowObj;
             });
 
-            return rowObj;
-        });
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            const sheetName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview`.slice(0, 31);
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
-        const worksheet = XLSX.utils.json_to_sheet(excelRows);
-        const sheetName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview`.slice(0, 31);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-        const colWidths = {};
-        excelRows.forEach(row => {
-            Object.keys(row).forEach(key => {
-                const len = String(row[key] || '').length;
-                colWidths[key] = Math.max(colWidths[key] || key.length, len);
+            const colWidths = {};
+            excelRows.forEach(row => {
+                Object.keys(row).forEach(key => {
+                    const len = String(row[key] || '').length;
+                    colWidths[key] = Math.max(colWidths[key] || key.length, len);
+                });
             });
-        });
-        worksheet['!cols'] = Object.keys(colWidths).map(key => ({
-            wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
-        }));
+            worksheet['!cols'] = Object.keys(colWidths).map(key => ({
+                wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
+            }));
 
-        const fileName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
+            const fileName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+
+            setToastMessage('Exported to Excel successfully!');
+            setTimeout(() => setToastMessage(''), 2500);
+        } catch (err) {
+            console.error('[PlatformOverviewNew] Excel export error:', err);
+        }
     };
 
     // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
@@ -1407,7 +1415,7 @@ const PlatformOverviewNew = ({
                                                             <button
                                                                 onClick={(evt) => {
                                                                     evt.stopPropagation();
-                                                                    onViewTrends(e.name || e.label, currentDimension.label);
+                                                                    onViewTrends(e.name || e.label, currentDimension.label, drlSource);
                                                                 }}
                                                                 className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
                                                                 title={`View ${e.name} Trend`}

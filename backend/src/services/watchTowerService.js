@@ -67,41 +67,42 @@ const getDrlResellerConds = (filters = {}) => {
         ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
         : [];
 
-    const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
+    const buymoreOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%' OR lower(trim(ifNull(seller_name, ''))) = 'buymore')`;
+    const rkOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) = 'rk world' OR lower(trim(ifNull(seller_name, ''))) LIKE '%rk%world%')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
-        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal'));
-        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p')));
+        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world'));
+        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
 
-        if (hasBuyMore && !has1P && !hasOther) {
-            return {
-                pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
-                pdpOfftakeCond: buymoreOfftakeCondition,
-                isBuymoreMode: true,
-                includeBuyMoreTable: true
-            };
-        } else if ((has1P || hasOther) && !hasBuyMore) {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: false
-            };
-        } else {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: true
-            };
+        const conds = [];
+        if (hasBuyMore) {
+            conds.push(buymoreOfftakeCondition);
         }
+        if (has1P) {
+            conds.push(rkOfftakeCondition);
+        }
+        if (hasOther) {
+            const otherResellers = resellerList.filter(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
+            if (otherResellers.length > 0) {
+                conds.push(`lower(trim(ifNull(seller_name, ''))) IN (${otherResellers.map(r => `'${escapeStr(r)}'`).join(', ')})`);
+            }
+        }
+
+        const combinedOfftakeCond = conds.length > 1 ? `(${conds.join(' OR ')})` : (conds[0] || '');
+
+        return {
+            pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+            pdpOfftakeCond: combinedOfftakeCond,
+            isBuymoreMode: hasBuyMore && !has1P && !hasOther,
+            includeBuyMoreTable: hasBuyMore
+        };
     }
 
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
-            pdpOfftakeCond: ``,
+            pdpOfftakeCond: `NOT (lower(trim(ifNull(seller_name, ''))) = 'buymore' OR lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%')`,
             isBuymoreMode: false,
             includeBuyMoreTable: false
         };
@@ -338,7 +339,8 @@ async function getWatchtowerSource(filters = {}) {
             sellingPrice: wrap(sellingPriceCol),
             sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
-            skuCode: columnExists(cols, 'sap_code') ? r('sap_code') : webPidCol,
+            sapCode: columnExists(cols, 'sap_code') ? r('sap_code') : (columnExists(cols, 'sapcode') ? r('sapcode') : null),
+            skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : (webPidCol || (columnExists(cols, 'sap_code') ? r('sap_code') : null)),
             webPid: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
@@ -8896,7 +8898,28 @@ const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
     const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue, resellerName } = filters;
+    const rawSapCode = filters.sapCode || filters['sapCode[]'] || filters.sap_code;
+    const targetSkuName = skuName || filters.sku || filters['skuName[]'] || filters['sku[]'];
+    const targetSkuCode = skuCode || filters['skuCode[]'];
     const channel = extractChannel(filters);
+
+    // Helper to escape strings for ClickHouse
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+    // Normalize incoming effective filters array or strings
+    const catArr = normalizeFilterArray(category);
+    const locArr = normalizeFilterArray(location);
+    const brandArr = normalizeFilterArray(brand);
+    const platArr = normalizeFilterArray(platform);
+    const skuArrArr = normalizeFilterArray(targetSkuName);
+    const skuCodeArrArr = normalizeFilterArray(targetSkuCode);
+    const sapArr = normalizeFilterArray(rawSapCode);
+    const subBrandTarget = filters.subBrand || filters.sub_brand;
+    const subBrandArr = normalizeFilterArray(subBrandTarget);
+
+    const hasSkuNameFilter = skuArrArr && skuArrArr.length > 0 && !skuArrArr.includes('All') && !skuArrArr.includes('');
+    const hasSkuCodeFilter = skuCodeArrArr && skuCodeArrArr.length > 0 && !skuCodeArrArr.includes('All') && !skuCodeArrArr.includes('');
+    const hasSapFilter = sapArr && sapArr.length > 0 && !sapArr.includes('All') && !sapArr.includes('');
 
     // 1. Determine Date Range
     let endDate = await getCachedMaxDate(filters.maxAllowedDate);
@@ -8921,7 +8944,7 @@ const getKpiTrends = async (filters) => {
         if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
-    const isSkuSelected = (skuName && skuName !== 'All' && skuName !== '') || (skuCode && skuCode !== 'All' && skuCode !== '');
+    const isSkuSelected = hasSkuNameFilter || hasSkuCodeFilter || hasSapFilter;
     // When SKU is selected, use rb_pdp_olap for PM KPIs (Spend, ROAS, Conversion, CPC, CPM)
     // instead of rb_pm_olap, since PM table only has aggregate-level data
     const usePdpForPmKpis = isSkuSelected;
@@ -8949,17 +8972,6 @@ const getKpiTrends = async (filters) => {
         groupExpressionKw = `formatDateTime(toDate(DATE), '${groupFormat}')`;
     }
 
-    // Helper to escape strings for ClickHouse
-    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
-    // Normalize incoming effective filters array or strings
-    const catArr = normalizeFilterArray(category);
-    const locArr = normalizeFilterArray(location);
-    const brandArr = normalizeFilterArray(brand);
-    const platArr = normalizeFilterArray(platform);
-    const subBrandTarget = filters.subBrand || filters.sub_brand;
-    const subBrandArr = normalizeFilterArray(subBrandTarget);
-
     // Check for Tier-2/Tier-3 city selections
     const tier1Cities = [
         'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
@@ -8979,6 +8991,9 @@ const getKpiTrends = async (filters) => {
     }
 
     const src = await getWatchtowerSource(filters);
+    // Determine DB context early so it's available inside buildKpiConds closure
+    const dbNameForTrends = getCurrentDbName();
+    const isDrlDb = dbNameForTrends === 'drl';
     // 3. Build WHERE conditions for dynamic source
     const buildKpiConds = () => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -9025,16 +9040,46 @@ const getKpiTrends = async (filters) => {
         }
 
         // Advanced SKU Search Filters
-        const skuArrArr = normalizeFilterArray(skuName);
-        if (skuArrArr && skuArrArr.length > 0) {
+        if (hasSkuNameFilter) {
             const skuConds = skuArrArr.map(s => `${src.f.product} LIKE '%${escapeStr(s)}%'`).join(' OR ');
             conds.push(`(${skuConds})`);
         }
-        const skuCodeArrArr = normalizeFilterArray(skuCode);
-        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
-            const skuCodeConds = skuCodeArrArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
-            conds.push(`(${skuCodeConds})`);
+
+        if (hasSapFilter && hasSkuCodeFilter) {
+            // When both sapCode and skuCode (webPid) are provided:
+            // Use AND so only rows matching BOTH sap_code AND web_pid are returned.
+            const sapClause = src.f.sapCode ? sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ') : '';
+            const codeClause = (src.f.webPid || src.f.skuCode) ? `toString(${src.f.webPid || src.f.skuCode}) IN (${skuCodeArrArr.map(s => `'${escapeStr(s)}'`).join(',')})` : '';
+            if (sapClause && codeClause) {
+                conds.push(`(${sapClause} AND ${codeClause})`);
+            } else if (sapClause) {
+                conds.push(`(${sapClause})`);
+            } else if (codeClause) {
+                conds.push(`(${codeClause})`);
+            }
+        } else if (hasSapFilter) {
+            if (src.f.sapCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            } else if (src.f.skuCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            }
+        } else if (hasSkuCodeFilter) {
+            // Exact web_pid match using IN operator for SKU filter selection
+            const webPidValues = skuCodeArrArr.map(s => `'${escapeStr(s)}'`).join(',');
+            if (src.f.webPid) {
+                conds.push(`toString(${src.f.webPid}) IN (${webPidValues})`);
+            } else if (src.f.skuCode) {
+                conds.push(`toString(${src.f.skuCode}) IN (${webPidValues})`);
+            }
         }
+
+        // For DRL DB: exclude rows with empty web_pid when filtering by sap_code
+        if (isDrlDb && hasSapFilter && src.f.webPid) {
+            conds.push(`toString(${src.f.webPid}) != ''`);
+        }
+
         if (!src.isAgg) {
             const mslArr = normalizeFilterArray(filters.msl);
             if (mslArr && mslArr.length > 0) {
@@ -9090,8 +9135,6 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
-    const dbNameForTrends = getCurrentDbName();
-    const isDrlDb = dbNameForTrends === 'drl';
     const drlResellerInfo = getDrlResellerConds(filters);
     const includeBuyMore = isDrlDb && drlResellerInfo.includeBuyMoreTable;
 
@@ -9111,55 +9154,74 @@ const getKpiTrends = async (filters) => {
     const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
 
     // 4. Query for Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio from dynamic source
+    const kpiQuery = `
+        SELECT 
+            ${groupExpression.replace('DATE', src.f.date)} as date_group,
+            MAX(toDate(${src.f.date})) as ref_date,
+            SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            countIf(${src.isAgg ? 'total_sales > 0' : `Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''}`}) as valid_sales_count,
+            SUM(${src.f.adSales}) as total_Ad_sales,
+            SUM(${src.f.spend}) as total_ad_spend,
+            SUM(${src.f.orders}) as total_ad_orders,
+            SUM(${src.f.clicks}) as total_ad_clicks,
+            SUM(${src.f.impressions}) as total_ad_impressions,
+            SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.spend} ELSE 0 END) as total_cpc_spend,
+            SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.clicks} ELSE 0 END) as total_cpc_clicks,
+            SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.spend} ELSE 0 END) as total_cpm_spend,
+            SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.impressions} ELSE 0 END) as total_cpm_impressions,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END) as total_neno_osa,
+            SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END) as total_deno_osa,
+            (toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END)) / NULLIF(toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END)), 0)) * 100 as total_availability,
+            COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
+            AVG(${src.f.sellingPrice}) as avg_selling_price,
+            AVG(${src.f.mrp}) as avg_mrp,
+            (SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
+            SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
+            SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
+            SUM(${src.f.sellingPrice}) as sum_selling_price,
+            0 as sum_weight
+        FROM ${src.table}
+        WHERE ${kpiConds} ${drlResellerInfo.pdpCond ? `AND ${drlResellerInfo.pdpCond}` : ''}
+        GROUP BY date_group
+        ORDER BY ref_date ASC
+    `;
+    const pmQuery = `
+        SELECT 
+            ${groupExpression.replace('DATE', pmSrc.f.date)} as date_group,
+            SUM(${pmSrc.f.adSales}) as pm_ad_sales,
+            SUM(${pmSrc.f.spend}) as pm_ad_spend,
+            SUM(${pmSrc.f.orders}) as pm_ad_orders,
+            SUM(${pmSrc.f.clicks}) as pm_ad_clicks,
+            SUM(${pmSrc.f.impressions}) as pm_ad_impressions,
+            SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpc_spend,
+            SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as pm_cpc_clicks,
+            SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpm_spend,
+            SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as pm_cpm_impressions
+        FROM ${pmSrc.table}
+        WHERE ${pmKpiConds}
+        GROUP BY date_group
+    `;
+
+    // ── LOG QUERIES TO TERMINAL ──
+    console.log('\n╔═════════════════════════════════════════════════════════════════════════════════╗');
+    console.log('║  [TRENDS] KPI Trends SQL Query                                                ║');
+    console.log('╚═════════════════════════════════════════════════════════════════════════════════╝');
+    if (isDrlDb) {
+        console.log('/* ============================================================================ */');
+        console.log('/*  [this is the sales query of drl]                                            */');
+        console.log('/* ============================================================================ */');
+    }
+    console.log(kpiQuery.trim());
+    console.log('\n╔═════════════════════════════════════════════════════════════════════════════════╗');
+    console.log('║  [TRENDS] PM Trends SQL Query                                                 ║');
+    console.log('╚═════════════════════════════════════════════════════════════════════════════════╝');
+    console.log(pmQuery.trim());
+    console.log('\n');
+
     const [kpiResults, pmResults] = await Promise.all([
-        queryClickHouse(`
-            SELECT 
-                ${groupExpression.replace('DATE', src.f.date)} as date_group,
-                MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-                countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
-                SUM(${src.f.adSales}) as total_Ad_sales,
-                SUM(${src.f.spend}) as total_ad_spend,
-                SUM(${src.f.orders}) as total_ad_orders,
-                SUM(${src.f.clicks}) as total_ad_clicks,
-                SUM(${src.f.impressions}) as total_ad_impressions,
-                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.spend} ELSE 0 END) as total_cpc_spend,
-                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.clicks} ELSE 0 END) as total_cpc_clicks,
-                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.spend} ELSE 0 END) as total_cpm_spend,
-                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.impressions} ELSE 0 END) as total_cpm_impressions,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END) as total_neno_osa,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END) as total_deno_osa,
-                (toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END)) / NULLIF(toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END)), 0)) * 100 as total_availability,
-                COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
-                AVG(${src.f.sellingPrice}) as avg_selling_price,
-                AVG(${src.f.mrp}) as avg_mrp,
-                (SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
-                SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
-                SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
-                SUM(${src.f.sellingPrice}) as sum_selling_price,
-                0 as sum_weight
-            FROM ${src.table}
-            WHERE ${kpiConds} ${drlResellerInfo.pdpCond ? `AND ${drlResellerInfo.pdpCond}` : ''}
-            GROUP BY date_group
-            ORDER BY ref_date ASC
-        `),
-        queryClickHouse(`
-            SELECT 
-                ${groupExpression.replace('DATE', pmSrc.f.date)} as date_group,
-                SUM(${pmSrc.f.adSales}) as pm_ad_sales,
-                SUM(${pmSrc.f.spend}) as pm_ad_spend,
-                SUM(${pmSrc.f.orders}) as pm_ad_orders,
-                SUM(${pmSrc.f.clicks}) as pm_ad_clicks,
-                SUM(${pmSrc.f.impressions}) as pm_ad_impressions,
-                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpc_spend,
-                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as pm_cpc_clicks,
-                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpm_spend,
-                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as pm_cpm_impressions
-            FROM ${pmSrc.table}
-            WHERE ${pmKpiConds}
-            GROUP BY date_group
-        `)
+        queryClickHouse(kpiQuery),
+        queryClickHouse(pmQuery)
     ]);
 
     if (isDrlDb) {
@@ -9189,6 +9251,23 @@ const getKpiTrends = async (filters) => {
                 }
                 if (targetPlats.length > 0) {
                     conds.push(`lower(Platform) IN (${targetPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                }
+
+                // SKU / Product / SAP Code filters for buymore table
+                if (hasSapFilter || hasSkuCodeFilter || hasSkuNameFilter) {
+                    const bmSkuConds = [];
+                    if (hasSkuNameFilter) {
+                        bmSkuConds.push(...skuArrArr.map(s => `(lower(sku_name) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(Buymore_sku) LIKE '%${escapeStr(s.toLowerCase())}%')`));
+                    }
+                    if (hasSapFilter) {
+                        bmSkuConds.push(...sapArr.map(s => `(toString(sap_code) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (hasSkuCodeFilter) {
+                        bmSkuConds.push(...skuCodeArrArr.map(s => `(toString(Product_id) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (bmSkuConds.length > 0) {
+                        conds.push(`(${bmSkuConds.join(' OR ')})`);
+                    }
                 }
 
                 // Enforce 13 specific Status values for buymore_rb_pdp_olap
@@ -9301,6 +9380,11 @@ const getKpiTrends = async (filters) => {
     // Numerator conditions - use flag=0 for our brands
     const sosNumConds = buildSosConds();
     sosNumConds.push(`toString(flag) = '1'`);
+    if (hasSkuNameFilter) {
+        sosNumConds.push(`(${skuArrArr.map(s => `lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ')})`);
+    } else if (hasSkuCodeFilter) {
+        sosNumConds.push(`(${skuCodeArrArr.map(s => `(lower(web_pid) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%')`).join(' OR ')})`);
+    }
 
     // Denominator: All products (no brand filter, matching Platform Overview)
     const sosDenomConds = buildSosConds();
@@ -9446,7 +9530,7 @@ const getKpiTrends = async (filters) => {
     const hasSosDenominatorData = sosDenominator.some(r => parseInt(r.count || 0, 10) > 0);
     const hasSosFinalData = hasSosNumeratorData && hasSosDenominatorData;
 
-    const hasMsData = !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+    const hasMsData = !isSkuSelected && !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
 
     // Legacy generic table-level flags still used for KPI Availability status map
     const hasPdpData = kpiResults.length > 0;
@@ -9851,9 +9935,15 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 }
 
                 const webPidCol = resolveColumn(pdpCols, 'Web_Pid');
-                const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, any(${webPidCol}) as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
+                // Exclude rows with empty web_pid (DRL / sap_code scenarios) so only valid SKUs are listed
+                if (isDrl || hasSapCode) {
+                    pdpConditions.push(`${webPidCol} != ''`);
+                }
+                // GROUP BY sku, web_pid so each web_pid gets its own row (not collapsed by any())
+                const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, ${webPidCol} as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku, web_pid ORDER BY sku, web_pid`;
                 const results = await queryClickHouse(query);
-                const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
+                // Deduplicate SKU names so the dropdown shows each SKU once, but skuDetails keeps all web_pids
+                const skuList = [...new Set(results.map(s => s.sku).filter(s => s && s.trim()))].sort();
                 const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, sapCode: s.sap_code || null, webPid: s.web_pid || null }));
                 return { options: [...skuList], skuDetails };
             }
@@ -15092,16 +15182,21 @@ const getProductsWithSap = async (filters = {}) => {
         if (sapArr && sapArr.length > 0 && rawSapCol) {
             conditions.push(`toString(${rawSapCol}) IN (${sapArr.map(s => `'${_esc(s)}'`).join(', ')})`);
         }
+        // Exclude rows with empty web_pid for sap_code / DRL scenarios
+        if (sapArr && sapArr.length > 0) {
+            conditions.push(`${webPidExpr} != ''`);
+        }
 
+        // GROUP BY product_name, web_pid so each web_pid gets its own row
         const query = `
                         SELECT
                             ${src.f.product} AS product_name,
                             any(${sapExpr}) AS sap_code,
-                            any(${webPidExpr}) AS web_pid
+                            ${webPidExpr} AS web_pid
                         FROM ${src.table}
                         WHERE ${conditions.join(' AND ')}
-                        GROUP BY product_name
-                        ORDER BY product_name
+                        GROUP BY product_name, web_pid
+                        ORDER BY product_name, web_pid
                     `;
         const results = await queryClickHouse(query);
         return results
