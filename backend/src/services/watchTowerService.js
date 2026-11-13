@@ -7963,7 +7963,7 @@ const getCategoryOverview = async (filters) => {
             WHERE ${buildCatConds(startDate, endDate)} AND ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} != 'Others'
         `),
         // Metrics
-        queryClickHouse(`SELECT lower(${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL}) as Category,
+        queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
             SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
@@ -7978,7 +7978,7 @@ const getCategoryOverview = async (filters) => {
             AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
-        queryClickHouse(`SELECT lower(${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL}) as Category,
+        queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
             SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
@@ -7994,14 +7994,14 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Category`),
         // Marketing Metrics from PM table
-        queryClickHouse(`SELECT lower(${pmSrc.f.category}) as Category,
+        queryClickHouse(`SELECT ${pmSrc.f.category} as Category,
             SUM(${pmSrc.f.spend}) as total_spend,
             SUM(${pmSrc.f.adSales}) as total_Ad_sales,
             SUM(${pmSrc.f.clicks}) as total_clicks,
             SUM(${pmSrc.f.impressions}) as total_impressions,
             SUM(${pmSrc.f.orders}) as total_orders
         FROM ${pmSrc.table} WHERE ${buildPmCatConds(startDate, endDate)} GROUP BY Category`),
-        queryClickHouse(`SELECT lower(${pmSrc.f.category}) as Category,
+        queryClickHouse(`SELECT ${pmSrc.f.category} as Category,
             SUM(${pmSrc.f.spend}) as total_spend,
             SUM(${pmSrc.f.adSales}) as total_Ad_sales,
             SUM(${pmSrc.f.clicks}) as total_clicks,
