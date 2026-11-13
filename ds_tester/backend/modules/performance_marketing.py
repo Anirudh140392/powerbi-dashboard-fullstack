@@ -159,7 +159,13 @@ KPIS_BY_SECTION = {
 
 def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
     """Dynamically fetches distinct platforms from ClickHouse rb_pm_olap for this client."""
-    db_name = client or "boat"
+    db_name = (client or "boat").strip().lower()
+
+    # Performance Marketing is explicitly hidden in the live dashboard for 'boat' and 'mamaearth'
+    # Reference: frontend/src/components/CommonLayout/Sidebar.jsx (hideForDb: ['mamaearth', 'boat'])
+    if db_name in ("boat", "mamaearth"):
+        return []
+
     try:
         query = f"SELECT DISTINCT Platform FROM {db_name}.rb_pm_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform"
         rows = execute_select_query(query, database=db_name)
@@ -226,7 +232,13 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
     - Campaign Quadrants (Q1–Q4): All Platforms, Quick Commerce, E-Commerce, and individual platforms
     - Keyword Type Performance: All Platforms, Quick Commerce, E-Commerce, and individual platforms
     """
-    db_name = client or "boat"
+    db_name = (client or "boat").strip().lower()
+
+    # Performance Marketing is explicitly hidden in the live dashboard for 'boat' and 'mamaearth'
+    # Reference: frontend/src/components/CommonLayout/Sidebar.jsx (hideForDb: ['mamaearth', 'boat'])
+    if db_name in ("boat", "mamaearth"):
+        return []
+
     try:
         cnt = execute_select_query(f"SELECT count() FROM {db_name}.rb_pm_olap", database=db_name)
         if not cnt or cnt[0][0] == 0:
