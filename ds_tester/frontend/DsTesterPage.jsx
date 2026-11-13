@@ -64,7 +64,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
   const [modules, setModules] = useState([]);
   const [selectedModule, setSelectedModule] = useState("");
   const [clients, setClients] = useState([]);
-  const [selectedClient, setSelectedClient] = useState("boat");
+  // Initialize empty; set to a valid client once /clients loads (avoids MUI out-of-range warning)
+  const [selectedClient, setSelectedClient] = useState("");
   const [watchLiveBrowser, setWatchLiveBrowser] = useState(true); // User toggle: true = visible Chrome window, false = headless background
   const [runsMap, setRunsMap] = useState({}); // key: `${module}:${segment}:${client}` -> run result object
   const [activeRunId, setActiveRunId] = useState(null);
@@ -128,6 +129,11 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const res = await axios.get(`${DS_TESTER_API}/clients`);
       if (Array.isArray(res.data) && res.data.length > 0) {
         setClients(res.data);
+        // Keep the selected client valid for the loaded list (avoids MUI out-of-range warning)
+        const ids = res.data.map((c) => c.id);
+        if (!ids.includes(selectedClient)) {
+          setSelectedClient(ids[0]);
+        }
       }
     } catch (err) {
       console.error("[DsTester] Failed to load clients:", err);

@@ -39,6 +39,9 @@ COPY trailytics_content_analysis/frontend/index.html ./trailytics_content_analys
 COPY trailytics_content_analysis/frontend/vite.config.ts ./trailytics_content_analysis/frontend/
 COPY trailytics_content_analysis/frontend/tsconfig*.json ./trailytics_content_analysis/frontend/
 
+# ── DS Tester page is imported directly by the admin UI ──
+COPY ds_tester/frontend/ ./ds_tester/frontend/
+
 # ── Build the main frontend (which compiles ratings & content analysis TSX inline) ──
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN cd frontend && npm run build

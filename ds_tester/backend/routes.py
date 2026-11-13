@@ -123,32 +123,33 @@ CLIENTS = [
 
 def get_dynamic_clients() -> List[Dict[str, Any]]:
     """
-    Fetches all active client workspaces dynamically from admin_master.tb_database in ClickHouse.
-    Ensures newly onboarded clients appear in DS Tester automatically without code changes.
+    Fetches all active client workspaces dynamically from admin_master.tb_database,
+    joining admin_master.tb_user on db_id so every workspace is backed by a real
+    database + user record instead of a hardcoded list.
     """
     try:
         from .step2_logic import execute_select_query
-        rows = execute_select_query("SELECT DISTINCT db_name FROM admin_master.tb_database WHERE status = 'active' ORDER BY db_name")
+        # Connect to the admin_master database (the 'boat' default DB does not exist on this ClickHouse)
+        rows = execute_select_query(
+            """
+            SELECT d.db_name, d.db_id, any(u.user_name) AS sample_user
+            FROM admin_master.tb_database d
+            LEFT JOIN admin_master.tb_user u ON u.db_id = d.db_id
+            WHERE d.status = 'active'
+            GROUP BY d.db_name, d.db_id
+            ORDER BY d.db_name
+            """,
+            database="admin_master",
+        )
         if rows:
-            label_map = {
-                "boat": "boAt",
-                "mars": "Mars Snacking",
-                "mars_petcare": "Mars Petcare",
-                "drl": "Dr. Reddy's",
-                "pidilite": "Pidilite",
-                "emami": "Emami",
-                "mamaearth": "Mamaearth",
-                "sugar": "Sugar Cosmetics",
-                "danone": "Danone",
-                "zydus": "Zydus",
-            }
             results = []
             for r in rows:
-                db_id = str(r[0]).strip().lower()
-                if not db_id or db_id in ("system", "default", "information_schema"):
+                db_name = str(r[0]).strip().lower() if r and r[0] else ""
+                if not db_name or db_name in ("system", "default", "information_schema"):
                     continue
-                label = label_map.get(db_id, db_id.replace("_", " ").title())
-                results.append({"id": db_id, "label": label, "category": None})
+                # Human-friendly label from the database name (e.g. "marico_beardo" -> "Marico Beardo")
+                label = db_name.replace("_", " ").title()
+                results.append({"id": db_name, "label": label, "category": None})
             if results:
                 return results
     except Exception:
@@ -171,18 +172,26 @@ def list_modules(client: Optional[str] = "boat"):
     """
     Returns available modules and their selectable segments dynamically for the client.
     Platforms are extracted dynamically from ClickHouse rca_sku_dim for that client.
+    A single module that fails to load its segments is skipped instead of breaking the
+    whole endpoint (e.g. when the client database is missing or ClickHouse is unreachable).
     """
     target_client = client or "boat"
     modules_list = []
     for mod_id, mod_cls in MODULES.items():
-        if hasattr(mod_cls, "get_segments"):
-            raw_segments = mod_cls.get_segments(client=target_client)
-        else:
-            raw_segments = mod_cls.segments
+        try:
+            if hasattr(mod_cls, "get_segments"):
+                raw_segments = mod_cls.get_segments(client=target_client) or []
+            else:
+                raw_segments = list(getattr(mod_cls, "segments", []) or [])
+        except Exception as exc:
+            # One failing module must not 500 the entire /modules endpoint
+            print(f"[DsTester] Skipping module '{mod_id}' (get_segments failed for client '{target_client}'): {exc}")
+            continue
 
         segments_list = [
             SegmentInfo(id=s["id"], label=s["label"])
             for s in raw_segments
+            if isinstance(s, dict) and s.get("id") and s.get("label")
         ]
         if not segments_list:
             continue

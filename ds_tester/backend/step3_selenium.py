@@ -38,6 +38,20 @@ def create_chrome_driver(headless: bool = False) -> webdriver.Chrome:
         options.add_argument("--disable-notifications")
 
     options.add_argument("--disable-extensions")
+
+    # Container-friendly configuration. Chrome refuses to run as root without
+    # --no-sandbox, and /dev/shm is small inside Docker by default. A container
+    # also has no display, so visible mode must fall back to headless.
+    chrome_bin = os.getenv("CHROME_BIN")
+    if chrome_bin:
+        options.binary_location = chrome_bin
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+    if os.getenv("DS_TESTER_FORCE_HEADLESS") == "1":
+        headless = True
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
     # Suppress verbose DevTools logging
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
