@@ -14,6 +14,8 @@ _latest_by_segment: Dict[str, str] = {}  # key: "{module}:{segment}:{client}" ->
 # Concurrency lock: Only one run at a time (Selenium is blocking)
 _runner_mutex = threading.Lock()
 _is_busy: bool = False
+_active_driver: Any = None
+_abort_requested: bool = False
 
 
 def is_runner_busy() -> bool:
@@ -21,12 +23,19 @@ def is_runner_busy() -> bool:
     return _is_busy
 
 
+def get_active_run() -> Optional[Dict[str, Any]]:
+    for r in _runs.values():
+        if r.get("status") in ("running", "pending") or r.get("overall") in ("RUNNING", "PENDING"):
+            return r
+    return None
+
+
 def start_test_run(module_name: str, segment: str, period: Any, client: Optional[str] = "boat", headless: bool = False) -> Dict[str, Any]:
     """
     Enqueues a test run in a background worker thread for a single segment.
     Returns the run_id, or a clear busy response if another run is in progress.
     """
-    global _is_busy
+    global _is_busy, _abort_requested
     with _runner_mutex:
         if _is_busy:
             return {
@@ -34,6 +43,7 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
                 "message": "Another test run is currently in progress. DS Tester allows only one run at a time.",
             }
         _is_busy = True
+        _abort_requested = False
 
     module = get_module(module_name)
     if not module:
@@ -121,7 +131,7 @@ def start_module_batch_run(
     Enqueues a batch test run for ALL segments in the specified module using the same filter.
     Shares a single live Chrome session across all segments for maximum speed and smoothness.
     """
-    global _is_busy
+    global _is_busy, _abort_requested
     with _runner_mutex:
         if _is_busy:
             return {
@@ -129,6 +139,7 @@ def start_module_batch_run(
                 "message": "Another test run is currently in progress. DS Tester allows only one run at a time.",
             }
         _is_busy = True
+        _abort_requested = False
 
     module = get_module(module_name)
     if not module:
@@ -252,6 +263,7 @@ def _execute_single_run(
     Executes Step 1, Step 2, and Step 3 for a single segment run and populates results.
     If existing_driver is provided, it reuses that Chrome driver without terminating it.
     """
+    global _active_driver
     api_results: Dict[str, Optional[float]] = {}
     logic_results: Dict[str, Optional[float]] = {}
     ui_raw_results: Dict[str, Optional[str]] = {}
@@ -261,6 +273,13 @@ def _execute_single_run(
     ui_err: Optional[str] = None
 
     try:
+        if _abort_requested or run.get("status") == "cancelled":
+            run["status"] = "cancelled"
+            run["overall"] = "CANCELLED"
+            run["finished_at"] = datetime.now().isoformat()
+            run["live_step"] = "Test run cancelled by user."
+            return
+
         # Step 1: API
         run["steps"]["api"]["status"] = "running"
         try:
@@ -270,6 +289,13 @@ def _execute_single_run(
             api_err = str(e)
             run["steps"]["api"]["status"] = "failed"
             run["steps"]["api"]["error"] = api_err
+
+        if _abort_requested or run.get("status") == "cancelled":
+            run["status"] = "cancelled"
+            run["overall"] = "CANCELLED"
+            run["finished_at"] = datetime.now().isoformat()
+            run["live_step"] = "Test run cancelled by user."
+            return
 
         # Step 2: Logic (ClickHouse OLAP)
         run["steps"]["logic"]["status"] = "running"
@@ -281,12 +307,21 @@ def _execute_single_run(
             run["steps"]["logic"]["status"] = "failed"
             run["steps"]["logic"]["error"] = logic_err
 
+        if _abort_requested or run.get("status") == "cancelled":
+            run["status"] = "cancelled"
+            run["overall"] = "CANCELLED"
+            run["finished_at"] = datetime.now().isoformat()
+            run["live_step"] = "Test run cancelled by user."
+            return
+
         # Step 3: UI (Selenium Chrome)
         run["steps"]["ui"]["status"] = "running"
         driver = existing_driver
         owns_driver = False
 
         def on_live_step(action_text: str):
+            if _abort_requested:
+                raise RuntimeError("Test run cancelled by user.")
             full_text = f"{prefix_step} {action_text}".strip() if prefix_step else action_text
             run["live_step"] = full_text
             if driver is not None:
@@ -300,6 +335,7 @@ def _execute_single_run(
             if driver is None:
                 driver = create_chrome_driver(headless=headless)
                 owns_driver = True
+            _active_driver = driver
 
             ui_raw_results = module.step3_ui(
                 driver,
@@ -312,6 +348,12 @@ def _execute_single_run(
             run["steps"]["ui"]["status"] = "done"
             run["live_step"] = f"{prefix_step} Live UI verification complete!".strip()
         except Exception as e:
+            if _abort_requested or run.get("status") == "cancelled":
+                run["status"] = "cancelled"
+                run["overall"] = "CANCELLED"
+                run["finished_at"] = datetime.now().isoformat()
+                run["live_step"] = "Test run cancelled by user."
+                return
             ui_err = str(e)
             run["steps"]["ui"]["status"] = "failed"
             run["steps"]["ui"]["error"] = ui_err
@@ -322,6 +364,7 @@ def _execute_single_run(
                     driver.quit()
                 except Exception:
                     pass
+                _active_driver = None
 
         # Comparison per KPI
         kpi_results = []
@@ -375,6 +418,13 @@ def _execute_single_run(
             run["overall"] = "PASS"
 
     except Exception as exc:
+        if _abort_requested or run.get("status") == "cancelled":
+            run["status"] = "cancelled"
+            run["overall"] = "CANCELLED"
+            run["finished_at"] = datetime.now().isoformat()
+            run["live_step"] = "Test run cancelled by user."
+            return
+
         run["status"] = "error"
         run["overall"] = "ERROR"
         run["finished_at"] = datetime.now().isoformat()
@@ -408,13 +458,16 @@ def _run_batch_worker(
     client: str = "boat",
     headless: bool = False,
 ):
-    global _is_busy
+    global _is_busy, _active_driver, _abort_requested
     driver = None
     try:
         # Create single shared Chrome driver for the entire batch to verify sequentially in one browser session
         driver = create_chrome_driver(headless=headless)
+        _active_driver = driver
 
         for idx, (run_id, seg) in enumerate(zip(run_ids, segments)):
+            if _abort_requested:
+                break
             run = _runs[run_id]
             run["status"] = "running"
             run["overall"] = "RUNNING"
@@ -431,6 +484,8 @@ def _run_batch_worker(
                 existing_driver=driver,
                 prefix_step=f"[{idx + 1}/{len(segments)}]",
             )
+            if _abort_requested:
+                break
 
     except Exception as e:
         print(f"[DS Tester] Fatal error in batch worker ({batch_id}): {e}")
@@ -440,6 +495,7 @@ def _run_batch_worker(
                 driver.quit()
             except Exception:
                 pass
+        _active_driver = None
         with _runner_mutex:
             _is_busy = False
 
@@ -457,3 +513,38 @@ def get_latest_runs() -> List[Dict[str, Any]]:
         if r_id in _runs:
             latest.append(_runs[r_id])
     return latest
+
+
+def cancel_active_run() -> Dict[str, Any]:
+    """
+    Terminates active Selenium Chrome instance, cancels running/pending runs,
+    and releases the runner mutex immediately.
+    """
+    global _is_busy, _active_driver, _abort_requested
+    _abort_requested = True
+
+    if _active_driver is not None:
+        try:
+            _active_driver.quit()
+        except Exception:
+            pass
+        _active_driver = None
+
+    cancelled_ids = []
+    now_iso = datetime.now().isoformat()
+    for r_id, r in _runs.items():
+        if r.get("status") in ("running", "pending") or r.get("overall") in ("RUNNING", "PENDING"):
+            r["status"] = "cancelled"
+            r["overall"] = "CANCELLED"
+            r["finished_at"] = now_iso
+            r["live_step"] = "Test run cancelled by user."
+            cancelled_ids.append(r_id)
+
+    with _runner_mutex:
+        _is_busy = False
+
+    return {
+        "success": True,
+        "cancelled_runs": cancelled_ids,
+        "message": "Active test run has been cancelled and runner is now available.",
+    }

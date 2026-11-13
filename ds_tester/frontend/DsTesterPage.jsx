@@ -73,6 +73,7 @@ export default function DsTesterPage({ isEmbedded = false }) {
   const [busyMessage, setBusyMessage] = useState(null);
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [batchQueue, setBatchQueue] = useState([]);
+  const [cancelling, setCancelling] = useState(false);
 
   // Time Period Popup State - dynamically synced with active dashboard FilterContext
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -154,15 +155,60 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const res = await axios.get(`${DS_TESTER_API}/runs`);
       if (Array.isArray(res.data)) {
         const map = {};
+        let runningRun = null;
         res.data.forEach((r) => {
           const c = r.client || "boat";
           const key = `${r.module.toLowerCase()}:${r.segment.toLowerCase()}:${c.toLowerCase()}`;
           map[key] = r;
+          if (r.status === "running" || r.overall === "RUNNING") {
+            runningRun = r;
+          }
         });
         setRunsMap(map);
+
+        if (runningRun) {
+          setActiveRunId(runningRun.run_id);
+          setActiveRunData(runningRun);
+          if (runningRun.client) setSelectedClient(runningRun.client);
+          if (runningRun.module) setSelectedModule(runningRun.module);
+        }
+      }
+
+      // Check active endpoint to catch running background tests immediately upon page reload
+      try {
+        const activeRes = await axios.get(`${DS_TESTER_API}/active`);
+        if (activeRes.data?.has_active_run && activeRes.data.run) {
+          const r = activeRes.data.run;
+          setActiveRunId(r.run_id);
+          setActiveRunData(r);
+          const c = r.client || "boat";
+          const key = `${r.module.toLowerCase()}:${r.segment.toLowerCase()}:${c.toLowerCase()}`;
+          setRunsMap((prev) => ({ ...prev, [key]: r }));
+          if (r.client) setSelectedClient(r.client);
+          if (r.module) setSelectedModule(r.module);
+        }
+      } catch (err) {
+        // Non-blocking
       }
     } catch (err) {
       console.error("[DsTester] Failed to restore session runs:", err);
+    }
+  };
+
+  const handleCancelRun = async () => {
+    setCancelling(true);
+    try {
+      await axios.post(`${DS_TESTER_API}/cancel`);
+      setActiveRunId(null);
+      setActiveRunData(null);
+      setBusyMessage(null);
+      setIsBatchMode(false);
+      setBatchQueue([]);
+      await fetchSessionRuns();
+    } catch (err) {
+      console.error("[DsTester] Failed to cancel active run:", err);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -588,6 +634,22 @@ export default function DsTesterPage({ isEmbedded = false }) {
       );
     }
 
+    if (run.status === "cancelled" || run.overall === "CANCELLED") {
+      return (
+        <Chip
+          label="CANCELLED"
+          size="small"
+          sx={{
+            bgcolor: "#f1f5f9",
+            color: "#64748b",
+            fontWeight: 700,
+            fontSize: "12px",
+            border: "1px dashed #94a3b8",
+          }}
+        />
+      );
+    }
+
     if (run.overall === "PASS") {
       return (
         <Chip
@@ -714,7 +776,40 @@ export default function DsTesterPage({ isEmbedded = false }) {
         </Box>
 
         {busyMessage && (
-          <Alert severity="warning" sx={{ mb: 3, borderRadius: "12px" }} onClose={() => setBusyMessage(null)}>
+          <Alert
+            severity="warning"
+            sx={{
+              mb: 3,
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              "& .MuiAlert-message": { flex: 1 },
+            }}
+            action={
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Button
+                  color="error"
+                  size="small"
+                  variant="contained"
+                  disabled={cancelling}
+                  onClick={handleCancelRun}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    borderRadius: "8px",
+                    bgcolor: "#dc2626",
+                    "&:hover": { bgcolor: "#b91c1c" },
+                  }}
+                >
+                  {cancelling ? "Stopping..." : "Stop Running Test"}
+                </Button>
+                <IconButton size="small" onClick={() => setBusyMessage(null)}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            }
+          >
             {busyMessage}
           </Alert>
         )}
@@ -1363,6 +1458,27 @@ export default function DsTesterPage({ isEmbedded = false }) {
               </Box>
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                {activeRunData.status === "running" && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    disabled={cancelling}
+                    onClick={handleCancelRun}
+                    sx={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "none",
+                      minWidth: "auto",
+                      p: "2px 8px",
+                      borderColor: "#f87171",
+                      color: "#f87171",
+                      "&:hover": { borderColor: "#ef4444", bgcolor: "rgba(239, 68, 68, 0.15)" },
+                    }}
+                  >
+                    {cancelling ? "Stopping..." : "Stop Test"}
+                  </Button>
+                )}
                 <Button
                   size="small"
                   onClick={() => setLiveScreenMinimized(!liveScreenMinimized)}

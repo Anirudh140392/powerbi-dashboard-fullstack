@@ -4,7 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .modules import MODULES
-from .runner import start_test_run, start_module_batch_run, get_run, get_latest_runs, is_runner_busy
+from .runner import (
+    start_test_run,
+    start_module_batch_run,
+    get_run,
+    get_latest_runs,
+    is_runner_busy,
+    get_active_run,
+    cancel_active_run,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +276,29 @@ def list_latest_runs():
     Retrieves the latest result per module+segment in the current session.
     """
     return get_latest_runs()
+
+
+@router.get("/active")
+def get_active_test_status():
+    """
+    Checks if a test is currently running and returns the active run data if present.
+    Allows reconnected browser tabs to seamlessly attach to running tests.
+    """
+    active_run = get_active_run()
+    return {
+        "busy": is_runner_busy(),
+        "has_active_run": active_run is not None,
+        "run": active_run,
+    }
+
+
+@router.post("/cancel")
+def cancel_active_test():
+    """
+    Cancels any active running test run, immediately terminating Selenium Chrome
+    and releasing the runner mutex so a new test can be started right away.
+    """
+    return cancel_active_run()
 
 
 # ---------------------------------------------------------------------------
