@@ -51,9 +51,11 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
     chan_filter = info.get("channel") or "all"
     
     # Dynamically resolve channel associated with this platform / client
-    if chan_filter and chan_filter != "all":
+    if chan_filter and chan_filter.lower() != "all":
         dynamic_ch = chan_filter
-    elif hasattr(module, "get_channel_for_platform") and plat_filter and plat_filter != "all":
+    elif chan_filter and chan_filter.lower() == "all":
+        dynamic_ch = "All"
+    elif hasattr(module, "get_channel_for_platform") and plat_filter and plat_filter.lower() != "all":
         dynamic_ch = module.get_channel_for_platform(target_client, plat_filter)
     elif hasattr(module, "get_default_channel_for_client"):
         dynamic_ch = module.get_default_channel_for_client(target_client)
@@ -172,9 +174,11 @@ def start_module_batch_run(
         plat_filter = info.get("platform") or "all"
         chan_filter = info.get("channel") or "all"
 
-        if chan_filter and chan_filter != "all":
+        if chan_filter and chan_filter.lower() != "all":
             dynamic_ch = chan_filter
-        elif hasattr(module, "get_channel_for_platform") and plat_filter and plat_filter != "all":
+        elif chan_filter and chan_filter.lower() == "all":
+            dynamic_ch = "All"
+        elif hasattr(module, "get_channel_for_platform") and plat_filter and plat_filter.lower() != "all":
             dynamic_ch = module.get_channel_for_platform(target_client, plat_filter)
         elif hasattr(module, "get_default_channel_for_client"):
             dynamic_ch = module.get_default_channel_for_client(target_client)

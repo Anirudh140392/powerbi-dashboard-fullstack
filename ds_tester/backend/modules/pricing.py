@@ -221,7 +221,8 @@ def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str
             "id": "platform_overview",
             "label": "Platform Overview (Dimension Table)",
             "section": "platform_overview",
-            "platform": None,
+            "platform": "ALL",
+            "channel": "ALL",
         }
 
     # Dynamic platform segment from ID, e.g. 'pricing_overview_blinkit'
@@ -382,9 +383,6 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 
     elif section == "platform_overview":
         api_params = {"dimension": "platform"}
-        default_channel = get_default_channel_for_client(db_name)
-        if default_channel:
-            api_params["channel"] = default_channel
 
         data = call_platform_api(
             endpoint="/api/pricing-analysis/dimension-overview",
@@ -396,6 +394,8 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         plat_map = {}
         for r in rows:
             p_name = str(r.get("name") or r.get("key") or "").lower()
+            if not p_name or p_name in plat_map:
+                continue
             cell = r.get("data", {})
             disc = cell.get("discount", {}).get("value")
             asp = cell.get("asp", {}).get("value")
@@ -520,28 +520,24 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         }
 
     elif section == "platform_overview":
-        default_channel = get_default_channel_for_client(db_name)
-        channel_filter = ""
-        if default_channel:
-            ch_col = resolve_table_column(db_name, "rb_pdp_olap", "channel")
-            channel_filter = f"AND lower({ch_col}) = '{default_channel.lower()}'"
-
         query = f"""
         SELECT
-            lower(Platform) AS plat,
-            (SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND Comp_flag = '0' THEN MRP ELSE 0 END) - SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND Comp_flag = '0' THEN Selling_Price ELSE 0 END)) / NULLIF(SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND Comp_flag = '0' THEN MRP ELSE 0 END), 0) * 100 AS discount,
-            AVG(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND Comp_flag = '0' AND Selling_Price > 0 AND neno_osa > 0 THEN Selling_Price ELSE NULL END) AS asp
+            Platform AS plat,
+            (SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND toString(Comp_flag) = '0' THEN MRP ELSE 0 END) - SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND toString(Comp_flag) = '0' THEN Selling_Price ELSE 0 END)) / NULLIF(SUM(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND MRP > 0 AND toString(Comp_flag) = '0' THEN MRP ELSE 0 END), 0) * 100 AS discount,
+            AVG(CASE WHEN DATE BETWEEN '{start_date}' AND '{end_date}' AND toString(Comp_flag) = '0' AND Selling_Price > 0 AND neno_osa > 0 THEN Selling_Price ELSE NULL END) AS asp
         FROM rb_pdp_olap
         WHERE DATE BETWEEN '{start_date}' AND '{end_date}'
           AND Selling_Price > 0 AND Brand IS NOT NULL AND Brand != ''
-          {channel_filter}
         GROUP BY plat
-        HAVING countIf(Comp_flag = '0') > 0
+        HAVING countIf(toString(Comp_flag) = '0') > 0
+        ORDER BY discount DESC
         """
         rows = execute_select_query(query, database=db_name)
         plat_map = {}
         for r in rows:
             p_name = str(r[0] or "").lower()
+            if not p_name or p_name in plat_map:
+                continue
             disc = float(r[1]) if r[1] is not None else None
             asp = float(r[2]) if r[2] is not None else None
             plat_map[p_name] = {"discount": disc, "asp": asp}
