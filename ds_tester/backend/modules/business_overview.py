@@ -469,14 +469,14 @@ def step3_ui(
         """)
         time.sleep(1.5)
 
-        res = driver.execute_script("""
-            const topGrid = document.querySelector('.grid.grid-cols-1.sm\\\\:grid-cols-2.lg\\\\:grid-cols-5');
+        res = driver.execute_script(r"""
+            const topGrid = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-5');
             if (!topGrid) return {};
             
             const metrics = {};
             for (const child of topGrid.children) {
                 const txt = (child.innerText || '').trim();
-                const lines = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                const lines = txt.split(String.fromCharCode(10)).map(s => s.trim()).filter(Boolean);
                 if (lines.length >= 3) {
                     const val = lines[1];
                     const title = lines[lines.length - 1].toLowerCase();
