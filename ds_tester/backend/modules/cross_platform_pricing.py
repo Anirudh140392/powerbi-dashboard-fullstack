@@ -418,11 +418,11 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
                 {location_col} as location_raw,
                 countDistinct({product_col}) as total_skus,
                 countIf(
-                    toFloat64OrZero(toString({mrp_col})) > 0 
-                    AND toFloat64OrZero(toString({sp_col})) > 0 
+                    {mrp_col} > 0 
+                    AND {sp_col} > 0 
                     AND (
-                        ((toFloat64OrZero(toString({mrp_col})) - toFloat64OrZero(toString({sp_col}))) / NULLIF(toFloat64OrZero(toString({mrp_col})), 0) * 100) > 20 
-                        OR ((toFloat64OrZero(toString({mrp_col})) - toFloat64OrZero(toString({sp_col}))) / NULLIF(toFloat64OrZero(toString({mrp_col})), 0) * 100) <= 0
+                        (({mrp_col} - {sp_col}) / NULLIF({mrp_col}, 0) * 100) > 20 
+                        OR (({mrp_col} - {sp_col}) / NULLIF({mrp_col}, 0) * 100) <= 0
                     )
                 ) as breach_count
             FROM (
@@ -430,8 +430,8 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
                     {location_col}, 
                     {product_col}, 
                     {platform_col},
-                    max(toFloat64OrZero(toString({mrp_col}))) as {mrp_col}, 
-                    min(toFloat64OrZero(toString({sp_col}))) as {sp_col}
+                    max({mrp_col}) as {mrp_col}, 
+                    min({sp_col}) as {sp_col}
                 FROM {db_name}.rb_pdp_olap
                 WHERE {date_col} BETWEEN '{start_date}' AND '{end_date}'
                   AND (toString({comp_col}) = '0' OR {comp_col} = 0)
@@ -493,7 +493,7 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
                 mrp = float(r[3] or 0)
                 sp = float(r[4] or 0)
                 oos = (r[5] == 0 or sp == 0)
-                disc = ((mrp - sp) / mrp * 100.0) if (mrp > 0 and sp > 0) else 0.0
+                disc = round(((mrp - sp) / mrp * 100.0), 4) if (mrp > 0 and sp > 0) else 0.0
                 if (not oos) and (disc > 20.0 or disc <= 0.0):
                     sku_map[k] = True
 
@@ -551,7 +551,7 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
             mrp = float(r[3] or 0)
             sp = float(r[4] or 0)
             out_of_stock = (r[5] == 0 or sp == 0)
-            disc = ((mrp - sp) / mrp * 100.0) if (mrp > 0 and sp > 0) else 0.0
+            disc = round(((mrp - sp) / mrp * 100.0), 4) if (mrp > 0 and sp > 0) else 0.0
             is_breach = (not out_of_stock) and (disc > 20.0 or disc <= 0.0)
             if is_breach:
                 sku_map[key]["hasBreach"] = True
