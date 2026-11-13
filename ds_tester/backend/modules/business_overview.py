@@ -295,19 +295,26 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         FROM {db_name}.rb_pdp_olap
         WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
           AND toString(Comp_flag) = '0'
-          AND {cat_col} IS NOT NULL AND {cat_col} != ''
+          AND {cat_col} IS NOT NULL AND {cat_col} != '' AND lower({cat_col}) != 'others'
         """
         res_cat = execute_select_query(q_cat, database=db_name)
         num_cats = int(res_cat[0][0]) if res_cat and res_cat[0] and res_cat[0][0] else None
         tot_offtake = float(res_cat[0][1]) if res_cat and res_cat[0] and res_cat[0][1] is not None else None
 
-        # Fetch Category Spend & ROAS from rb_pm_olap
+        # Fetch Category Spend & ROAS from rb_pm_olap strictly for the active categories
         q_pm = f"""
         SELECT 
             sum(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) / 10000000.0 as spends_cr,
             sum(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) / nullIf(sum(ifNull(toFloat64OrZero(toString(ad_spend)), 0)), 0) as roas
         FROM {db_name}.rb_pm_olap
         WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+          AND lower(category) IN (
+              SELECT DISTINCT lower({cat_col})
+              FROM {db_name}.rb_pdp_olap
+              WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+                AND toString(Comp_flag) = '0'
+                AND {cat_col} IS NOT NULL AND {cat_col} != '' AND lower({cat_col}) != 'others'
+          )
         """
         res_pm = execute_select_query(q_pm, database=db_name)
         tot_spend_cr = float(res_pm[0][0]) if res_pm and res_pm[0] and res_pm[0][0] is not None else None
