@@ -48,7 +48,8 @@ CORE_SECTIONS = [
         "id": "platform_overview",
         "label": "Platform Overview (Dimension Table)",
         "section": "platform_overview",
-        "platform": None,
+        "platform": "ALL",
+        "channel": "ALL",
     },
 ]
 
@@ -193,10 +194,15 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
         "id": "platform_overview",
         "label": "Platform Overview (Dimension Table)",
         "section": "platform_overview",
-        "platform": None,
+        "platform": "ALL",
+        "channel": "ALL",
     })
 
     return segs
+
+
+def get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str, Any]:
+    return _get_segment_info(segment_id, client=client)
 
 
 def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str, Any]:
@@ -703,6 +709,10 @@ class PricingModule:
     @staticmethod
     def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
         return get_segments(client)
+
+    @staticmethod
+    def get_segment_info(segment: str, client: Optional[str] = None) -> Dict[str, Any]:
+        return _get_segment_info(segment, client=client)
 
     @staticmethod
     def _get_segment_info(segment: str, client: Optional[str] = None) -> Dict[str, Any]:

@@ -89,7 +89,8 @@ def _parse_currency_cr(val: Any) -> Optional[float]:
         return num / 100.0
     elif "k" in s:
         return num / 10000.0
-    return num
+    # Raw rupee amount without Cr/Lac/K suffix: convert to Crores (1 Cr = 10,000,000)
+    return num / 10000000.0
 
 
 def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -256,9 +257,40 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
         }
 
     elif segment == "business_overview_platform":
+        buymore_exists = False
+        try:
+            check_bm = execute_select_query(f"SELECT count() FROM system.tables WHERE database = '{db_name}' AND name = 'buymore_rb_pdp_olap'", database=db_name)
+            buymore_exists = bool(check_bm and check_bm[0] and check_bm[0][0])
+        except Exception:
+            buymore_exists = False
+
+        if buymore_exists:
+            q_plat_cnt = f"""
+            SELECT count(DISTINCT lower(p)) + 1 FROM (
+                SELECT platform as p FROM {db_name}.rca_sku_dim WHERE platform IS NOT NULL AND platform != ''
+                UNION ALL
+                SELECT Platform as p FROM {db_name}.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''
+            )
+            """
+        else:
+            q_plat_cnt = f"""
+            SELECT count(DISTINCT lower(platform)) + 1
+            FROM {db_name}.rca_sku_dim
+            WHERE platform IS NOT NULL AND platform != ''
+            """
+        try:
+            res_p_cnt = execute_select_query(q_plat_cnt, database=db_name)
+            p_count = int(res_p_cnt[0][0]) if res_p_cnt and res_p_cnt[0] and res_p_cnt[0][0] else None
+        except Exception:
+            p_count = None
+
+        if not p_count:
+            q_plat_fb = f"SELECT count(DISTINCT lower(Platform)) + 1 FROM {db_name}.rb_pdp_olap WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}' AND toString(Comp_flag) = '0'"
+            res_plat_fb = execute_select_query(q_plat_fb, database=db_name)
+            p_count = int(res_plat_fb[0][0]) if res_plat_fb and res_plat_fb[0] and res_plat_fb[0][0] else None
+
         q_plat = f"""
         SELECT 
-            count(DISTINCT lower(Platform)) as num_platforms,
             sum(ifNull(toFloat64OrZero(toString({sales_col})), 0)) / 10000000.0 as offtake_cr,
             (sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) / nullIf(sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)) * 100 as osa
         FROM {db_name}.rb_pdp_olap
@@ -266,9 +298,8 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
           AND toString(Comp_flag) = '0'
         """
         res_plat = execute_select_query(q_plat, database=db_name)
-        p_count = (int(res_plat[0][0]) + 1) if res_plat and res_plat[0] and res_plat[0][0] else None
-        tot_offtake = float(res_plat[0][1]) if res_plat and res_plat[0] and res_plat[0][1] is not None else None
-        tot_osa = float(res_plat[0][2]) if res_plat and res_plat[0] and res_plat[0][2] is not None else None
+        tot_offtake = float(res_plat[0][0]) if res_plat and res_plat[0] and res_plat[0][0] is not None else None
+        tot_osa = float(res_plat[0][1]) if res_plat and res_plat[0] and res_plat[0][1] is not None else None
 
         q_sos = f"""
         SELECT 
@@ -288,15 +319,51 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 
     elif segment == "business_overview_category":
         cat_col = resolve_table_column(db_name, "rb_pdp_olap", "Category")
-        q_cat = f"""
-        SELECT 
-            count(DISTINCT lower({cat_col})) as num_cats,
-            sum(ifNull(toFloat64OrZero(toString({sales_col})), 0)) / 10000000.0 as offtake_cr
-        FROM {db_name}.rb_pdp_olap
-        WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
-          AND toString(Comp_flag) = '0'
-          AND {cat_col} IS NOT NULL AND {cat_col} != '' AND lower({cat_col}) != 'others'
-        """
+        buymore_exists = False
+        try:
+            check_bm = execute_select_query(f"SELECT count() FROM system.tables WHERE database = '{db_name}' AND name = 'buymore_rb_pdp_olap'", database=db_name)
+            buymore_exists = bool(check_bm and check_bm[0] and check_bm[0][0])
+        except Exception:
+            buymore_exists = False
+
+        if buymore_exists:
+            q_cat = f"""
+            SELECT 
+                count(DISTINCT lower(cat)) as num_cats,
+                sum(offtake) / 10000000.0 as offtake_cr
+            FROM (
+                SELECT lower({cat_col}) as cat, ifNull(toFloat64OrZero(toString({sales_col})), 0) as offtake
+                FROM {db_name}.rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+                  AND toString(Comp_flag) = '0'
+                  AND {cat_col} IS NOT NULL AND {cat_col} != ''
+                UNION ALL
+                SELECT ifNull(nullIf(trim(category), ''), 'Other') as cat, ifNull(toFloat64OrZero(toString(Sales)), 0) as offtake
+                FROM {db_name}.buymore_rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+            )
+            """
+            cat_subquery = f"""
+            SELECT DISTINCT lower(cat) FROM (
+                SELECT lower({cat_col}) as cat FROM {db_name}.rb_pdp_olap WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}' AND toString(Comp_flag) = '0' AND {cat_col} IS NOT NULL AND {cat_col} != ''
+                UNION ALL
+                SELECT ifNull(nullIf(trim(category), ''), 'Other') as cat FROM {db_name}.buymore_rb_pdp_olap WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+            )
+            """
+        else:
+            q_cat = f"""
+            SELECT 
+                count(DISTINCT lower({cat_col})) as num_cats,
+                sum(ifNull(toFloat64OrZero(toString({sales_col})), 0)) / 10000000.0 as offtake_cr
+            FROM {db_name}.rb_pdp_olap
+            WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+              AND toString(Comp_flag) = '0'
+              AND {cat_col} IS NOT NULL AND {cat_col} != ''
+            """
+            cat_subquery = f"""
+            SELECT DISTINCT lower({cat_col}) FROM {db_name}.rb_pdp_olap WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}' AND toString(Comp_flag) = '0' AND {cat_col} IS NOT NULL AND {cat_col} != ''
+            """
+
         res_cat = execute_select_query(q_cat, database=db_name)
         num_cats = int(res_cat[0][0]) if res_cat and res_cat[0] and res_cat[0][0] else None
         tot_offtake = float(res_cat[0][1]) if res_cat and res_cat[0] and res_cat[0][1] is not None else None
@@ -308,13 +375,7 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
             sum(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) / nullIf(sum(ifNull(toFloat64OrZero(toString(ad_spend)), 0)), 0) as roas
         FROM {db_name}.rb_pm_olap
         WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
-          AND lower(category) IN (
-              SELECT DISTINCT lower({cat_col})
-              FROM {db_name}.rb_pdp_olap
-              WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
-                AND toString(Comp_flag) = '0'
-                AND {cat_col} IS NOT NULL AND {cat_col} != '' AND lower({cat_col}) != 'others'
-          )
+          AND lower(category) IN ({cat_subquery})
         """
         res_pm = execute_select_query(q_pm, database=db_name)
         tot_spend_cr = float(res_pm[0][0]) if res_pm and res_pm[0] and res_pm[0][0] is not None else None
@@ -488,12 +549,13 @@ def step3_ui(
                 }
             }
             
-            // Count platform entities
-            const candidateEntities = ['all', 'amazon', 'blinkit', 'zepto', 'instamart', 'flipkart', 'swiggy', 'bigbasket', 'myntra', 'nykaa', 'jiomart'];
+            // Count platform entities dynamically (from pagination total or rendered rows)
             let count = 0;
-            const allText = Array.from(container.querySelectorAll('div, button')).map(el => (el.innerText || '').trim().toLowerCase());
-            for (const ent of candidateEntities) {
-                if (allText.some(t => t.startsWith(ent + '\\n') || t.startsWith(ent + ' ') || t === ent)) count++;
+            const paginationMatch = (container.innerText || '').match(/of\s+(\d+)\s+entries/i);
+            if (paginationMatch) {
+                count = parseInt(paginationMatch[1]);
+            } else {
+                count = rows.length;
             }
             
             return {
@@ -603,12 +665,14 @@ def step3_ui(
         res = driver.execute_script("""
             const tables = Array.from(document.querySelectorAll('table'));
             let totalRow = null;
+            let targetTable = null;
             for (const t of tables) {
                 const trs = Array.from(t.querySelectorAll('tr'));
                 for (const tr of trs) {
                     const cells = Array.from(tr.querySelectorAll('td, th')).map(c => c.innerText.trim());
                     if (cells[0] && cells[0].toLowerCase().startsWith('total')) {
                         totalRow = cells;
+                        targetTable = t;
                         break;
                     }
                 }
@@ -617,19 +681,27 @@ def step3_ui(
             
             if (!totalRow) return {};
             
-            const cleanCell = (c) => c ? c.split('\\n')[0].trim() : null;
-            const impr = cleanCell(totalRow[1]);
-            const ctr = cleanCell(totalRow[3]);
-            const spend = cleanCell(totalRow[5]);
-            const sales = cleanCell(totalRow[10]);
+            const targetT = targetTable || (totalRow ? document.querySelector('table') : null);
+            const headers = Array.from(targetT ? targetT.querySelectorAll('thead th') : []).map(th => th.innerText.trim().toLowerCase());
+            const findCol = (predicate) => headers.findIndex(predicate);
+            const imprIdx = findCol(h => h.includes('impression'));
+            const ctrIdx = findCol(h => h === 'ctr' || (h.includes('ctr') && !h.includes('cpc')));
+            const spendIdx = findCol(h => (h === 'spends' || h.endsWith('spends')) && !h.includes('%'));
+            const salesIdx = findCol(h => (h.includes('sales') || h.includes('revenue')) && !h.includes('%'));
+
+            const cleanCell = (c) => c ? c.split('\n')[0].trim() : null;
+            const impr = imprIdx >= 0 && imprIdx < totalRow.length ? cleanCell(totalRow[imprIdx]) : cleanCell(totalRow[1]);
+            const ctr = ctrIdx >= 0 && ctrIdx < totalRow.length ? cleanCell(totalRow[ctrIdx]) : cleanCell(totalRow[3]);
+            const spend = spendIdx >= 0 && spendIdx < totalRow.length ? cleanCell(totalRow[spendIdx]) : cleanCell(totalRow[5]);
+            const sales = salesIdx >= 0 && salesIdx < totalRow.length ? cleanCell(totalRow[salesIdx]) : cleanCell(totalRow[totalRow.length - 1]);
             
             let roas = null;
             const parseAmount = (str) => {
                 if (!str) return 0;
                 const s = str.toLowerCase();
-                const m = s.match(/([\\d.]+)/);
+                const m = s.match(/([\d,]+(?:\.\d+)?)/);
                 if (!m) return 0;
-                const num = parseFloat(m[1]);
+                const num = parseFloat(m[1].replace(/,/g, ''));
                 if (s.includes('cr')) return num * 10000000;
                 if (s.includes('lac') || s.includes('lakh')) return num * 100000;
                 if (s.includes('k')) return num * 1000;

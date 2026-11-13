@@ -903,7 +903,22 @@ def step3_ui(
             for attempt in range(15):
                 scraped = driver.execute_script(r"""
                     const res = {};
-                    const gradients = Array.from(document.querySelectorAll('div')).filter(d => (d.getAttribute('style') || '').includes('gradient') || (d.className || '').includes('bg-indigo-50'));
+
+                    // Ensure 'All' keyword type filter is selected if present
+                    const allBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                        const t = (b.innerText || '').trim();
+                        return t === 'All' && (
+                            (b.style.borderRadius && b.style.borderRadius.includes('20')) || 
+                            (b.className || '').includes('rounded-full') ||
+                            (b.parentElement && (b.parentElement.innerText || '').includes('Generic'))
+                        );
+                    });
+                    if (allBtn && !allBtn.dataset.dsTesterClicked) {
+                        allBtn.click();
+                        allBtn.dataset.dsTesterClicked = 'true';
+                    }
+
+                    const gradients = Array.from(document.querySelectorAll('div')).filter(d => (d.getAttribute('style') || '').includes('gradient') || (d.className || '').includes('bg-indigo-50') || (d.innerText || '').includes('AGGREGATE'));
                     for (const g of gradients) {
                         const txt = g.innerText || '';
                         if (txt.includes("AGGREGATE") || txt.includes("Overview")) {
