@@ -235,7 +235,12 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         } catch (err) {
             console.error('[ApiLogsPage] Manual run error:', err);
             setRunningTest(false);
-            showToast('Failed to trigger diagnostic run.', 'error');
+            const errMsg = err.response?.data?.message || err.message || 'Failed to trigger diagnostic run.';
+            if (err.response?.status === 409) {
+                showToast(errMsg, 'warning');
+            } else {
+                showToast(errMsg, 'error');
+            }
         }
     };
 

@@ -238,6 +238,19 @@ export default function ApiHealthPieChart({
         ? Math.round((successSlice.value / total) * 1000) / 10 
         : 100;
 
+    // Dynamic metrics for tooltips, labels and scope tabs
+    const todayTotal = todayScope?.total ?? (distribution?.scopes?.today?.total ?? 0);
+    const yesterdayTotal = yesterdayScope?.total ?? (distribution?.scopes?.['2days']?.yesterday?.total ?? 0);
+    const twoDaysTotal = distribution?.scopes?.['2days']?.total ?? (todayTotal + yesterdayTotal);
+    const uniqueTotal = distribution?.scopes?.unique?.total ?? 0;
+
+    const todaySuccess = todayScope?.breakdown?.find(b => b.status === 'Success')?.value ?? 0;
+    const todayEmpty = todayScope?.breakdown?.find(b => b.status === 'Empty')?.value ?? 0;
+    const todaySlow = todayScope?.breakdown?.find(b => b.status === 'Slow')?.value ?? 0;
+    const todayFailed = todayScope?.breakdown?.find(b => b.status === 'Failed')?.value ?? 0;
+
+    const dynamicTooltipText = `Today tested ${todayTotal.toLocaleString()} APIs (${todaySuccess.toLocaleString()} Success, ${todayEmpty.toLocaleString()} Empty, ${todaySlow.toLocaleString()} Slow, ${todayFailed.toLocaleString()} Failed). 2-Day combined total: ${twoDaysTotal.toLocaleString()} executions across client databases. Total unique platform endpoints: ${uniqueTotal}.`;
+
     // Filter Recharts data to slices with value > 0 so pie renders clean wedges
     const chartData = useMemo(() => {
         const valid = breakdown.filter(b => b.value > 0);
@@ -330,7 +343,7 @@ export default function ApiHealthPieChart({
 
                 {/* Scope Selection Tabs & Reset Button */}
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* Scope Selector: Today (171) vs 2-Day (323) vs Unique (154) */}
+                    {/* Scope Selector: Today vs 2-Day vs Unique */}
                     <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-medium">
                         <button
                             type="button"
@@ -340,9 +353,9 @@ export default function ApiHealthPieChart({
                                     ? 'bg-white text-slate-900 font-bold shadow-xs'
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
-                            title="Latest single test run (matches 171 APIs in top summary cards)"
+                            title={`Latest single test run (${todayTotal.toLocaleString()} API executions today)`}
                         >
-                            Today ({distribution?.scopes?.today?.total ?? 171})
+                            Today ({todayTotal.toLocaleString()})
                         </button>
                         <button
                             type="button"
@@ -352,9 +365,9 @@ export default function ApiHealthPieChart({
                                     ? 'bg-white text-slate-900 font-bold shadow-xs'
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
-                            title="Total test executions combined across last 2 days (171 Today + 152 Yesterday)"
+                            title={`Total test executions combined across last 2 days (${todayTotal.toLocaleString()} Today + ${yesterdayTotal.toLocaleString()} Yesterday)`}
                         >
-                            Last 2 Days ({distribution?.scopes?.['2days']?.total ?? 323})
+                            Last 2 Days ({twoDaysTotal.toLocaleString()})
                         </button>
                         <button
                             type="button"
@@ -364,15 +377,15 @@ export default function ApiHealthPieChart({
                                     ? 'bg-white text-slate-900 font-bold shadow-xs'
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
-                            title="Deduplicated distinct endpoints evaluated across 48h"
+                            title={`Deduplicated distinct endpoints evaluated across 48h (${uniqueTotal.toLocaleString()} unique endpoints)`}
                         >
-                            Unique ({distribution?.scopes?.unique?.total ?? 154})
+                            Unique ({uniqueTotal.toLocaleString()})
                         </button>
                     </div>
 
                     {/* Explanatory Info Popover Tooltip */}
                     <MuiTooltip 
-                        title="Today tested 171 APIs (145 Success, 21 Empty, 5 Slow). The 2-Day total is 426 because APIs run daily."
+                        title={dynamicTooltipText}
                         arrow
                     >
                         <div className="cursor-help text-slate-400 hover:text-slate-600 p-1">
@@ -403,11 +416,11 @@ export default function ApiHealthPieChart({
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-[11px]">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                                    {chartViewMode === 'concentric' ? 'Outer:' : ''} Today ({todayScope?.total ?? 171})
+                                    {chartViewMode === 'concentric' ? 'Outer:' : ''} Today ({todayTotal.toLocaleString()})
                                 </span>
                                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-200 font-semibold text-[11px]">
                                     <span className="w-2 h-2 rounded-full bg-cyan-500 shrink-0" />
-                                    {chartViewMode === 'concentric' ? 'Inner:' : ''} Yesterday ({yesterdayScope?.total ?? 152})
+                                    {chartViewMode === 'concentric' ? 'Inner:' : ''} Yesterday ({yesterdayTotal.toLocaleString()})
                                 </span>
                             </div>
 
