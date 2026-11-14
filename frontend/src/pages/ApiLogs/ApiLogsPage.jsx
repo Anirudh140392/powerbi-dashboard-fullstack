@@ -26,7 +26,8 @@ import {
     fetchApiLogsSummary, 
     fetchApiLogsFilters, 
     fetchApiLogsDistribution,
-    triggerApiTestRun 
+    triggerApiTestRun,
+    fetchApiTestStatus
 } from '../../api/apiLogsService';
 
 export default function ApiLogsPage({ isEmbedded = false }) {
@@ -64,6 +65,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
     const [loadingSummary, setLoadingSummary] = useState(true);
     const [loadingDistribution, setLoadingDistribution] = useState(true);
     const [runningTest, setRunningTest] = useState(false);
+    const [runProgress, setRunProgress] = useState(null);
 
     // Drawer State
     const [selectedLog, setSelectedLog] = useState(null);
@@ -199,6 +201,12 @@ export default function ApiLogsPage({ isEmbedded = false }) {
     useEffect(() => {
         isMounted.current = true;
         loadFilterOptions(true);
+        fetchApiTestStatus().then(statusRes => {
+            if (isMounted.current && statusRes?.isRunning) {
+                setRunningTest(true);
+                setRunProgress(statusRes);
+            }
+        }).catch(() => {});
 
         return () => {
             isMounted.current = false;
@@ -210,24 +218,13 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         if (runningTest) return;
         try {
             setRunningTest(true);
-            // If a specific database is selected in filters, test only that DB.
-            // Otherwise, pass 'All' to execute tests one by one for all active databases in tb_database!
             const targetDb = filters.clientDb && filters.clientDb !== 'All' ? filters.clientDb : 'All';
             const pageToTest = filters.page && filters.page !== 'All' ? filters.page : 'All';
 
             const res = await triggerApiTestRun(pageToTest, targetDb);
             if (res && res.success) {
                 const dbsCount = res.databases?.length || 'all';
-                showToast(`Diagnostic check initiated across ${dbsCount} database(s). Results updating...`, 'info');
-                setTimeout(async () => {
-                    if (!isMounted.current) return;
-                    await loadFilterOptions(false);
-                    await loadSummary(filters);
-                    await loadDistribution(filters);
-                    await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
-                    setRunningTest(false);
-                    showToast('Diagnostic check completed for all databases. Results updated.', 'success');
-                }, 5500);
+                showToast(`Diagnostic check initiated across ${dbsCount} database(s). Results updating live...`, 'info');
             } else {
                 setRunningTest(false);
                 showToast(res?.message || 'Could not start diagnostic run.', 'error');
@@ -243,6 +240,48 @@ export default function ApiLogsPage({ isEmbedded = false }) {
             }
         }
     };
+
+    // Live polling while diagnostic check is running
+    useEffect(() => {
+        if (!runningTest) return;
+
+        let isPollingActive = true;
+        const pollInterval = setInterval(async () => {
+            try {
+                const statusRes = await fetchApiTestStatus();
+                if (!isPollingActive) return;
+
+                if (statusRes && statusRes.success) {
+                    setRunProgress(statusRes);
+                    if (!statusRes.isRunning) {
+                        clearInterval(pollInterval);
+                        setRunningTest(false);
+                        setRunProgress(null);
+                        if (isMounted.current) {
+                            await loadFilterOptions(false);
+                            await loadSummary(filters, true);
+                            await loadDistribution(filters, true);
+                            await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder, true);
+                            showToast('Diagnostic health check completed across all databases. Metrics updated.', 'success');
+                        }
+                    } else {
+                        // Silently refresh metrics while running so user sees real-time increments
+                        if (isMounted.current) {
+                            loadSummary(filters, true);
+                            loadDistribution(filters, true);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[ApiLogsPage] Error polling run status:', err);
+            }
+        }, 2500);
+
+        return () => {
+            isPollingActive = false;
+            clearInterval(pollInterval);
+        };
+    }, [runningTest, filters, pageNumber, pageSize, sortBy, sortOrder, loadFilterOptions, loadSummary, loadDistribution, loadLogs]);
 
     // React to filter / pagination / sort changes
     useEffect(() => {
@@ -335,7 +374,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
                         {runningTest && (
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold animate-pulse shadow-sm">
                                 <CircularProgress size={12} color="inherit" />
-                                <span>Running Health Checks...</span>
+                                <span>{runProgress?.currentDb ? `Testing ${runProgress.currentDb} (${(runProgress.completedDbs?.length || 0) + 1}/${runProgress.totalDbs || ''})...` : 'Running Health Checks...'}</span>
                             </div>
                         )}
 

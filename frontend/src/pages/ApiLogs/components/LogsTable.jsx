@@ -240,7 +240,7 @@ export default function LogsTable({
                                     {/* Client DB */}
                                     <td className="px-4 py-3 whitespace-nowrap text-center">
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200/70">
-                                            {row.clientDb || row.client_db || 'demo'}
+                                            {row.clientDb || row.client_db || '—'}
                                         </span>
                                     </td>
 

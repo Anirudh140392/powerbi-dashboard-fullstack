@@ -4,6 +4,7 @@ import {
     getApiLogsFilters, 
     triggerApiLogsRun,
     getApiLogsDistribution,
+    getApiTestStatus,
     sendApiAlertReportNow, getAlertRecipients, addAlertRecipient, deleteAlertRecipient } from '../controllers/apiLogsController.js';
 
 export default (app) => {
@@ -167,6 +168,7 @@ export default (app) => {
      *         description: Health distribution and categorized API list
      */
     app.get('/api/api-logs/distribution', getApiLogsDistribution);
+    app.get('/api/api-logs/status', getApiTestStatus);
     app.post('/api/api-logs/run', triggerApiLogsRun);
     // Manual dispatch / test of API Alert Report Email
     app.post('/api/api-logs/send-report', sendApiAlertReportNow);

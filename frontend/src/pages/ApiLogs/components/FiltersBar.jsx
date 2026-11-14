@@ -225,7 +225,7 @@ export default function FiltersBar({
                     options={availableOptions.clients || []}
                     allLabel="All Clients"
                     searchable={true}
-                    placeholder="Search client (e.g. boat)..."
+                    placeholder="Search client database..."
                     onChange={(val) => onChange({ ...filters, clientDb: val })}
                 />
 

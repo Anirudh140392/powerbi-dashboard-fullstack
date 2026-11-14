@@ -13,6 +13,7 @@ import {
 import { 
     runPageTests, 
     isTestRunActive,
+    getRunProgress,
     getAllActiveDatabases,
     getPermittedPagesForDb,
     setSuiteRunning,
@@ -142,11 +143,9 @@ export async function triggerApiLogsRun(req, res) {
             });
         }
 
-        const targetPage = req.body?.page || req.query?.page || '';
-        const requestedClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || '';
+        const targetPage = req.body?.page || req.query?.page || 'All';
+        const requestedClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || 'All';
 
-        // If a specific DB is requested (and not 'All'), test only that DB.
-        // Otherwise (default when clicking Run Check), test one by one for ALL active databases present in tb_database table!
         let targetDbs = [];
         if (requestedClientDb && requestedClientDb !== 'All') {
             targetDbs = [requestedClientDb];
@@ -158,39 +157,8 @@ export async function triggerApiLogsRun(req, res) {
             ? getRegisteredPages()
             : [targetPage];
 
-        setSuiteRunning(true);
-
-        // Trigger run in background sequentially for each database
-        (async () => {
-            console.log(`[ApiLogsController] Starting multi-DB test run across ${targetDbs.length} databases:`, targetDbs);
-            try {
-                for (const currentDb of targetDbs) {
-                    const permittedPages = await getPermittedPagesForDb(currentDb);
-                    const pagesForDb = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
-                        ? permittedPages
-                        : (permittedPages.includes(targetPage) ? [targetPage] : []);
-
-                    if (pagesForDb.length === 0) {
-                        console.log(`[ApiLogsController] No permitted pages to test for DB "${currentDb}" based on tab_permissions.`);
-                        continue;
-                    }
-
-                    console.log(`[ApiLogsController] >>> Testing DB: "${currentDb}" (${pagesForDb.length} active pages: ${pagesForDb.join(', ')})...`);
-                    for (const p of pagesForDb) {
-                        try {
-                            await runPageTests(p, currentDb);
-                        } catch (pageErr) {
-                            console.error(`[ApiLogsController] Error testing page "${p}" for DB "${currentDb}":`, pageErr.message);
-                        }
-                    }
-                    console.log(`[ApiLogsController] <<< Finished testing DB: "${currentDb}"`);
-                }
-                console.log(`[ApiLogsController] Multi-database test run completed for all ${targetDbs.length} databases.`);
-            } finally {
-                setSuiteRunning(false);
-            }
-        })().catch(runErr => {
-            setSuiteRunning(false);
+        // Trigger run in background using executeFullApiHealthCheck
+        executeFullApiHealthCheck({ targetPage, requestedClientDb }).catch(runErr => {
             console.error('[ApiLogsController] Background multi-DB test run error:', runErr.message);
         });
 
@@ -202,7 +170,6 @@ export async function triggerApiLogsRun(req, res) {
             message: `API health test run initiated for ${targetDbs.length} database(s) (${targetDbs.join(', ')}) across ${pagesToTest.length} page(s).`,
         });
     } catch (err) {
-        setSuiteRunning(false);
         console.error('[ApiLogsController] Error triggering test run:', err.message);
         return res.status(500).json({
             success: false,
@@ -211,6 +178,26 @@ export async function triggerApiLogsRun(req, res) {
         });
     }
 }
+
+/**
+ * GET /api/api-logs/status
+ * Check whether a diagnostic test run is currently active and get progress.
+ */
+export async function getApiTestStatus(req, res) {
+    try {
+        const progress = getRunProgress();
+        return res.status(200).json({
+            success: true,
+            ...progress,
+        });
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: err.message,
+        });
+    }
+}
+
 
 /**
  * GET /api/api-logs/distribution

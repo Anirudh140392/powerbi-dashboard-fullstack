@@ -40,8 +40,16 @@ export async function fetchApiLogsDistribution(params = {}) {
 /**
  * Trigger an immediate manual test run for a page and optional client database.
  */
-export async function triggerApiTestRun(page = 'Pricing Analysis', clientDb = '') {
+export async function triggerApiTestRun(page = 'All', clientDb = '') {
     const payload = typeof page === 'object' ? page : { page, clientDb };
     const response = await axiosInstance.post('/api-logs/run', payload);
+    return response.data;
+}
+
+/**
+ * Fetch current diagnostic test run status and progress.
+ */
+export async function fetchApiTestStatus() {
+    const response = await axiosInstance.get('/api-logs/status');
     return response.data;
 }

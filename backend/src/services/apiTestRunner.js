@@ -34,7 +34,24 @@ let isSuiteRunning = false;
 
 export function setSuiteRunning(val) {
     isSuiteRunning = Boolean(val);
+    runProgress.isRunning = isSuiteRunning || isRunInProgress;
 }
+
+let runProgress = {
+    isRunning: false,
+    currentDb: null,
+    completedDbs: [],
+    totalDbs: 0,
+    startTime: null,
+};
+
+export function getRunProgress() {
+    return {
+        ...runProgress,
+        isRunning: isTestRunActive(),
+    };
+}
+
 
 let cachedDefaultClientDb = null;
 /**
@@ -345,7 +362,7 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
         response_status: responseStatus,
         response_time_ms: responseTimeMs,
         empty_response: emptyResponse,
-        client_db: String(targetDb || context.targetDb || 'demo'),
+        client_db: String(targetDb || context.targetDb || process.env.CLICKHOUSE_DB || ''),
         error_message: errorMessage,
         run_id: runId,
         created_at: dayjs().tz(TIMEZONE).format('YYYY-MM-DD HH:mm:ss'),
@@ -549,6 +566,14 @@ export async function executeFullApiHealthCheck({ targetPage = 'All', requestedC
         ? registeredPages
         : [targetPage];
 
+    runProgress = {
+        isRunning: true,
+        currentDb: null,
+        completedDbs: [],
+        totalDbs: targetDbs.length,
+        startTime: new Date().toISOString(),
+    };
+
     console.log(`[ApiTestRunner] 🚀 Starting full API health check across ${targetDbs.length} database(s) (${targetDbs.join(', ')}) at ${new Date().toISOString()}...`);
 
     const summary = {
@@ -569,6 +594,7 @@ export async function executeFullApiHealthCheck({ targetPage = 'All', requestedC
         }
 
         for (const currentDb of targetDbs) {
+            runProgress.currentDb = currentDb;
             let permittedPages = [];
             try {
                 permittedPages = await getPermittedPagesForDb(currentDb);
@@ -601,6 +627,7 @@ export async function executeFullApiHealthCheck({ targetPage = 'All', requestedC
                 }
             }
             summary.databasesTested.push(currentDb);
+            runProgress.completedDbs.push(currentDb);
             console.log(`[ApiTestRunner] <<< Finished testing DB: "${currentDb}"`);
         }
 
@@ -610,6 +637,13 @@ export async function executeFullApiHealthCheck({ targetPage = 'All', requestedC
         console.error('[ApiTestRunner] Error executing full API health check:', err.message);
         return { success: false, error: err.message };
     } finally {
+        runProgress = {
+            isRunning: false,
+            currentDb: null,
+            completedDbs: [],
+            totalDbs: 0,
+            startTime: null,
+        };
         setSuiteRunning(false);
     }
 }
