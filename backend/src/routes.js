@@ -25,11 +25,13 @@ import reportTemplates from './routes/reportTemplates.js';
 import reviewRating from './routes/reviewRating.js';
 
 export default (app) => {
+    // API Logs routes
+    apiLogs(app);
+
     // Review Rating routes
     reviewRating(app);
 
-    // API Logs routes
-    apiLogs(app);
+
     // Admin routes
     admin(app);
 

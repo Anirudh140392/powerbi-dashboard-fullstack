@@ -405,6 +405,10 @@ const PAGE_REQUIRED_TABLES = {
 };
 
         let targetDb = clientDb || process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb;
+        // Guard against empty array being truthy (would otherwise skip fallback)
+        if (Array.isArray(targetDb) && targetDb.length === 0) {
+            targetDb = process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb || '';
+        }
         if (!targetDb) {
             targetDb = await resolveDefaultClientDb();
         }
@@ -551,8 +555,13 @@ export async function executeFullApiHealthCheck({ targetPage = 'All', requestedC
 
     let targetDbs = [];
     try {
-        if (requestedClientDb && requestedClientDb !== 'All') {
-            targetDbs = [requestedClientDb];
+        // Normalize requestedClientDb: empty array => 'All' (no specific client)
+        const clientDbVal = Array.isArray(requestedClientDb)
+            ? (requestedClientDb.length > 0 ? requestedClientDb : 'All')
+            : requestedClientDb;
+
+        if (clientDbVal && clientDbVal !== 'All') {
+            targetDbs = Array.isArray(clientDbVal) ? clientDbVal : [String(clientDbVal)];
         } else {
             targetDbs = await getAllActiveDatabases();
         }

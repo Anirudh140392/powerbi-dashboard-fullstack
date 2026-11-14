@@ -25,6 +25,7 @@ function CustomDropdown({
     onChange,
     searchable = false,
     placeholder = 'Select...',
+    multi = false,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -57,8 +58,16 @@ function CustomDropdown({
     }, [isOpen]);
 
     // Format display label
-    const isAllSelected = !value || value === '' || value === 'All';
-    const displayLabel = isAllSelected ? allLabel : value;
+    const isMulti = multi;
+    const selectedValues = isMulti && Array.isArray(value) ? value : [];
+    const isAllSelected = isMulti
+        ? selectedValues.length === 0
+        : !value || value === '' || value === 'All';
+    const displayLabel = isAllSelected
+        ? allLabel
+        : isMulti && selectedValues.length > 1
+            ? `${selectedValues.length} selected`
+            : String(isMulti ? selectedValues[0] : value);
 
     // Filtered options based on search query
     const filteredOptions = searchable && searchQuery.trim()
@@ -132,7 +141,7 @@ function CustomDropdown({
                         <button
                             type="button"
                             onClick={() => {
-                                onChange('');
+                                onChange(isMulti ? [] : '');
                                 setIsOpen(false);
                             }}
                             className={`w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors ${
@@ -147,14 +156,22 @@ function CustomDropdown({
 
                         {/* Filtered items */}
                         {filteredOptions.map((opt) => {
-                            const isSelected = value === opt;
+                            const isSelected = isMulti ? selectedValues.includes(opt) : value === opt;
                             return (
                                 <button
                                     key={opt}
                                     type="button"
                                     onClick={() => {
-                                        onChange(opt);
-                                        setIsOpen(false);
+                                        if (isMulti) {
+                                            // Toggle selection without closing (multi-select with checkboxes)
+                                            const next = isSelected
+                                                ? selectedValues.filter((v) => v !== opt)
+                                                : [...selectedValues, opt];
+                                            onChange(next);
+                                        } else {
+                                            onChange(opt);
+                                            setIsOpen(false);
+                                        }
                                     }}
                                     className={`w-full flex items-center justify-between px-3 py-1.5 text-xs text-left transition-colors ${
                                         isSelected
@@ -217,15 +234,16 @@ export default function FiltersBar({
                     onChange={(val) => onChange({ ...filters, date: val })}
                 />
 
-                {/* 2. Client DB Selector Dropdown */}
+                {/* 2. Client DB Selector Dropdown (multi-select with checkboxes) */}
                 <CustomDropdown
                     label="Client DB"
                     icon={Database}
-                    value={filters.clientDb || ''}
+                    value={filters.clientDb || []}
                     options={availableOptions.clients || []}
                     allLabel="All Clients"
                     searchable={true}
-                    placeholder="Search client database..."
+                    placeholder="Search client (e.g. boat)..."
+                    multi={true}
                     onChange={(val) => onChange({ ...filters, clientDb: val })}
                 />
 

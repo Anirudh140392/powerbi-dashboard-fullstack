@@ -24,6 +24,22 @@ import { queryAdminDB, insertAdminDB, ADMIN_DB } from '../config/adminClickhouse
 import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
 
 /**
+ * Normalizes client database filter from request query or body.
+ * Supports: clientDb, client_db, clientDb[], client_db[], comma-separated strings, or arrays.
+ */
+function extractClientDbList(source = {}) {
+    const val = source.clientDb ?? source.client_db ?? source['clientDb[]'] ?? source['client_db[]'];
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        return val.flatMap(v => String(v).split(',')).map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    if (typeof val === 'string') {
+        return val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    return [];
+}
+
+/**
  * GET /api/api-logs
  * Fetch paginated API test logs with filtering, sorting, and search.
  */
@@ -36,8 +52,6 @@ export async function getApiLogs(req, res) {
             status,
             emptyResponse,
             empty_response,
-            clientDb,
-            client_db,
             search,
             pageNumber,
             pageSize,
@@ -45,13 +59,15 @@ export async function getApiLogs(req, res) {
             sortOrder,
         } = req.query;
 
+        const parsedClientDb = extractClientDbList(req.query);
+
         const result = await getLogs({
             date,
             page,
             segment,
             status,
             emptyResponse: emptyResponse ?? empty_response,
-            clientDb: clientDb || client_db,
+            clientDb: parsedClientDb,
             search,
             pageNumber,
             pageSize,
@@ -79,12 +95,13 @@ export async function getApiLogs(req, res) {
  */
 export async function getApiLogsSummary(req, res) {
     try {
-        const { date, page, clientDb, client_db } = req.query;
+        const { date, page } = req.query;
+        const parsedClientDb = extractClientDbList(req.query);
 
         const summary = await getSummary({ 
             date, 
             page, 
-            clientDb: clientDb || client_db 
+            clientDb: parsedClientDb 
         });
 
         return res.status(200).json({
@@ -205,11 +222,12 @@ export async function getApiTestStatus(req, res) {
  */
 export async function getApiLogsDistribution(req, res) {
     try {
-        const { page, clientDb, client_db, days = 2 } = req.query;
+        const { page, days = 2 } = req.query;
+        const parsedClientDb = extractClientDbList(req.query);
 
         const result = await getDistribution({ 
             page, 
-            clientDb: clientDb || client_db, 
+            clientDb: parsedClientDb, 
             days 
         });
 

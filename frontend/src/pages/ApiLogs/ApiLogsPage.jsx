@@ -34,7 +34,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
     // Filter State
     const [filters, setFilters] = useState({
         date: '',
-        clientDb: 'All',
+        clientDb: [],
         page: '',
         segment: '',
         status: 'All',
@@ -120,7 +120,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
             if (!isSilent) setLoadingSummary(true);
             const params = {};
             if (currentFilters.date) params.date = currentFilters.date;
-            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') params.clientDb = currentFilters.clientDb;
+            if (currentFilters.clientDb?.length) params.clientDb = currentFilters.clientDb;
             if (currentFilters.page) params.page = currentFilters.page;
             if (currentFilters.segment) params.segment = currentFilters.segment;
 
@@ -141,7 +141,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         try {
             if (!isSilent) setLoadingDistribution(true);
             const params = { days: 2 };
-            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') params.clientDb = currentFilters.clientDb;
+            if (currentFilters.clientDb?.length) params.clientDb = currentFilters.clientDb;
             if (currentFilters.page) params.page = currentFilters.page;
 
             const res = await fetchApiLogsDistribution(params);
@@ -167,7 +167,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
             };
 
             if (currentFilters.date) params.date = currentFilters.date;
-            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') {
+            if (currentFilters.clientDb?.length) {
                 params.clientDb = currentFilters.clientDb;
             }
             if (currentFilters.page) params.page = currentFilters.page;
@@ -218,7 +218,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         if (runningTest) return;
         try {
             setRunningTest(true);
-            const targetDb = filters.clientDb && filters.clientDb !== 'All' ? filters.clientDb : 'All';
+            const targetDb = filters.clientDb?.length ? filters.clientDb : '';
             const pageToTest = filters.page && filters.page !== 'All' ? filters.page : 'All';
 
             const res = await triggerApiTestRun(pageToTest, targetDb);
@@ -326,7 +326,7 @@ export default function ApiLogsPage({ isEmbedded = false }) {
         const defaultDate = availableOptions.dates?.length > 0 ? availableOptions.dates[0] : '';
         setFilters({
             date: defaultDate,
-            clientDb: 'All',
+            clientDb: [],
             page: '',
             segment: '',
             status: 'All',

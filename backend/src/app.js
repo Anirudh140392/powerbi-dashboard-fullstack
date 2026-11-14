@@ -190,6 +190,17 @@ app.use("/api", platformPermissionMiddleware);
 AllRoutes(app);
 
 
+// Global error handler — return JSON instead of Express default HTML 500 page
+app.use((err, req, res, next) => {
+    console.error('[Server] Unhandled error:', err.stack || err.message);
+    res.status(err.status || 500).json({
+        success: false,
+        error: process.env.NODE_ENV === 'production'
+            ? 'Internal server error'
+            : err.message || 'Internal server error',
+    });
+});
+
 // Health endpoint
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok" });

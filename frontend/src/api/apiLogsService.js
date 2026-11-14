@@ -6,10 +6,26 @@
 import axiosInstance from './axiosInstance';
 
 /**
+ * Format query params for Axios GET requests.
+ * Serializes array clientDb into comma-separated values to avoid bracket notation (clientDb[]=...).
+ */
+function formatParams(params = {}) {
+    const formatted = { ...params };
+    if (Array.isArray(formatted.clientDb)) {
+        if (formatted.clientDb.length > 0) {
+            formatted.clientDb = formatted.clientDb.join(',');
+        } else {
+            delete formatted.clientDb;
+        }
+    }
+    return formatted;
+}
+
+/**
  * Fetch paginated API logs with search, filter, and sorting.
  */
 export async function fetchApiLogs(params = {}) {
-    const response = await axiosInstance.get('/api-logs', { params });
+    const response = await axiosInstance.get('/api-logs', { params: formatParams(params) });
     return response.data;
 }
 
@@ -17,7 +33,7 @@ export async function fetchApiLogs(params = {}) {
  * Fetch summary metrics (Total, Success, Slow, Failed, Avg Latency, Success Rate).
  */
 export async function fetchApiLogsSummary(params = {}) {
-    const response = await axiosInstance.get('/api-logs/summary', { params });
+    const response = await axiosInstance.get('/api-logs/summary', { params: formatParams(params) });
     return response.data;
 }
 
@@ -33,7 +49,7 @@ export async function fetchApiLogsFilters() {
  * Fetch 2-day health distribution (Success, Slow, Failed) and complete API lists for Pie Chart.
  */
 export async function fetchApiLogsDistribution(params = {}) {
-    const response = await axiosInstance.get('/api-logs/distribution', { params });
+    const response = await axiosInstance.get('/api-logs/distribution', { params: formatParams(params) });
     return response.data;
 }
 
