@@ -28,7 +28,7 @@ export const ContentAnalysisOverview = async (req, res) => {
 
         // Calculate deltas
         const calculateDelta = (curr, prev) => {
-            if (!prev) return 0;
+            if (curr === null || curr === undefined || prev === null || prev === undefined) return null;
             return curr - prev;
         };
 
@@ -62,7 +62,7 @@ export const ContentAnalysisPlatformBreakdownController = async (req, res) => {
 
         // Build per-platform response with deltas
         const allPlatforms = [...new Set([...Object.keys(currentMap), ...Object.keys(prevMap)])];
-        const calcDelta = (c, p) => (c || 0) - (p || 0);
+        const calcDelta = (c, p) => (c === null || c === undefined || p === null || p === undefined) ? null : c - p;
 
         const platforms = allPlatforms.map(plat => {
             const curr = currentMap[plat] || { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0 };

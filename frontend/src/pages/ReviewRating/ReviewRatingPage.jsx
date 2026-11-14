@@ -29,7 +29,7 @@ export default function ReviewRatingPage() {
   const { user } = useAuth();
 
   return (
-    <RatingsAuthProvider companyId={user?.dbId} companyName={user?.dbName}>
+    <RatingsAuthProvider companyId={user?.companyId || user?.dbId} companyName={user?.dbName}>
       {/*
        * fullHeight=true  → the content Box uses overflow:hidden and becomes a
        *                    flex column so the Dashboard's own <main> can scroll.

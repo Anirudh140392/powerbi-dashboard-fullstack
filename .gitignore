@@ -38,5 +38,14 @@ dump.rdb
 # Temporary files
 *.tmp
 *.temp
+# Python
+__pycache__/
+*.py[cod]
+$py.class
+.pytest_cache/
+venv/
+.venv/
+
+# Vite temporary files
 *.timestamp-*.mjs
 vite.config.*.timestamp-*

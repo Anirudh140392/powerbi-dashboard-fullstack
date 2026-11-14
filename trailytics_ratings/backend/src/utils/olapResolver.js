@@ -74,6 +74,7 @@ function getOlapEnabledDbs() {
 export function useOlapTable(dbName) {
     if (!dbName) return false;
     const norm = dbName.trim().toLowerCase();
+    if (norm === 'prestige') return false;
     if (norm === 'marico_4700bc' || norm === 'marico_true_element' || norm.includes('marico')) {
         return true;
     }

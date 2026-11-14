@@ -448,9 +448,13 @@ export const microsoftCallback = async (req, res) => {
             return res.send(buildCallbackHtml(false, null, null, 'Server configuration error.'));
         }
 
-        // Exchange authorization code for tokens
+        // Exchange authorization code for tokens.
+        // Use 'common' tenant endpoint so authorization codes issued by ANY tenant
+        // (including external organisations) can be redeemed. Using a specific tenant
+        // ID causes AADSTS700005 ("code intended to address another tenant") for
+        // external org users whose code was issued by their home tenant.
         const axios = (await import('axios')).default;
-        const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+        const tokenUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/token`;
         const tokenResponse = await axios.post(tokenUrl, new URLSearchParams({
             client_id: clientId,
             client_secret: clientSecret,

@@ -42,7 +42,9 @@ export default function InsightHorizontalKpis({
   selectedInsight = "All Campaign Summary",
   setSelectedInsight = () => { },
 }) {
-  const { channel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, selectedProductCategory } = useContext(FilterContext);
+  const { channel, selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, selectedProductCategory } = useContext(FilterContext);
+
+  const activeChannel = selectedChannel || channel;
 
   const [quadrantData, setQuadrantData] = useState({
     total: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0
@@ -50,7 +52,7 @@ export default function InsightHorizontalKpis({
   const [loading, setLoading] = useState(true);
 
   // Convert arrays to strings for proper dependency tracking
-  const channelStr = JSON.stringify(channel);
+  const channelStr = JSON.stringify(activeChannel);
   const platformStr = JSON.stringify(platform);
   const categoryStr = JSON.stringify(selectedCategory);
   const brandStr = JSON.stringify(selectedBrand);
@@ -60,7 +62,7 @@ export default function InsightHorizontalKpis({
   // Fetch quadrant data when filters change
   useEffect(() => {
     console.log("🔄 [InsightHorizontalKpis] Filters changed, fetching data...", {
-      channel: channel,
+      channel: activeChannel,
       platform: platform,
       category: selectedCategory,
       brand: selectedBrand,
@@ -75,7 +77,7 @@ export default function InsightHorizontalKpis({
       try {
         const response = await axiosInstance.get("/performance-marketing/quadrants", {
           params: {
-            channel: Array.isArray(channel) ? channel.join(',') : channel,
+            channel: Array.isArray(activeChannel) ? activeChannel.join(',') : (activeChannel || 'All'),
             platform: Array.isArray(platform) ? platform.join(',') : platform,
             category: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
             brand: Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand,

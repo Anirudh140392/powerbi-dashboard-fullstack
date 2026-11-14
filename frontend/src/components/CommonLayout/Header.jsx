@@ -5247,7 +5247,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       productTypes={productTypes}
                       selectedProductType={selectedProductType}
                       setSelectedProductType={setSelectedProductType}
-                      hideChannel={true}
+                      hideChannel={false}
                     />
                   )}
 

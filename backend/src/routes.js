@@ -20,6 +20,7 @@ import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
 import apiLogs from './routes/apiLogs.js';
+import pdsScore from './routes/pdsScore.js';
 import reportSchedules from './routes/reportSchedules.js';
 import reportTemplates from './routes/reportTemplates.js';
 import reviewRating from './routes/reviewRating.js';
@@ -101,5 +102,6 @@ export default (app) => {
 
     // MOP Analysis routes
     mopAnalysis(app);
+    pdsScore(app);
 };
 
