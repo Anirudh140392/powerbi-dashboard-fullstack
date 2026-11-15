@@ -2699,7 +2699,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       return {
         categories: drawerFilters.Format === 'All' ? [] : String(drawerFilters.Format).split(',').filter(Boolean),
         brands: drawerFilters.Brand === 'All' ? [] : String(drawerFilters.Brand).split(',').filter(Boolean),
-        skus: drawerFilters.SKU === 'All' ? [] : String(drawerFilters.SKU).split(',').filter(Boolean),
+        skus: drawerFilters.SKU === 'All' || !drawerFilters.SKU ? [] : [String(drawerFilters.SKU)],
         msl: drawerFilters.Msl === 'All' ? [] : String(drawerFilters.Msl).split(',').filter(Boolean)
       };
     }

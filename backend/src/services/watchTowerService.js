@@ -10089,7 +10089,10 @@ const getCompetitionData = async (filters = {}) => {
                 conds.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
             }
 
-            if (skuArr && skuArr.length > 0) {
+            // Use raw SKU value directly without splitting by comma, since SKU names may contain commas
+            if (sku && sku !== 'All') {
+                conds.push(`lower(${src.f.product}) LIKE lower('%${escapeStr(sku)}%')`);
+            } else if (skuArr && skuArr.length > 0) {
                 conds.push(`(${skuArr.map(s => `lower(${src.f.product}) LIKE lower('%${escapeStr(s)}%')`).join(' OR ')})`);
             }
 
