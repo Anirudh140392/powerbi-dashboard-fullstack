@@ -641,7 +641,7 @@ export default function SearchTermsPerformance() {
     
     const isKeyword = activeView === "keyword";
     const headers = isKeyword 
-      ? (isSugarUser ? ["Keyword", "Overall SOS", "Organic SOS", "Paid SOS"] : ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"])
+      ? (isSugarUser ? ["Keyword", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Keyword", "Leading Brand", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"])
       : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
       
     const rows = items.map(item => {
@@ -649,6 +649,7 @@ export default function SearchTermsPerformance() {
         `"${(item.name || "").replace(/"/g, '""')}"`,
         ...(isKeyword ? (isSugarUser ? [] : [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`]) : []),
         `"${(item.overallSOS || 0).toFixed(2)}%"`,
+        ...(isKeyword ? [`"${item.overallSOV != null ? item.overallSOV.toFixed(2) + '%' : '—'}"`] : []),
         `"${(item.organicSOS || 0).toFixed(2)}%"`,
         `"${(item.paidSOS || 0).toFixed(2)}%"`
       ];
@@ -686,7 +687,7 @@ export default function SearchTermsPerformance() {
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
-    ? (isSugarUser ? "minmax(260px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 150px 130px 130px 130px")
+    ? (isSugarUser ? "minmax(260px,1fr) 120px 120px 120px 120px" : "minmax(260px,1fr) 140px 120px 120px 120px 120px")
     : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
 
   return (
@@ -820,6 +821,7 @@ export default function SearchTermsPerformance() {
             { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
             ...(activeView === "keyword" ? (isSugarUser ? [] : [{ label: "Leading Brand", sub: "by Overall SOS" }]) : []),
             { label: "Overall SOS", sub: null },
+            ...(activeView === "keyword" ? [{ label: "Overall SOV", sub: null }] : []),
             { label: "Organic SOS", sub: null },
             { label: "Paid SOS", sub: null },
           ].map((h, i) => (
@@ -922,6 +924,13 @@ export default function SearchTermsPerformance() {
                     </span>
                   </div>
 
+                  {/* Overall SOV */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOV), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.overallSOV != null ? `${Number(summaryData.overallSOV).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+
                   {/* Organic SOS */}
                   <div style={{ textAlign: "center" }}>
                     <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
@@ -942,8 +951,8 @@ export default function SearchTermsPerformance() {
                   <div style={{ background: "#f0f0ff", borderTop: "1px solid #c7d2fe", animation: "slideDown 0.18s ease" }}>
                     <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#4f46e5", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
-                      <div />
-                      {["Overall SOS", "Organic SOS", "Paid SOS"].map((h) => (
+                      {!isSugarUser && <div />}
+                      {["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"].map((h) => (
                         <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
                       ))}
                     </div>
@@ -963,6 +972,7 @@ export default function SearchTermsPerformance() {
                           </div>
                           {!isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOV} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
                         </div>
@@ -1132,6 +1142,9 @@ export default function SearchTermsPerformance() {
                   )}
 
                   <div style={{ textAlign: "center" }}><SOSValue value={row.overallSOS} /></div>
+                  {activeView === "keyword" && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.overallSOV} /></div>
+                  )}
                   <div style={{ textAlign: "center" }}><SOSValue value={row.organicSOS} /></div>
                   <div style={{ textAlign: "center" }}><SOSValue value={row.paidSOS} /></div>
                 </div>
@@ -1141,8 +1154,8 @@ export default function SearchTermsPerformance() {
                   <div style={{ background: "#f8fafc", borderTop: "1px solid #e2e8f0", animation: "slideDown 0.18s ease" }}>
                     <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #e2e8f0" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#3b82f6", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
-                      {activeView === "keyword" && <div />}
-                      {["Overall SOS", "Organic SOS", "Paid SOS"].map((h) => (
+                      {activeView === "keyword" && !isSugarUser && <div />}
+                      {(activeView === "keyword" ? ["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Overall SOS", "Organic SOS", "Paid SOS"]).map((h) => (
                         <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
                       ))}
                     </div>
@@ -1160,8 +1173,11 @@ export default function SearchTermsPerformance() {
                               {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(loc.city?.toLowerCase()) ? "Nation" : loc.city}
                             </span>
                           </div>
-                          {activeView === "keyword" && <div />}
+                          {activeView === "keyword" && !isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
+                          {activeView === "keyword" && (
+                            <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOV} /></div>
+                          )}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
                         </div>

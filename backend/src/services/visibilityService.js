@@ -3950,10 +3950,33 @@ class VisibilityService {
                 ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
                 : `0`;
 
+            let kwTable = 'rb_kw_olap';
+            let hasWeightedImp = false;
+            if (viewMode === 'keyword') {
+                try {
+                    const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+                    if (checkTblRes.length > 0) {
+                        const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'`);
+                        if (Number(sowCountRes[0]?.cnt) > 0) {
+                            kwTable = 'rb_kw_olap_sow';
+                            hasWeightedImp = true;
+                        }
+                    }
+                    if (!hasWeightedImp) {
+                        const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                        if (checkKwCols.length > 0) {
+                            hasWeightedImp = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[VisibilityService] Error checking sow table:', e.message);
+                }
+            }
+
             // Calculate total landscape volume for relative share (ignoring local segment filters)
             const landscapeVolQuery = `
                     SELECT sum(toInt32(overall)) as total_vol
-                    FROM rb_kw_olap
+                    FROM ${kwTable}
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
                       AND ${channelCondition}
@@ -4107,6 +4130,14 @@ class VisibilityService {
                         sum(den_keyword) as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                         
+                        ${hasWeightedImp ? `
+                        sum(num_sov_keyword) as num_sov,
+                        sum(den_sov_keyword) as den_sov,
+                        ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                        ` : `
+                        null as overall_sov,
+                        `}
+
                         sum(num_organic_keyword) as num_organic,
                         sum(den_organic_keyword) as den_organic,
                         ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
@@ -4135,17 +4166,23 @@ class VisibilityService {
                             COUNTIf((${numeratorCondition}) AND toInt32(t1.spons) = 1) as num_spons_keyword,
                             any(t2.total_spons) as den_spons_keyword,
                             
+                            ${hasWeightedImp ? `
+                            COALESCE(SUMIf(toFloat64OrZero(toString(t1.weighted_impressions)), ${numeratorCondition}), 0) as num_sov_keyword,
+                            any(t2.total_sov) as den_sov_keyword,
+                            ` : ''}
+
                             count(*) as impressions_keyword,
                             ${searchVolumeSelect.replace(/search_volume/g, 't1.search_volume')} as search_volume,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND ${numeratorCondition}), 1) AS ad_position_keyword,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND ${numeratorCondition}), 1) AS organic_position_keyword
-                        FROM rb_kw_olap t1
+                        FROM ${kwTable} t1
                         LEFT JOIN (
                             SELECT keyword, 
                                    COUNT(*) as total_overall,
                                    COUNTIf(toInt32(spons) = 0) as total_organic,
                                    COUNTIf(toInt32(spons) = 1) as total_spons
-                            FROM rb_kw_olap
+                                   ${hasWeightedImp ? `, SUM(toFloat64OrZero(toString(weighted_impressions))) as total_sov` : ''}
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4188,6 +4225,7 @@ class VisibilityService {
                     leadingBrand: row.brand_name || 'Other',
                     web_pid: row.web_pid,
                     overallSOS: Number(row.overall_sos) || 0,
+                    overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     volShare: Number(row.max_vol_share) || 0,
@@ -4306,6 +4344,14 @@ class VisibilityService {
                                 COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
+                                ${hasWeightedImp ? `
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
+                                SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
+                                ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                                ` : `
+                                null as overall_sov,
+                                `}
+
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
                                 COUNTIf(toInt32(spons) = 0) as den_organic,
                                 ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
@@ -4313,7 +4359,7 @@ class VisibilityService {
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
                                 COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
-                            FROM rb_kw_olap
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4337,6 +4383,14 @@ class VisibilityService {
                                 COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
+                                ${hasWeightedImp ? `
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
+                                SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
+                                ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                                ` : `
+                                null as overall_sov,
+                                `}
+
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
                                 COUNTIf(toInt32(spons) = 0) as den_organic,
                                 ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
@@ -4344,7 +4398,7 @@ class VisibilityService {
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
                                 COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
-                            FROM rb_kw_olap
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4375,6 +4429,7 @@ class VisibilityService {
                             .map(l => ({
                                 city: l.city,
                                 overallSOS: Number(l.overall_sos) || 0,
+                                overallSOV: l.overall_sov != null ? Number(l.overall_sov) : null,
                                 organicSOS: Number(l.organic_sos) || 0,
                                 paidSOS: Number(l.paid_sos) || 0
                             }));
@@ -4382,6 +4437,7 @@ class VisibilityService {
                         summary = {
                             leadingBrand: sRow.leading_brand || 'Other',
                             overallSOS: Number(sRow.overall_sos) || 0,
+                            overallSOV: sRow.overall_sov != null ? Number(sRow.overall_sov) : null,
                             organicSOS: Number(sRow.organic_sos) || 0,
                             paidSOS: Number(sRow.paid_sos) || 0,
                             totalKeywords: Number(sRow.total_keywords) || 0,
@@ -4390,7 +4446,7 @@ class VisibilityService {
                             locations
                         };
                     }
-                    console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
+                    console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Overall SOV: ${summary.overallSOV}%, Keywords: ${summary.totalKeywords}` : 'null');
                 } catch (sumErr) {
                     console.error('[VisibilityService] Error computing summary row:', sumErr);
                     // Non-critical — continue without summary
@@ -4484,6 +4540,30 @@ class VisibilityService {
                 numCondition = `lower(brand) IN (${ownBrandSubquery})`;
             }
 
+            const targetDb = filters.dbName || getCurrentDbName();
+            let kwTable = 'rb_kw_olap';
+            let hasWeightedImp = false;
+            if (viewMode === 'keyword') {
+                try {
+                    const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+                    if (checkTblRes.length > 0) {
+                        const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'`);
+                        if (Number(sowCountRes[0]?.cnt) > 0) {
+                            kwTable = 'rb_kw_olap_sow';
+                            hasWeightedImp = true;
+                        }
+                    }
+                    if (!hasWeightedImp) {
+                        const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                        if (checkKwCols.length > 0) {
+                            hasWeightedImp = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[VisibilityService] Error checking sow table:', e.message);
+                }
+            }
+
             const query = `
                 SELECT
                     location_name AS city,
@@ -4494,12 +4574,19 @@ class VisibilityService {
                     COUNTIf(toInt32(spons) = 0) AS den_organic,
                     COUNTIf(toInt32(spons) = 1) AS den_spons,
                     ROUND(num_overall * 100.0 / NULLIF(den_overall, 0), 2) AS overall_sos,
+                    ${hasWeightedImp ? `
+                    COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), ${numCondition}), 0) AS num_sov,
+                    SUM(toFloat64OrZero(toString(weighted_impressions))) AS den_sov,
+                    ROUND(coalesce(num_sov, 0) * 100.0 / NULLIF(den_sov, 0), 2) AS overall_sov,
+                    ` : `
+                    null AS overall_sov,
+                    `}
                     ROUND(num_organic * 100.0 / NULLIF(den_organic, 0), 2) AS organic_sos,
                     ROUND(num_spons * 100.0 / NULLIF(den_spons, 0), 2) AS paid_sos,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(POSITION) > 0), 1) AS overallRank,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 1 AND toInt32(POSITION) > 0), 1) AS paidRank,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank
-                FROM rb_kw_olap
+                FROM ${kwTable}
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${channelCondition}
@@ -4521,6 +4608,7 @@ class VisibilityService {
                 locations: results.map(row => ({
                     city: row.city,
                     overallSOS: Number(row.overall_sos) || 0,
+                    overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     overallRank: Number(row.overallRank) || 0,
