@@ -113,6 +113,8 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
+    spOfftake: 'SP Offtake',
+    mrpOfftake: 'MRP Offtake',
     quantitySold: 'Qty Sold',
     spend: 'Spend',
     tacos: 'TACoS',
@@ -137,6 +139,10 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'SP Offtake': 'spOfftake',
+    'MRP Offtake': 'mrpOfftake',
+    'sp_offtake': 'spOfftake',
+    'mrp_offtake': 'mrpOfftake',
     'Qty Sold': 'quantitySold',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
@@ -203,7 +209,7 @@ const mapApiEntityToFrontend = (apiEntity) => {
 
 const getFullDisplayValue = (kpiKey, cell) => {
     if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
-    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes' || kpiKey === 'spOfftake' || kpiKey === 'mrpOfftake') {
         if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
             return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
         }
@@ -290,6 +296,8 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        { key: 'spOfftake', label: 'SP Offtake' },
+        { key: 'mrpOfftake', label: 'MRP Offtake' },
         { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
@@ -367,45 +375,53 @@ const PlatformOverviewNew = ({
     const handleExportToExcel = () => {
         if (!entities || entities.length === 0) return;
 
-        const excelRows = entities.map(e => {
-            const rowObj = {};
-            const dimLabel = currentDimension?.label || 'Entity';
-            rowObj[dimLabel] = e.name || e.key || '';
+        try {
+            const excelRows = entities.map(e => {
+                const rowObj = {};
+                const dimLabel = currentDimension?.label || 'Entity';
+                rowObj[dimLabel] = e.name || e.key || '';
 
-            selectedKpis.forEach(kpi => {
-                const label = kpiLabels[kpi.key] || kpi.label;
-                const cell = e.data?.[kpi.key];
-                const val = getFullDisplayValue(kpi.key, cell);
-                rowObj[label] = val;
+                selectedKpis.forEach(kpi => {
+                    const label = kpiLabels[kpi.key] || kpi.label;
+                    const cell = e.data?.[kpi.key];
+                    const val = getFullDisplayValue(kpi.key, cell);
+                    rowObj[label] = val;
 
-                if (cell?.delta?.value) {
-                    const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
-                    rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
-                } else {
-                    rowObj[`${label} (Change)`] = '-';
-                }
+                    if (cell?.delta?.value) {
+                        const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
+                        rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
+                    } else {
+                        rowObj[`${label} (Change)`] = '-';
+                    }
+                });
+
+                return rowObj;
             });
 
-            return rowObj;
-        });
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            const sheetName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview`.slice(0, 31);
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
-        const worksheet = XLSX.utils.json_to_sheet(excelRows);
-        const sheetName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview`.slice(0, 31);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-        const colWidths = {};
-        excelRows.forEach(row => {
-            Object.keys(row).forEach(key => {
-                const len = String(row[key] || '').length;
-                colWidths[key] = Math.max(colWidths[key] || key.length, len);
+            const colWidths = {};
+            excelRows.forEach(row => {
+                Object.keys(row).forEach(key => {
+                    const len = String(row[key] || '').length;
+                    colWidths[key] = Math.max(colWidths[key] || key.length, len);
+                });
             });
-        });
-        worksheet['!cols'] = Object.keys(colWidths).map(key => ({
-            wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
-        }));
+            worksheet['!cols'] = Object.keys(colWidths).map(key => ({
+                wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
+            }));
 
-        const fileName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
+            const fileName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+
+            setToastMessage('Exported to Excel successfully!');
+            setTimeout(() => setToastMessage(''), 2500);
+        } catch (err) {
+            console.error('[PlatformOverviewNew] Excel export error:', err);
+        }
     };
 
     // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
@@ -495,6 +511,8 @@ const PlatformOverviewNew = ({
     const defaultKpiKeys = useMemo(() => {
         let base = [
             'offtakes',
+            'spOfftake',
+            'mrpOfftake',
             'quantitySold',
             'spend',
             'inorgSales',
@@ -552,6 +570,8 @@ const PlatformOverviewNew = ({
 
     const [glanceKpis, setGlanceKpis] = useState([
         'offtakes',
+        'spOfftake',
+        'mrpOfftake',
         'quantitySold',
         'spend',
         'inorgSales',

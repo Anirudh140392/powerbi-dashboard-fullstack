@@ -400,8 +400,7 @@ export const PAGE_REGISTRY = {
 
         resolveContext: async (baseUrl, authHeaders) => {
             const context = {
-                startDate: '2026-10-13',
-                endDate: '2026-10-20',
+                ...getDynamicDateRange(),
             };
 
             try {

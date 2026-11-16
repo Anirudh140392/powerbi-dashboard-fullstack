@@ -396,7 +396,7 @@ const Sidebar = ({
       { label: "Content Score", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Content Analysis", path: "/content-analysis", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
-      { label: "PDS Score", path: "/pds-score", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "PDS Score", path: "/pds-score", icon: <BarChartIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars', 'mars_petcare', 'mars_korea'] },
       { label: "Review Rating", path: "/review-rating", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
@@ -1060,7 +1060,11 @@ const Sidebar = ({
           },
         }}>
           {channels.filter(ch => ch !== 'All').sort((a, b) => a.localeCompare(b)).map((ch) => {
-            const isSelected = selectedChannel === ch;
+            const isSelected = Boolean(selectedChannel && ch && (
+              selectedChannel === ch ||
+              selectedChannel.toLowerCase() === ch.toLowerCase() ||
+              formatChannelLabel(selectedChannel) === formatChannelLabel(ch)
+            ));
             const displayLabel = formatChannelLabel(ch);
 
             if (isCollapsed) {
@@ -1131,7 +1135,7 @@ const Sidebar = ({
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {!hidePlatformSelector && !currentPath.startsWith('/review-rating') && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
           {!platformsFetched ? (

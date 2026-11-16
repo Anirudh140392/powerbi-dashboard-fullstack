@@ -11,6 +11,10 @@ export default defineConfig({
       "react": path.resolve(__dirname, "./node_modules/react"),
       "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
       "react-router-dom": path.resolve(__dirname, "./node_modules/react-router-dom"),
+      "@mui/material": path.resolve(__dirname, "./node_modules/@mui/material"),
+      "@mui/icons-material": path.resolve(__dirname, "./node_modules/@mui/icons-material"),
+      "dayjs": path.resolve(__dirname, "./node_modules/dayjs"),
+      "axios": path.resolve(__dirname, "./node_modules/axios"),
     },
     // Allow importing .tsx / .ts files from trailytics_ratings without extension
     extensions: ['.mjs', '.js', '.ts', '.tsx', '.jsx', '.json'],
@@ -23,6 +27,7 @@ export default defineConfig({
       /src\/.*\.[jt]sx?$/,
       /trailytics_ratings\/src\/.*\.[jt]sx?$/,
       /trailytics_content_analysis\/frontend\/src\/.*\.[jt]sx?$/,
+      /ds_tester\/frontend\/.*\.[jt]sx?$/,
     ],
     exclude: [],
   },
@@ -71,13 +76,13 @@ export default defineConfig({
       },
       // ── Dedicated Report Backend API proxy (port 5001) ──
       '/api/reports/download': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,
         proxyTimeout: 10 * 60 * 1000,
       },
       '/api/reports/download-pdp-report': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,
         proxyTimeout: 10 * 60 * 1000,
@@ -123,6 +128,19 @@ export default defineConfig({
             if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ECONNABORTED') return;
             console.warn('[vite] ws proxy error:', err.message);
           });
+        },
+      },
+      // ── DS Tester backend (port 8002) ──
+      '/ds-tester': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        bypass(req) {
+          if (req.headers.accept && req.headers.accept.includes('text/html')) {
+            return '/index.html';
+          }
+          if (req.url === '/ds-tester' || req.url === '/ds-tester/') {
+            return '/index.html';
+          }
         },
       },
     },

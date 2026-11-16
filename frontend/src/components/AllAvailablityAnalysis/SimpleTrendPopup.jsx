@@ -1,5 +1,5 @@
 // TrendStudio.jsx — FINAL PRO VERSION (Fully Dynamic)
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactECharts from "echarts-for-react";
 import { X, Download, RefreshCcw, Percent } from "lucide-react";
@@ -92,6 +92,39 @@ export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
     };
   }, [chartType, activeMetric, values, labels]);
 
+  const isBackdropMouseDownRef = useRef(false);
+
+  const handleBackdropMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      isBackdropMouseDownRef.current = true;
+    } else {
+      isBackdropMouseDownRef.current = false;
+    }
+  };
+
+  const handleBackdropClick = (e) => {
+    if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+      const isScrollbar =
+        e.clientX >= e.currentTarget.clientWidth ||
+        e.clientY >= e.currentTarget.clientHeight;
+      if (!isScrollbar) {
+        onClose?.();
+      }
+    }
+    isBackdropMouseDownRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   // ---------------------------------------------
   // RENDER UI
   // ---------------------------------------------
@@ -102,9 +135,13 @@ export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        onMouseDown={handleBackdropMouseDown}
+        onClick={handleBackdropClick}
       >
         <motion.div
           className="bg-white rounded-3xl p-6 w-[950px] max-h-[90vh] shadow-xl relative overflow-auto border border-slate-200"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.85, opacity: 0 }}

@@ -267,10 +267,24 @@ export default function ReportBuilder({
   // and the account has review data (builder-options sends reviewDateRange only then)
   const hasReviewRating = isTabPermitted(user?.tabPermissions, "Review Rating") && !!builderOptions?.reviewDateRange;
 
+  // Platforms that have review rating data (from builderOptions.reviewPlatforms)
+  const reviewPlatforms = useMemo(() => builderOptions?.reviewPlatforms || [], [builderOptions?.reviewPlatforms]);
+
+  // Check if any currently selected platform has review data
+  const selectedPlatforms = useMemo(() => Object.entries(platforms).filter(([, on]) => on).map(([id]) => id), [platforms]);
+  const hasSelectedReviewPlatform = useMemo(() => {
+    if (!hasReviewRating) return false;
+    if (selectedPlatforms.length === 0) return false;
+    return selectedPlatforms.some(p => reviewPlatforms.includes(p));
+  }, [hasReviewRating, selectedPlatforms, reviewPlatforms]);
+
+  // Review Rating Data is available if account has it AND at least one selected platform has data
+  const canUseReviewRating = hasReviewRating && hasSelectedReviewPlatform;
+
   useEffect(() => {
     if (!hasContentAnalysis && dataMode === "content") setDataMode("aggregated");
-    if (!hasReviewRating && dataMode === "review") setDataMode("aggregated");
-  }, [hasContentAnalysis, hasReviewRating, dataMode]);
+    if (!canUseReviewRating && dataMode === "review") setDataMode("aggregated");
+  }, [hasContentAnalysis, canUseReviewRating, dataMode]);
 
   // Content Data / Review Rating Data only need a date range: no granularity, no metrics step
   const isContentMode = dataMode === "content";
@@ -481,8 +495,20 @@ export default function ReportBuilder({
 
     // Pass latest values to parent directly to avoid React state timing bugs
     // Only send KPIs that are both selected AND available for the chosen platforms
-    const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
-    const activeDimensions = filters.join(",");
+    const activeTagList = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t));
+    const activeTags = activeTagList.join(",");
+
+    const PM_TAGS = new Set([
+      "impressions", "clicks", "spend", "inorganic sales",
+      "roas", "conversion rate", "cpm", "cpc", "aov"
+    ]);
+    const isOnlyPm = activeTagList.length > 0 && activeTagList.every(t => PM_TAGS.has(t.toLowerCase()));
+
+    let activeDimsList = filters;
+    if (isOnlyPm) {
+      activeDimsList = activeDimsList.filter(d => d !== "City" && d !== "Location");
+    }
+    const activeDimensions = activeDimsList.join(",");
     const clampedEnd = isDarkstoreMode
       ? (effectiveMaxDate && dayjs(endDate).isAfter(effectiveMaxDate) ? effectiveMaxDate : dayjs(endDate))
       : (dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate));
@@ -516,7 +542,7 @@ export default function ReportBuilder({
       dimensions: activeDimensions,
       platform: platformOverride,
       granularitySku: sku,
-      granularityGeo: geo,
+      granularityGeo: isOnlyPm ? "Pan India" : geo,
       granularityTime: time,
       overrideDates: customDates
     });
@@ -750,19 +776,22 @@ export default function ReportBuilder({
                         </Button>
                       )}
                       {hasReviewRating && (
-                        <Button
-                          variant={dataMode === "review" ? "contained" : "outlined"}
-                          onClick={() => setDataMode("review")}
-                          sx={{
-                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                            background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : "white",
-                            color: dataMode === "review" ? "white" : "#64748B",
-                            borderColor: dataMode === "review" ? "#F59E0B" : "#CBD5E1",
-                            "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : "#F1F5F9" }
-                          }}
-                        >
-                          Review Rating Data
-                        </Button>
+                        <Tooltip title={hasSelectedReviewPlatform ? "" : "No review rating data available for selected platform(s)"} placement="top" arrow>
+                          <Button
+                            variant={dataMode === "review" ? "contained" : "outlined"}
+                            onClick={hasSelectedReviewPlatform ? () => setDataMode("review") : undefined}
+                            disabled={!hasSelectedReviewPlatform}
+                            sx={{
+                              textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                              background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "white",
+                              color: dataMode === "review" ? "white" : !hasSelectedReviewPlatform ? "#BDBDBD" : "#64748B",
+                              borderColor: dataMode === "review" ? "#F59E0B" : !hasSelectedReviewPlatform ? "#E0E0E0" : "#CBD5E1",
+                              "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "#F1F5F9" }
+                            }}
+                          >
+                            Review Rating Data
+                          </Button>
+                        </Tooltip>
                       )}
                     </Box>
                   </Box>
@@ -918,19 +947,22 @@ export default function ReportBuilder({
                         </Button>
                       )}
                       {hasReviewRating && (
-                        <Button
-                          variant={dataMode === "review" ? "contained" : "outlined"}
-                          onClick={() => setDataMode("review")}
-                          sx={{
-                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                            background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : "white",
-                            color: dataMode === "review" ? "white" : "#64748B",
-                            borderColor: dataMode === "review" ? "#F59E0B" : "#CBD5E1",
-                            "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : "#F1F5F9" }
-                          }}
-                        >
-                          Review Rating Data
-                        </Button>
+                        <Tooltip title={hasSelectedReviewPlatform ? "" : "No review rating data available for selected platform(s)"} placement="top" arrow>
+                          <Button
+                            variant={dataMode === "review" ? "contained" : "outlined"}
+                            onClick={hasSelectedReviewPlatform ? () => setDataMode("review") : undefined}
+                            disabled={!hasSelectedReviewPlatform}
+                            sx={{
+                              textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                              background: dataMode === "review" ? "linear-gradient(135deg, #F59E0B, #D97706)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "white",
+                              color: dataMode === "review" ? "white" : !hasSelectedReviewPlatform ? "#BDBDBD" : "#64748B",
+                              borderColor: dataMode === "review" ? "#F59E0B" : !hasSelectedReviewPlatform ? "#E0E0E0" : "#CBD5E1",
+                              "&:hover": { background: dataMode === "review" ? "linear-gradient(135deg, #D97706, #B45309)" : !hasSelectedReviewPlatform ? "#F5F5F5" : "#F1F5F9" }
+                            }}
+                          >
+                            Review Rating Data
+                          </Button>
+                        </Tooltip>
                       )}
                     </Box>
                   </Box>

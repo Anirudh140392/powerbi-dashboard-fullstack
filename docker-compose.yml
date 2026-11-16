@@ -95,11 +95,39 @@ services:
         condition: any
         delay: 3s
 
+  # ─── DS Tester Validation API Service (port 8002, isolated) ───
+  # Runs in its own container so a DS Tester failure cannot affect
+  # the main backend, report/ratings/content APIs, or the frontend.
+  ds_tester:
+    build:
+      context: ./ds_tester
+      dockerfile: Dockerfile
+    container_name: ds_tester
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./backend/.env
+    environment:
+      - API_BASE_URL=http://backend_multiple:5000
+      - FRONTEND_URL=http://frontend_multiple:9500
+      - CHROME_BIN=/usr/bin/chromium
+      - SE_CHROMEDRIVER=/usr/bin/chromedriver
+      - DS_TESTER_FORCE_HEADLESS=1
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
+
   # ─── Frontend UI Service (port 9500 → exposed as 9400) ───
   # Build context is the monorepo root because the frontend
   # imports source files directly from:
   #   trailytics_ratings/frontend/src/
   #   trailytics_content_analysis/frontend/src/
+  #   ds_tester/frontend/
   frontend_multiple:
     build:
       context: .

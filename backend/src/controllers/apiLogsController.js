@@ -13,11 +13,31 @@ import {
 import { 
     runPageTests, 
     isTestRunActive,
+    getRunProgress,
     getAllActiveDatabases,
     getPermittedPagesForDb,
-    setSuiteRunning
+    setSuiteRunning,
+    executeFullApiHealthCheck
 } from '../services/apiTestRunner.js';
+import { sendApiAlertReport, fetchAlertRecipients } from '../services/apiAlertReportService.js';
+import { queryAdminDB, insertAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
+
+/**
+ * Normalizes client database filter from request query or body.
+ * Supports: clientDb, client_db, clientDb[], client_db[], comma-separated strings, or arrays.
+ */
+function extractClientDbList(source = {}) {
+    const val = source.clientDb ?? source.client_db ?? source['clientDb[]'] ?? source['client_db[]'];
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        return val.flatMap(v => String(v).split(',')).map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    if (typeof val === 'string') {
+        return val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    return [];
+}
 
 /**
  * GET /api/api-logs
@@ -32,8 +52,6 @@ export async function getApiLogs(req, res) {
             status,
             emptyResponse,
             empty_response,
-            clientDb,
-            client_db,
             search,
             pageNumber,
             pageSize,
@@ -41,13 +59,15 @@ export async function getApiLogs(req, res) {
             sortOrder,
         } = req.query;
 
+        const parsedClientDb = extractClientDbList(req.query);
+
         const result = await getLogs({
             date,
             page,
             segment,
             status,
             emptyResponse: emptyResponse ?? empty_response,
-            clientDb: clientDb || client_db,
+            clientDb: parsedClientDb,
             search,
             pageNumber,
             pageSize,
@@ -75,12 +95,13 @@ export async function getApiLogs(req, res) {
  */
 export async function getApiLogsSummary(req, res) {
     try {
-        const { date, page, clientDb, client_db } = req.query;
+        const { date, page } = req.query;
+        const parsedClientDb = extractClientDbList(req.query);
 
         const summary = await getSummary({ 
             date, 
             page, 
-            clientDb: clientDb || client_db 
+            clientDb: parsedClientDb 
         });
 
         return res.status(200).json({
@@ -139,11 +160,9 @@ export async function triggerApiLogsRun(req, res) {
             });
         }
 
-        const targetPage = req.body?.page || req.query?.page || '';
-        const requestedClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || '';
+        const targetPage = req.body?.page || req.query?.page || 'All';
+        const requestedClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || 'All';
 
-        // If a specific DB is requested (and not 'All'), test only that DB.
-        // Otherwise (default when clicking Run Check), test one by one for ALL active databases present in tb_database table!
         let targetDbs = [];
         if (requestedClientDb && requestedClientDb !== 'All') {
             targetDbs = [requestedClientDb];
@@ -155,39 +174,8 @@ export async function triggerApiLogsRun(req, res) {
             ? getRegisteredPages()
             : [targetPage];
 
-        setSuiteRunning(true);
-
-        // Trigger run in background sequentially for each database
-        (async () => {
-            console.log(`[ApiLogsController] Starting multi-DB test run across ${targetDbs.length} databases:`, targetDbs);
-            try {
-                for (const currentDb of targetDbs) {
-                    const permittedPages = await getPermittedPagesForDb(currentDb);
-                    const pagesForDb = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
-                        ? permittedPages
-                        : (permittedPages.includes(targetPage) ? [targetPage] : []);
-
-                    if (pagesForDb.length === 0) {
-                        console.log(`[ApiLogsController] No permitted pages to test for DB "${currentDb}" based on tab_permissions.`);
-                        continue;
-                    }
-
-                    console.log(`[ApiLogsController] >>> Testing DB: "${currentDb}" (${pagesForDb.length} active pages: ${pagesForDb.join(', ')})...`);
-                    for (const p of pagesForDb) {
-                        try {
-                            await runPageTests(p, currentDb);
-                        } catch (pageErr) {
-                            console.error(`[ApiLogsController] Error testing page "${p}" for DB "${currentDb}":`, pageErr.message);
-                        }
-                    }
-                    console.log(`[ApiLogsController] <<< Finished testing DB: "${currentDb}"`);
-                }
-                console.log(`[ApiLogsController] Multi-database test run completed for all ${targetDbs.length} databases.`);
-            } finally {
-                setSuiteRunning(false);
-            }
-        })().catch(runErr => {
-            setSuiteRunning(false);
+        // Trigger run in background using executeFullApiHealthCheck
+        executeFullApiHealthCheck({ targetPage, requestedClientDb }).catch(runErr => {
             console.error('[ApiLogsController] Background multi-DB test run error:', runErr.message);
         });
 
@@ -199,7 +187,6 @@ export async function triggerApiLogsRun(req, res) {
             message: `API health test run initiated for ${targetDbs.length} database(s) (${targetDbs.join(', ')}) across ${pagesToTest.length} page(s).`,
         });
     } catch (err) {
-        setSuiteRunning(false);
         console.error('[ApiLogsController] Error triggering test run:', err.message);
         return res.status(500).json({
             success: false,
@@ -210,16 +197,37 @@ export async function triggerApiLogsRun(req, res) {
 }
 
 /**
+ * GET /api/api-logs/status
+ * Check whether a diagnostic test run is currently active and get progress.
+ */
+export async function getApiTestStatus(req, res) {
+    try {
+        const progress = getRunProgress();
+        return res.status(200).json({
+            success: true,
+            ...progress,
+        });
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: err.message,
+        });
+    }
+}
+
+
+/**
  * GET /api/api-logs/distribution
  * Fetch 2-day health distribution (Success, Slow, Failed) and complete list of APIs per category for Pie Chart.
  */
 export async function getApiLogsDistribution(req, res) {
     try {
-        const { page, clientDb, client_db, days = 2 } = req.query;
+        const { page, days = 2 } = req.query;
+        const parsedClientDb = extractClientDbList(req.query);
 
         const result = await getDistribution({ 
             page, 
-            clientDb: clientDb || client_db, 
+            clientDb: parsedClientDb, 
             days 
         });
 
@@ -236,3 +244,126 @@ export async function getApiLogsDistribution(req, res) {
         });
     }
 }
+
+
+/**
+ * POST /api/api-logs/send-report
+ * Manually trigger or test sending the API Alert Email Report.
+ */
+export async function sendApiAlertReportNow(req, res) {
+    try {
+        const { dateScope = 'today', dryRun = false } = req.body || {};
+        console.log(`[ApiLogsController] Manual trigger for API Alert Report (dateScope=${dateScope}, dryRun=${dryRun})...`);
+        const result = await sendApiAlertReport({ dateScope, dryRun: Boolean(dryRun) });
+        return res.status(200).json({
+            success: true,
+            message: 'API Alert Report executed successfully',
+            result,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in sendApiAlertReportNow:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to send API alert report',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * GET /api/api-logs/recipients
+ * List all active recipient emails for the daily alert email.
+ */
+export async function getAlertRecipients(req, res) {
+    try {
+        const recipients = await fetchAlertRecipients();
+        return res.status(200).json({
+            success: true,
+            data: recipients,
+            recipients,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in getAlertRecipients:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch alert recipients',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * POST /api/api-logs/recipients
+ * Add a new email recipient to admin_master.api_alert.
+ */
+export async function addAlertRecipient(req, res) {
+    try {
+        const { email } = req.body || {};
+        const cleanEmail = (email || '').trim().toLowerCase();
+        const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+$/;
+
+        if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid email address provided',
+            });
+        }
+
+        const existing = await queryAdminDB(`SELECT email FROM ${ADMIN_DB}.api_alert WHERE lower(email) = {email:String}`, { email: cleanEmail });
+        if (existing.length > 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Email is already a registered recipient',
+                email: cleanEmail,
+            });
+        }
+
+        await insertAdminDB('api_alert', [{ email: cleanEmail }]);
+        console.log(`[ApiLogsController] Added new alert recipient: ${cleanEmail}`);
+
+        const updated = await fetchAlertRecipients();
+        return res.status(201).json({
+            success: true,
+            message: `Added recipient: ${cleanEmail}`,
+            recipients: updated,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in addAlertRecipient:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to add recipient',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * DELETE /api/api-logs/recipients/:email
+ * Remove an email recipient from admin_master.api_alert.
+ */
+export async function deleteAlertRecipient(req, res) {
+    try {
+        const email = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, error: 'Email parameter is required' });
+        }
+
+        await queryAdminDB(`ALTER TABLE ${ADMIN_DB}.api_alert DELETE WHERE lower(email) = '${email}'`);
+        console.log(`[ApiLogsController] Removed alert recipient: ${email}`);
+
+        const updated = await fetchAlertRecipients();
+        return res.status(200).json({
+            success: true,
+            message: `Removed recipient: ${email}`,
+            recipients: updated,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in deleteAlertRecipient:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to remove recipient',
+            message: err.message,
+        });
+    }
+}
+

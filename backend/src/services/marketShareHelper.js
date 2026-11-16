@@ -1719,7 +1719,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
         // Numerators: per-brand sum(overall)/sum(spons) where flag='1' (our brand rows)
         const currSOSNumQuery = `
-            SELECT brand_name_th as brand,
+            SELECT lower(brand_name_th) as brand,
                    sum(toInt32(overall)) as overall_num,
                    sum(toInt32(spons)) as spons_num
             FROM rb_kw_olap
@@ -1727,11 +1727,11 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             ${kwBaseCond}
             ${kwSubCatCond}
             AND brand_name_th IS NOT NULL AND brand_name_th != ''
-            GROUP BY brand_name_th
+            GROUP BY lower(brand_name_th)
         `;
 
         const prevSOSNumQuery = `
-            SELECT brand_name_th as brand,
+            SELECT lower(brand_name_th) as brand,
                    sum(toInt32(overall)) as overall_num,
                    sum(toInt32(spons)) as spons_num
             FROM rb_kw_olap
@@ -1739,7 +1739,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             ${kwBaseCond}
             ${kwSubCatCond}
             AND brand_name_th IS NOT NULL AND brand_name_th != ''
-            GROUP BY brand_name_th
+            GROUP BY lower(brand_name_th)
         `;
 
         const [currDenomResult, prevDenomResult, currSOSNumResults, prevSOSNumResults] = await Promise.all([
