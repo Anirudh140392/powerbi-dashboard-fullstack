@@ -296,8 +296,8 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
-        { key: 'spOfftake', label: 'SP Offtake' },
-        { key: 'mrpOfftake', label: 'MRP Offtake' },
+        // { key: 'spOfftake', label: 'SP Offtake' }, // Hidden on UI as per request
+        // { key: 'mrpOfftake', label: 'MRP Offtake' }, // Hidden on UI as per request
         { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
@@ -511,8 +511,6 @@ const PlatformOverviewNew = ({
     const defaultKpiKeys = useMemo(() => {
         let base = [
             'offtakes',
-            'spOfftake',
-            'mrpOfftake',
             'quantitySold',
             'spend',
             'inorgSales',
@@ -570,8 +568,6 @@ const PlatformOverviewNew = ({
 
     const [glanceKpis, setGlanceKpis] = useState([
         'offtakes',
-        'spOfftake',
-        'mrpOfftake',
         'quantitySold',
         'spend',
         'inorgSales',
@@ -885,8 +881,8 @@ const PlatformOverviewNew = ({
     ].filter(Boolean).length
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
-    // Get selected KPIs in order
-    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
+    // Get selected KPIs in order (excluding spOfftake & mrpOfftake)
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key) && k.key !== 'spOfftake' && k.key !== 'mrpOfftake')
     const kpiCount = selectedKpis.length
 
     // Build entities from API data only — NO hardcoded fallback
