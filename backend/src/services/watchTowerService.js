@@ -266,6 +266,7 @@ async function getWatchtowerSource(filters = {}) {
                 brand: r('brand'),
                 location: r('location'),
                 category: PRODUCT_CATEGORY_SQL,
+                categoryCol: r('category'),
                 compFlag: r('comp_flag'),
                 compFlagMapping: r('comp_flag'),
                 mrp: r('mrp'),
@@ -333,6 +334,7 @@ async function getWatchtowerSource(filters = {}) {
             brand: brandCol,
             location: locationCol,
             category: PRODUCT_CATEGORY_SQL,
+            categoryCol: r('Category'),
             compFlag: compFlagCol,
             compFlagMapping: compFlagCol,
             mrp: wrap(mrpCol),
@@ -10132,7 +10134,10 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             if (catArr && catArr.length > 0) {
-                const catCol = src.f.category;
+                // Use the plain category column (src.categoryCol) for the WHERE filter.
+                // src.f.category is PRODUCT_CATEGORY_SQL (a complex if/multiIf expression)
+                // which ClickHouse rejects when wrapped in lower() inside WHERE.
+                const catCol = src.categoryCol || src.f.category;
                 conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
 
@@ -10140,8 +10145,11 @@ const getCompetitionData = async (filters = {}) => {
                 conds.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
             }
 
-            if (skuArr && skuArr.length > 0) {
-                conds.push(`lower(${src.f.product}) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+            // Use raw SKU value directly without splitting by comma, since SKU names may contain commas
+            if (sku && sku !== 'All') {
+                conds.push(`lower(${src.f.product}) LIKE lower('%${escapeStr(sku)}%')`);
+            } else if (skuArr && skuArr.length > 0) {
+                conds.push(`(${skuArr.map(s => `lower(${src.f.product}) LIKE lower('%${escapeStr(s)}%')`).join(' OR ')})`);
             }
 
             // Reseller_Name filter for DRL
@@ -10548,13 +10556,13 @@ const getCompetitionData = async (filters = {}) => {
         // Query per-SKU sales from rb_ms_olap (since rb_pdp_olap competitor sales are 0)
         const [skuSalesQuery, skuSalesQueryPrev] = await Promise.all([
             queryClickHouse(`
-                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as sku_category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsConds.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
             `),
             queryClickHouse(`
-                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as sku_category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsCondsPrev.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
@@ -10565,7 +10573,7 @@ const getCompetitionData = async (filters = {}) => {
             if (r.item_name) {
                 skuMsMap.set(r.item_name.toLowerCase().trim(), {
                     sales: parseFloat(r.sku_sales || 0),
-                    category: r.category ? r.category.toLowerCase().trim() : ''
+                    category: (r.sku_category || r.category) ? (r.sku_category || r.category).toLowerCase().trim() : ''
                 });
             }
         });
@@ -10574,7 +10582,7 @@ const getCompetitionData = async (filters = {}) => {
             if (r.item_name) {
                 skuMsMapPrev.set(r.item_name.toLowerCase().trim(), {
                     sales: parseFloat(r.sku_sales || 0),
-                    category: r.category ? r.category.toLowerCase().trim() : ''
+                    category: (r.sku_category || r.category) ? (r.sku_category || r.category).toLowerCase().trim() : ''
                 });
             }
         });
@@ -10809,48 +10817,48 @@ const getCompetitionData = async (filters = {}) => {
 
         const [currentSkus, skuOsaData, skuOsaDataPrev] = await Promise.all([
             queryClickHouse(`
-                SELECT ${src.f.product} as Product, ${src.f.brand} as Brand,
+                SELECT ${src.f.product} as Product, ${src.f.brand} as Brand, ${src.f.webPid} as Web_Pid,
             any(${src.f.category}) as sku_category,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
-                GROUP BY Product, Brand
+                GROUP BY Product, Brand, Web_Pid
             `),
             queryClickHouse(`
-                SELECT ${src.f.product} as Product,
+                SELECT ${src.f.product} as Product, ${src.f.webPid} as Web_Pid,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.spend}) as total_spend,
             SUM(${src.f.adSales}) as total_Ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
-                GROUP BY Product
+                GROUP BY Product, Web_Pid
             `),
             queryClickHouse(`
-                SELECT ${src.f.product} as Product,
+                SELECT ${src.f.product} as Product, ${src.f.webPid} as Web_Pid,
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.spend}) as total_spend,
             SUM(${src.f.adSales}) as total_Ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
-            AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.sellingPrice}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${momConds}
-                GROUP BY Product
+                GROUP BY Product, Web_Pid
             `)
         ]);
 
@@ -10970,6 +10978,7 @@ const getCompetitionData = async (filters = {}) => {
 
             return {
                 sku_name: sku.Product,
+                webPid: sku.Web_Pid,
                 brand_name: sku.Brand,
                 brand: sku.Product,
                 total_sales: totalSkuSalesVal,
@@ -11824,16 +11833,8 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const { platform, location } = filters;
 
-        // Determine dark store table for Business Overview Dark Store Count
-        let darkstoreTable = 'rb_location_darkstore_testing';
-        try {
-            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
-            if (Number(check?.[0]?.result) !== 1) {
-                darkstoreTable = 'rb_location_darkstore';
-            }
-        } catch (e) {
-            darkstoreTable = 'rb_location_darkstore';
-        }
+        // Dark store table for Business Overview Dark Store Count
+        const darkstoreTable = 'rb_location_darkstore';
 
         // Check if rca_sku_dim table exists for channel filtering
         let rcaExists = false;

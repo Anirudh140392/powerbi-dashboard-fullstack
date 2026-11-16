@@ -214,7 +214,7 @@ export default function ContentScoreAnalysis() {
   const [selectedKpi, setSelectedKpi] = useState('overallScore');
 
   const [overviewData, setOverviewData] = useState({
-    current: { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0 },
+    current: { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: null, overallScore: 0 },
     deltas: { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0 }
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -345,7 +345,7 @@ export default function ContentScoreAnalysis() {
         images: `${s.imageScore.toFixed(2)}%`,
         secondary: `${s.siScore.toFixed(2)}%`,
         desc: `${s.descriptionScore.toFixed(2)}%`,
-        rating: `${s.ratingScore.toFixed(2)}%`
+        rating: s.ratingScore != null ? `${s.ratingScore.toFixed(2)}%` : '-'
       }));
 
       return {
@@ -354,7 +354,7 @@ export default function ContentScoreAnalysis() {
         images: `${p.current.imageScore.toFixed(2)}%`,
         secondary: `${p.current.siScore.toFixed(2)}%`,
         desc: `${p.current.descScore.toFixed(2)}%`,
-        rating: `${p.current.ratingScore.toFixed(2)}%`,
+        rating: p.current.ratingScore != null ? `${p.current.ratingScore.toFixed(2)}%` : '-',
         skus: platformSkus,
         overallScore: p.current.overallScore
       };
@@ -403,12 +403,22 @@ export default function ContentScoreAnalysis() {
             </div>
           }
           kpis={[
-            { id: 'title', title: 'Title Score', value: `${overviewData.current.titleScore.toFixed(2)}%`, subtitle: 'Title Quality', delta: overviewData.deltas.titleScore, deltaLabel: `${overviewData.deltas.titleScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.titleScore).toFixed(1)}%`, icon: Type, gradient: ['#10b981', '#34d399'], trendSeries: [] },
-            { id: 'image', title: 'Image Score', value: `${overviewData.current.imageScore.toFixed(2)}%`, subtitle: 'Hero images', delta: overviewData.deltas.imageScore, deltaLabel: `${overviewData.deltas.imageScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.imageScore).toFixed(1)}%`, icon: LucideImage, gradient: ['#10b981', '#34d399'], trendSeries: [] },
-            { id: 'si', title: 'SI Score', value: `${overviewData.current.siScore.toFixed(2)}%`, subtitle: 'Secondary images', delta: overviewData.deltas.siScore, deltaLabel: `${overviewData.deltas.siScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.siScore).toFixed(1)}%`, icon: CopyPlus, gradient: ['#10b981', '#34d399'], trendSeries: [] },
-            { id: 'desc', title: 'Description Score', value: `${overviewData.current.descScore.toFixed(2)}%`, subtitle: 'Product details', delta: overviewData.deltas.descScore, deltaLabel: `${overviewData.deltas.descScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.descScore).toFixed(1)}%`, icon: FileText, gradient: ['#f43f5e', '#fb7185'], trendSeries: [] },
-            { id: 'rating', title: 'Rating Score', value: `${overviewData.current.ratingScore.toFixed(2)}%`, subtitle: 'Consumer ratings', delta: overviewData.deltas.ratingScore, deltaLabel: `${overviewData.deltas.ratingScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.ratingScore).toFixed(1)}%`, icon: Star, gradient: ['#f43f5e', '#fb7185'], trendSeries: [] },
-            { id: 'overall', title: 'Overall Score', value: `${overviewData.current.overallScore.toFixed(2)}%`, subtitle: 'Aggregate health', delta: overviewData.deltas.overallScore, deltaLabel: `${overviewData.deltas.overallScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.overallScore).toFixed(1)}%`, icon: PieChart, gradient: ['#6366f1', '#8b5cf6'], trendSeries: [] }
+            { id: 'title', title: 'Title Score', value: `${overviewData.current.titleScore.toFixed(2)}%`, subtitle: 'Title Quality', delta: overviewData.deltas.titleScore, deltaLabel: overviewData.deltas.titleScore != null ? `${overviewData.deltas.titleScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.titleScore).toFixed(1)}%` : '—', icon: Type, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'image', title: 'Image Score', value: `${overviewData.current.imageScore.toFixed(2)}%`, subtitle: 'Hero images', delta: overviewData.deltas.imageScore, deltaLabel: overviewData.deltas.imageScore != null ? `${overviewData.deltas.imageScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.imageScore).toFixed(1)}%` : '—', icon: LucideImage, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'si', title: 'SI Score', value: `${overviewData.current.siScore.toFixed(2)}%`, subtitle: 'Secondary images', delta: overviewData.deltas.siScore, deltaLabel: overviewData.deltas.siScore != null ? `${overviewData.deltas.siScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.siScore).toFixed(1)}%` : '—', icon: CopyPlus, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'desc', title: 'Description Score', value: `${overviewData.current.descScore.toFixed(2)}%`, subtitle: 'Product details', delta: overviewData.deltas.descScore, deltaLabel: overviewData.deltas.descScore != null ? `${overviewData.deltas.descScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.descScore).toFixed(1)}%` : '—', icon: FileText, gradient: ['#f43f5e', '#fb7185'], trendSeries: [] },
+            ...(overviewData.current.ratingScore !== null && overviewData.current.ratingScore !== undefined ? [{
+              id: 'rating',
+              title: 'Rating Score',
+              value: `${overviewData.current.ratingScore.toFixed(2)}%`,
+              subtitle: 'Consumer ratings',
+              delta: overviewData.deltas.ratingScore,
+              deltaLabel: overviewData.deltas.ratingScore != null ? `${overviewData.deltas.ratingScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.ratingScore).toFixed(1)}%` : '—',
+              icon: Star,
+              gradient: ['#f43f5e', '#fb7185'],
+              trendSeries: []
+            }] : []),
+            { id: 'overall', title: 'Overall Score', value: `${overviewData.current.overallScore.toFixed(2)}%`, subtitle: 'Aggregate health', delta: overviewData.deltas.overallScore, deltaLabel: overviewData.deltas.overallScore != null ? `${overviewData.deltas.overallScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.overallScore).toFixed(1)}%` : '—', icon: PieChart, gradient: ['#6366f1', '#8b5cf6'], trendSeries: [] }
           ]}
         />
 
@@ -854,11 +864,11 @@ const ContentCrossPlatformOverview = ({ breakdown, onViewTrends, onViewInsights 
           const val = breakdown.overall.current[k];
           const delta = breakdown.overall.deltas[k];
           acc[k] = {
-            value: `${val.toFixed(1)}%`,
-            delta: {
+            value: (val !== null && val !== undefined) ? `${Number(val).toFixed(1)}%` : '—',
+            delta: (delta !== null && delta !== undefined) ? {
               value: `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`,
               dir: delta >= 0 ? 'up' : 'down'
-            }
+            } : null
           };
           return acc;
         }, {})
@@ -873,11 +883,11 @@ const ContentCrossPlatformOverview = ({ breakdown, onViewTrends, onViewInsights 
           const val = p.current[k];
           const delta = p.deltas[k];
           acc[k] = {
-            value: `${val.toFixed(1)}%`,
-            delta: {
+            value: (val !== null && val !== undefined) ? `${Number(val).toFixed(1)}%` : '—',
+            delta: (delta !== null && delta !== undefined) ? {
               value: `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`,
               dir: delta >= 0 ? 'up' : 'down'
-            }
+            } : null
           };
           return acc;
         }, {})
@@ -968,7 +978,7 @@ const ContentCrossPlatformOverview = ({ breakdown, onViewTrends, onViewInsights 
                                   const cell = plat.data[kpi.key]
                                   const textColor = getStatusText(cell?.delta)
                                   const isUp = cell?.delta?.dir === 'up'
-                                  const isNull = !cell || cell.value === '-'
+                                  const isNull = !cell || cell.value === '-' || cell.value === '—'
 
                                   return (
                                       <motion.button

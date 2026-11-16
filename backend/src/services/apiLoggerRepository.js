@@ -30,6 +30,22 @@ const ALLOWED_SORT_COLUMNS = {
 };
 
 /**
+ * Normalizes client database filter into a clean Array(String).
+ * Handles string arrays, comma-separated strings, or mixed formats.
+ */
+export function normalizeClientDbList(clientDb, client_db) {
+    const raw = clientDb ?? client_db;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+        return raw.flatMap(r => String(r).split(',')).map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    if (typeof raw === 'string') {
+        return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    return [];
+}
+
+/**
  * Ensure table schema, missing columns, and 2-day TTL exist in admin_master.
  */
 export async function ensureApiLogsSchema() {
@@ -220,9 +236,7 @@ export async function getLogs({
         params.targetEmptyResponse = Number(emptyResponse) === 1 ? 1 : 0;
     }
 
-    const clientList = Array.isArray(clientDb)
-        ? clientDb
-        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    const clientList = normalizeClientDbList(clientDb, client_db);
     if (clientList.length > 0) {
         whereClauses.push('client_db IN {targetClientDb:Array(String)}');
         params.targetClientDb = clientList;
@@ -310,9 +324,7 @@ export async function getSummary({ date = '', page = '', clientDb = '', client_d
         params.targetPage = page;
     }
 
-    const clientList = Array.isArray(clientDb)
-        ? clientDb
-        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    const clientList = normalizeClientDbList(clientDb, client_db);
     if (clientList.length > 0) {
         whereClauses.push('client_db IN {targetClientDb:Array(String)}');
         params.targetClientDb = clientList;
@@ -435,9 +447,7 @@ export async function getDistribution({ page = '', clientDb = '', client_db = ''
         params.targetPage = page;
     }
 
-    const clientList = Array.isArray(clientDb)
-        ? clientDb
-        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    const clientList = normalizeClientDbList(clientDb, client_db);
     if (clientList.length > 0) {
         whereClauses.push('client_db IN {targetClientDb:Array(String)}');
         params.targetClientDb = clientList;

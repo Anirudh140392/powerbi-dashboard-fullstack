@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import TrailyticsTypewriterLoader from "../../components/insights/TrailyticsTypewriterLoader";
@@ -1112,6 +1113,44 @@ export default function PDSScore() {
   const [viewMode, setViewMode] = useState("compact");
   const [sortConfig, setSortConfig] = useState({ key: "scoreId", direction: "asc" });
   const [isLoading, setIsLoading] = useState(false);
+  const [liveRows, setLiveRows] = useState([]);
+  const [liveTotals, setLiveTotals] = useState({ achievement: null, target: null });
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    axiosInstance.get("/pds-score/overview", {
+      params: {
+        platform: selectedPlatform,
+        year: selectedYear,
+        period: selectedPeriod,
+      }
+    }).then(res => {
+      if (isMounted && res.data?.success && res.data?.data) {
+        setLiveTotals({
+          achievement: res.data.data.achievementFormatted,
+          target: res.data.data.targetFormatted
+        });
+        if (res.data.data.levers && res.data.data.levers.length > 0) {
+          setLiveRows(res.data.data.levers.map(r => ({
+            scoreId: r.scoreId,
+            dmmhLever: r.dmmhLever,
+            dmmhSubLever: r.dmmhSubLever,
+            weight: r.weight,
+            target: r.target,
+            weightedTarget: r.periodWSTarget || r.weightedTarget,
+            score: r.score,
+            weightedScore: r.weightedScore
+          })));
+        }
+      }
+    }).catch(err => {
+      console.warn("[PDSScore] Live API fetch error, fallback:", err.message);
+    }).finally(() => {
+      if (isMounted) setIsLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, [selectedPlatform, selectedYear, selectedPeriod]);
 
   useEffect(() => {
     if (platform && PLATFORMS.includes(platform)) {
@@ -1136,7 +1175,7 @@ export default function PDSScore() {
     setSortConfig({ key, direction });
   };
 
-  const currentData = getTableData(selectedPlatform, selectedPeriod);
+  const currentData = (liveRows && liveRows.length > 0) ? liveRows : getTableData(selectedPlatform, selectedPeriod);
 
   const filteredData = currentData.filter((row) => {
     const matchesSearch = Object.values(row).some(
@@ -1224,8 +1263,8 @@ export default function PDSScore() {
     }, 0).toFixed(2);
   };
 
-  const totalTarget = calculateTotal("weightedTarget");
-  const totalAchievement = calculateTotal("weightedScore");
+  const totalTarget = liveTotals.target || calculateTotal("weightedTarget");
+  const totalAchievement = liveTotals.achievement || calculateTotal("weightedScore");
 
   return (
     <CommonContainer title="PDS Score" hideFilters={true}>

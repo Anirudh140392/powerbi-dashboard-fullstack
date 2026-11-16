@@ -99,13 +99,20 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
       } else if (filterMonths) {
         setDateRange(filterMonths === 3 ? "3M" : filterMonths === 6 ? "6M" : "1M");
       }
+
+      // Apply the category carried from the parent drawer/competition filters
+      const nextCats = initialFilters?.categories || [];
+      const same =
+        selectedCategories.length === nextCats.length &&
+        nextCats.every((c, i) => selectedCategories[i] === c);
+      if (!same) setSelectedCategories(nextCats);
     }
-  }, [open, initialLevel, filterStartDate, filterEndDate, filterMonths]);
+  }, [open, initialLevel, filterStartDate, filterEndDate, filterMonths, initialFilters?.categories, selectedCategories]);
 
   // Fetch filter options when modal opens
   useEffect(() => {
     if (!open) return;
-    
+
     Promise.all([
       axiosInstance.get("/watchtower/competition-filter-options"),
       axiosInstance.get("/watchtower/pdp-platforms")

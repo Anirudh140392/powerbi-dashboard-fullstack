@@ -165,7 +165,7 @@ export default function LogDetailsDrawer({ log, open, onClose }) {
                             </span>
                             <div className="flex items-center gap-2 mt-0.5">
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
-                                    {log.clientDb || log.client_db || 'demo'}
+                                    {log.clientDb || log.client_db || '—'}
                                 </span>
                                 <span className="text-xs text-slate-500">
                                     Tenant client workspace under which the API request was executed
