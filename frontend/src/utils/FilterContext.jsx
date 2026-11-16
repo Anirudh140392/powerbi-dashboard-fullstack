@@ -311,7 +311,7 @@ export const FilterProvider = ({ children }) => {
                 setSelectedChannel(prev => {
                     const validChannels = res.data.filter(c => c !== 'All');
                     if (validChannels.length === 0) return 'All';
-                    if (prev === "All") return validChannels[0];
+                    if (prev === "All") return "All";
 
                     const lowerPrev = prev.toLowerCase();
                     const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch?.toLowerCase()) || ch?.toLowerCase().includes('quick');
@@ -336,7 +336,7 @@ export const FilterProvider = ({ children }) => {
                         if (mm) return mm;
                     }
 
-                    return validChannels[0];
+                    return "All";
                 });
             } else {
                 setChannels(FALLBACK_CHANNELS);
@@ -1024,6 +1024,7 @@ export const FilterProvider = ({ children }) => {
             setChannels,
             selectedChannel,
             setSelectedChannel,
+            channel: selectedChannel,
             brands,
             setBrands,
             selectedBrand,

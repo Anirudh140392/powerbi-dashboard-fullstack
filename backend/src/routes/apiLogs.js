@@ -3,8 +3,9 @@ import {
     getApiLogsSummary, 
     getApiLogsFilters, 
     triggerApiLogsRun,
-    getApiLogsDistribution
-} from '../controllers/apiLogsController.js';
+    getApiLogsDistribution,
+    getApiTestStatus,
+    sendApiAlertReportNow, getAlertRecipients, addAlertRecipient, deleteAlertRecipient } from '../controllers/apiLogsController.js';
 
 export default (app) => {
     // Restrict all /api/api-logs endpoints strictly to Admin users
@@ -167,6 +168,13 @@ export default (app) => {
      *         description: Health distribution and categorized API list
      */
     app.get('/api/api-logs/distribution', getApiLogsDistribution);
-
+    app.get('/api/api-logs/status', getApiTestStatus);
     app.post('/api/api-logs/run', triggerApiLogsRun);
+    // Manual dispatch / test of API Alert Report Email
+    app.post('/api/api-logs/send-report', sendApiAlertReportNow);
+
+    // Recipient email management for admin_master.api_alert
+    app.get('/api/api-logs/recipients', getAlertRecipients);
+    app.post('/api/api-logs/recipients', addAlertRecipient);
+    app.delete('/api/api-logs/recipients/:email', deleteAlertRecipient);
 };

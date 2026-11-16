@@ -46,6 +46,10 @@ import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 import MopAnalysis from "./pages/Analytics/MopAnalysis";
 import ApiLogsPage from "./pages/ApiLogs/ApiLogsPage";
 import VisitorTracker from "./components/VisitorTracker";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+// Lazy-loaded so a DS Tester failure stays contained to its own chunk/page.
+const DsTesterPage = React.lazy(() => import("../../ds_tester/frontend/DsTesterPage"));
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -116,6 +120,12 @@ function AppContent() {
             } />
 
             <Route path="/visibility-anlysis" element={
+              <ProtectedRoute>
+                <VisibilityAnalysis />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/visibility-analysis" element={
               <ProtectedRoute>
                 <VisibilityAnalysis />
               </ProtectedRoute>
@@ -244,6 +254,16 @@ function AppContent() {
             <Route path="/api-logs" element={
               <ProtectedRoute adminOnly={true}>
                 <ApiLogsPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/ds-tester" element={
+              <ProtectedRoute adminOnly={true}>
+                <ErrorBoundary title="DS Tester is unavailable">
+                  <React.Suspense fallback={<div className="p-8 text-slate-500">Loading DS Tester…</div>}>
+                    <DsTesterPage />
+                  </React.Suspense>
+                </ErrorBoundary>
               </ProtectedRoute>
             } />
 
