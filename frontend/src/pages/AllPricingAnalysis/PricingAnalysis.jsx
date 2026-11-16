@@ -22,6 +22,8 @@ export default function PricingAnalysis() {
     compareStart,
     compareEnd,
     selectedChannel,
+    setSelectedChannel,
+    channels,
     refreshFilters,
     selectedMsl,
     setSelectedMsl,
@@ -40,7 +42,7 @@ export default function PricingAnalysis() {
     location: selectedLocation || "All",
     category: selectedCategory || "All",
     zones: selectedZone || "All",
-    channel: selectedChannel || "Ecommerce",
+    channel: (selectedChannel && selectedChannel !== "All") ? selectedChannel : "Ecommerce",
     msl: selectedMsl || "All",
     sapCode: selectedSapCode || "All",
     productType: selectedProductType || "All",
@@ -106,6 +108,23 @@ export default function PricingAnalysis() {
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
   }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode, selectedProductType]);
+
+  // Ensure default channel is selected on mount/hard refresh if currently 'All'
+  useEffect(() => {
+    if (channels && channels.length > 0 && (selectedChannel === "All" || !selectedChannel)) {
+      const ecom = channels.find(c => ['ecommerce', 'ecom', 'e-commerce'].includes(c.toLowerCase()));
+      const quickComm = channels.find(c => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(c.toLowerCase()));
+      const firstValid = channels.find(c => c !== 'All');
+
+      if (ecom) {
+        setSelectedChannel(ecom);
+      } else if (quickComm) {
+        setSelectedChannel(quickComm);
+      } else if (firstValid) {
+        setSelectedChannel(firstValid);
+      }
+    }
+  }, [channels, selectedChannel, setSelectedChannel]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)

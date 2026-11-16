@@ -1060,7 +1060,11 @@ const Sidebar = ({
           },
         }}>
           {channels.filter(ch => ch !== 'All').sort((a, b) => a.localeCompare(b)).map((ch) => {
-            const isSelected = selectedChannel === ch;
+            const isSelected = Boolean(selectedChannel && ch && (
+              selectedChannel === ch ||
+              selectedChannel.toLowerCase() === ch.toLowerCase() ||
+              formatChannelLabel(selectedChannel) === formatChannelLabel(ch)
+            ));
             const displayLabel = formatChannelLabel(ch);
 
             if (isCollapsed) {
