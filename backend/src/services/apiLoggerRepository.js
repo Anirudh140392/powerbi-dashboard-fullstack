@@ -220,10 +220,12 @@ export async function getLogs({
         params.targetEmptyResponse = Number(emptyResponse) === 1 ? 1 : 0;
     }
 
-    const selectedClient = clientDb || client_db;
-    if (selectedClient && selectedClient !== 'All') {
-        whereClauses.push('client_db = {targetClientDb:String}');
-        params.targetClientDb = selectedClient;
+    const clientList = Array.isArray(clientDb)
+        ? clientDb
+        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    if (clientList.length > 0) {
+        whereClauses.push('client_db IN {targetClientDb:Array(String)}');
+        params.targetClientDb = clientList;
     }
 
     if (search && search.trim()) {
@@ -308,10 +310,12 @@ export async function getSummary({ date = '', page = '', clientDb = '', client_d
         params.targetPage = page;
     }
 
-    const selectedClient = clientDb || client_db;
-    if (selectedClient && selectedClient !== 'All') {
-        whereClauses.push('client_db = {targetClientDb:String}');
-        params.targetClientDb = selectedClient;
+    const clientList = Array.isArray(clientDb)
+        ? clientDb
+        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    if (clientList.length > 0) {
+        whereClauses.push('client_db IN {targetClientDb:Array(String)}');
+        params.targetClientDb = clientList;
     }
 
     const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
@@ -431,10 +435,12 @@ export async function getDistribution({ page = '', clientDb = '', client_db = ''
         params.targetPage = page;
     }
 
-    const selectedClient = clientDb || client_db;
-    if (selectedClient && selectedClient !== 'All') {
-        whereClauses.push('client_db = {targetClientDb:String}');
-        params.targetClientDb = selectedClient;
+    const clientList = Array.isArray(clientDb)
+        ? clientDb
+        : (clientDb || client_db ? [String(clientDb || client_db)] : []);
+    if (clientList.length > 0) {
+        whereClauses.push('client_db IN {targetClientDb:Array(String)}');
+        params.targetClientDb = clientList;
     }
 
     const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
