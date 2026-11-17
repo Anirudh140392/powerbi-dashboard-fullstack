@@ -59,61 +59,85 @@ const adminClickhouse = createClient({
  * Run a query against the admin_master database
  * Uses the main ClickHouse client with cross-database query syntax
  */
-export const queryAdminDB = async (query, params = {}) => {
-    try {
-        const trimmed = query.trim().toUpperCase();
-        const isMutationOrDdl = trimmed.startsWith('ALTER') || trimmed.startsWith('UPDATE') || trimmed.startsWith('DELETE') || trimmed.startsWith('INSERT') || trimmed.startsWith('CREATE') || trimmed.startsWith('DROP');
+export const queryAdminDB = async (query, params = {}, retries = 2) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const trimmed = query.trim().toUpperCase();
+            const isMutationOrDdl = trimmed.startsWith('ALTER') || trimmed.startsWith('UPDATE') || trimmed.startsWith('DELETE') || trimmed.startsWith('INSERT') || trimmed.startsWith('CREATE') || trimmed.startsWith('DROP');
 
-        if (isMutationOrDdl) {
-            console.log('[AdminDB] Executing DDL/Mutation command:', query.substring(0, 200));
-            await adminClickhouse.command({
+            if (isMutationOrDdl) {
+                console.log('[AdminDB] Executing DDL/Mutation command:', query.substring(0, 200));
+                await adminClickhouse.command({
+                    query,
+                    query_params: params,
+                    clickhouse_settings: {
+                        max_query_size: 100 * 1024 * 1024,
+                        // Wait for ALTER TABLE UPDATE/DELETE mutations to complete
+                        // before returning. Without this, mutations are async and
+                        // subsequent SELECTs may read stale pre-mutation data.
+                        mutations_sync: 1,
+                    }
+                });
+                return [];
+            }
+
+            console.log('[AdminDB] Executing SELECT query:', query.substring(0, 200));
+            const result = await adminClickhouse.query({
                 query,
                 query_params: params,
+                format: 'JSONEachRow',
                 clickhouse_settings: {
-                    max_query_size: 100 * 1024 * 1024,
-                    // Wait for ALTER TABLE UPDATE/DELETE mutations to complete
-                    // before returning. Without this, mutations are async and
-                    // subsequent SELECTs may read stale pre-mutation data.
-                    mutations_sync: 1,
+                    max_query_size: 100 * 1024 * 1024, // 100 MB
                 }
             });
-            return [];
-        }
-
-        console.log('[AdminDB] Executing SELECT query:', query.substring(0, 200));
-        const result = await adminClickhouse.query({
-            query,
-            query_params: params,
-            format: 'JSONEachRow',
-            clickhouse_settings: {
-                max_query_size: 100 * 1024 * 1024, // 100 MB
+            const data = await result.json();
+            console.log('[AdminDB] Query returned', data.length, 'rows');
+            return data;
+        } catch (err) {
+            const isTransient = err.message && (
+                err.message.includes('ECONNRESET') ||
+                err.message.includes('socket hang up') ||
+                err.message.includes('ETIMEDOUT')
+            );
+            if (isTransient && attempt < retries) {
+                console.warn(`[AdminDB] Query transient error (${err.message}), retrying attempt ${attempt + 1}/${retries}...`);
+                await new Promise(r => setTimeout(r, 200));
+                continue;
             }
-        });
-        const data = await result.json();
-        console.log('[AdminDB] Query returned', data.length, 'rows');
-        return data;
-    } catch (err) {
-        console.error('[AdminDB] Query failed:', err.message);
-        throw err;
+            console.error('[AdminDB] Query failed:', err.message);
+            throw err;
+        }
     }
 };
 
 /**
  * Insert data into the admin_master database
  */
-export const insertAdminDB = async (tableName, values) => {
-    try {
-        console.log(`[AdminDB] Inserting into ${tableName}`);
-        await adminClickhouse.insert({
-            table: tableName,
-            values,
-            format: 'JSONEachRow',
-        });
-        console.log(`[AdminDB] Insert successful into ${tableName}`);
-        return { success: true };
-    } catch (err) {
-        console.error(`[AdminDB] Insert failed into ${tableName}:`, err.message);
-        throw err;
+export const insertAdminDB = async (tableName, values, retries = 2) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            console.log(`[AdminDB] Inserting into ${tableName}`);
+            await adminClickhouse.insert({
+                table: tableName,
+                values,
+                format: 'JSONEachRow',
+            });
+            console.log(`[AdminDB] Insert successful into ${tableName}`);
+            return { success: true };
+        } catch (err) {
+            const isTransient = err.message && (
+                err.message.includes('ECONNRESET') ||
+                err.message.includes('socket hang up') ||
+                err.message.includes('ETIMEDOUT')
+            );
+            if (isTransient && attempt < retries) {
+                console.warn(`[AdminDB] Insert transient error (${err.message}), retrying attempt ${attempt + 1}/${retries}...`);
+                await new Promise(r => setTimeout(r, 200));
+                continue;
+            }
+            console.error(`[AdminDB] Insert failed into ${tableName}:`, err.message);
+            throw err;
+        }
     }
 };
 
