@@ -128,6 +128,7 @@ const LatestOverivewCatCity = ({
         platforms: [],
         skus: [],
         sapCodes: [],
+        grammages: [],
         dateFrom: '',
         dateTo: '',
         kpis: ['discount', 'pricePerUnit', 'asp', 'mrp'],
@@ -148,6 +149,7 @@ const LatestOverivewCatCity = ({
                 platforms: [],
                 skus: [],
                 sapCodes: [],
+                grammages: [],
                 dateFrom: '',
                 dateTo: '',
                 kpis: ['discount', 'pricePerUnit', 'asp'],
@@ -264,11 +266,9 @@ const LatestOverivewCatCity = ({
                 const sap = toParam(advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes : (advancedFilters.sapCode?.length > 0 ? advancedFilters.sapCode : null));
                 if (sap) params.append('sapCode', sap);
 
-                // Grammage filter only applies to SKU dimension
-                if (dimension === 'sku') {
-                    const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
-                    if (gr) params.append('grammage', gr);
-                }
+                // Grammage filter applies across dimensions
+                const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
+                if (gr) params.append('grammage', gr);
 
                 // MSL filter (global takes priority, fallback to advanced filters)
                 const hasMslFilter = (val) => {
@@ -363,6 +363,9 @@ const LatestOverivewCatCity = ({
             const sap = toParam(advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes : (advancedFilters.sapCode?.length > 0 ? advancedFilters.sapCode : null));
             if (sap) params.append('sapCode', sap);
 
+            const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
+            if (gr) params.append('grammage', gr);
+
             // MSL filter (global takes priority, fallback to advanced filters)
             const hasMslFilter = (val) => {
                 if (!val) return false;
@@ -437,6 +440,7 @@ const LatestOverivewCatCity = ({
         advancedFilters.platforms?.length > 0,
         advancedFilters.skus?.length > 0,
         advancedFilters.sapCodes?.length > 0,
+        advancedFilters.grammages?.length > 0,
         advancedFilters.dateFrom !== '',
         advancedFilters.dateTo !== '',
         advancedFilters.msl === '1',

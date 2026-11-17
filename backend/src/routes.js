@@ -32,7 +32,6 @@ export default (app) => {
     // Review Rating routes
     reviewRating(app);
 
-
     // Admin routes
     admin(app);
 

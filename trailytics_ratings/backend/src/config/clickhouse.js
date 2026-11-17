@@ -12,7 +12,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../backend/.env') });
 
 export const clickhouseStorage = new AsyncLocalStorage();
 
-const defaultDb = process.env.CLICKHOUSE_DB || 'prestige';
+const defaultDb = (process.env.CLICKHOUSE_DB && !process.env.CLICKHOUSE_DB.toLowerCase().includes('marico')) ? process.env.CLICKHOUSE_DB : 'default';
 
 const clickhouse = createClient({
     url: process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL || 'http://localhost:8123',
@@ -23,10 +23,10 @@ const clickhouse = createClient({
 });
 
 const maricoClickhouse = createClient({
-    url: process.env.MARICO_CLICKHOUSE_HOST || process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+    url: process.env.MARICO_CLICKHOUSE_HOST || process.env.MARICO_CLICKHOUSE_URL || 'http://13.232.194.195:8123',
     database: process.env.MARICO_CLICKHOUSE_DB || 'marico_true_element',
-    username: process.env.MARICO_CLICKHOUSE_USER || process.env.CLICKHOUSE_USER || 'default',
-    password: process.env.MARICO_CLICKHOUSE_PASSWORD || process.env.CLICKHOUSE_PASSWORD || '',
+    username: process.env.MARICO_CLICKHOUSE_USER || 'main_user',
+    password: process.env.MARICO_CLICKHOUSE_PASSWORD || 'prod_dev@1215',
     request_timeout: 120000,
 });
 

@@ -1,5 +1,6 @@
 import React, {
   useState,
+  useRef,
   useMemo,
   useEffect,
   useLayoutEffect,
@@ -622,10 +623,45 @@ export default function BSRTrendsDrawer({
   };
 }, [trendData, activeMetrics, timeStep]);
 
+  const isBackdropMouseDownRef = useRef(false);
+
+  const handleBackdropMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      isBackdropMouseDownRef.current = true;
+    } else {
+      isBackdropMouseDownRef.current = false;
+    }
+  };
+
+  const handleBackdropClick = (e) => {
+    if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+      const isScrollbar =
+        e.clientX >= e.currentTarget.clientWidth ||
+        e.clientY >= e.currentTarget.clientHeight;
+      if (!isScrollbar) {
+        onClose?.();
+      }
+    }
+    isBackdropMouseDownRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
     <Box
+      onMouseDown={handleBackdropMouseDown}
+      onClick={handleBackdropClick}
       sx={{
         position: "fixed", inset: 0, bgcolor: "rgba(15,23,42,0.32)",
         display: "flex", justifyContent: "center", alignItems: "flex-start",
@@ -633,6 +669,8 @@ export default function BSRTrendsDrawer({
       }}
     >
       <Box
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         sx={{
           position: "relative", overflow: "hidden", mt: { xs: 2, md: 4 },
           width: "min(1200px, 100%)", bgcolor: "white", borderRadius: 3,

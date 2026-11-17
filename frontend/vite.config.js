@@ -31,6 +31,24 @@ export default defineConfig({
     ],
     exclude: [],
   },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "@mui/material",
+      "@mui/icons-material",
+      "@mui/x-date-pickers",
+      "@mui/x-date-pickers/DatePicker",
+      "@mui/x-date-pickers/TimePicker",
+      "@mui/x-date-pickers/AdapterDayjs",
+      "@emotion/react",
+      "@emotion/styled",
+      "dayjs",
+      "axios",
+      "lucide-react",
+    ],
+  },
   // Allow importing from the sibling trailytics_ratings directory
   server: {
     port: 9500,
@@ -76,13 +94,13 @@ export default defineConfig({
       },
       // ── Dedicated Report Backend API proxy (port 5001) ──
       '/api/reports/download': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,
         proxyTimeout: 10 * 60 * 1000,
       },
       '/api/reports/download-pdp-report': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,
         proxyTimeout: 10 * 60 * 1000,

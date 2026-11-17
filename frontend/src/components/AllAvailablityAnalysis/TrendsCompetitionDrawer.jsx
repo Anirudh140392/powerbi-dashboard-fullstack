@@ -3321,10 +3321,45 @@ export default function TrendsCompetitionDrawer({
     setShowAllPills(false); // Reset expand state when switching audiences
   };
 
+  const isBackdropMouseDownRef = useRef(false);
+
+  const handleBackdropMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      isBackdropMouseDownRef.current = true;
+    } else {
+      isBackdropMouseDownRef.current = false;
+    }
+  };
+
+  const handleBackdropClick = (e) => {
+    if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+      const isScrollbar =
+        e.clientX >= e.currentTarget.clientWidth ||
+        e.clientY >= e.currentTarget.clientHeight;
+      if (!isScrollbar) {
+        onClose?.();
+      }
+    }
+    isBackdropMouseDownRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
     <Box
+      onMouseDown={handleBackdropMouseDown}
+      onClick={handleBackdropClick}
       sx={{
         position: "fixed",
         inset: 0,
@@ -3338,6 +3373,8 @@ export default function TrendsCompetitionDrawer({
       }}
     >
       <Box
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         sx={{
           mt: 4,
           width: "min(1200px, 100%)",
@@ -4253,6 +4290,8 @@ export default function TrendsCompetitionDrawer({
                 period={range}
                 timeStep={timeStep}
                 onTrendClick={handleRowTrendClick}
+                drawerFilters={drawerFilters}
+                setDrawerFilters={setDrawerFilters}
               />
             ) : dynamicKey === "availability" ? (
               <AvailabilityCompetitionKpiShowcase
