@@ -36,6 +36,7 @@ const kpiOptions = [
     { key: 'wtDiscount', label: 'Wt Discount' },
     { key: 'asp', label: 'ASP' },
     { key: 'listingPercent', label: 'Listing %' },
+    { key: 'overall_sov', label: 'Overall SOV' },
     { key: 'ad_sov', label: 'Ad SOS' },
     { key: 'organic_sov', label: 'Organic SOS' },
     { key: 'shareOfVolume', label: 'SOS' },
@@ -357,7 +358,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
             if (currentDimension === 'sku') {
-                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                 if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             }
@@ -767,7 +768,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
                 if (currentDimension === 'sku') {
-                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                     if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                     return true;
                 }

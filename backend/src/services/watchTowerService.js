@@ -919,11 +919,41 @@ const getPmConversionBulk = async (start, end, platformFilter, locationFilter, c
 };
 
 /**
+ * Shared helper to resolve whether to use rb_kw_olap_sow or rb_kw_olap
+ * and whether weighted_impressions is available for Share of Voice (SOV)
+ */
+async function resolveKwTableForSov(dateFrom, dateTo) {
+    const targetDb = getCurrentDbName();
+    let kwTable = 'rb_kw_olap';
+    let hasWeightedImp = false;
+    try {
+        const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+        if (checkTblRes && checkTblRes.length > 0) {
+            const dateClause = (dateFrom && dateTo) ? `WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'` : '';
+            const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow ${dateClause}`);
+            if (Number(sowCountRes[0]?.cnt) > 0) {
+                kwTable = 'rb_kw_olap_sow';
+                hasWeightedImp = true;
+            }
+        }
+        if (!hasWeightedImp) {
+            const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+            if (checkKwCols && checkKwCols.length > 0) {
+                hasWeightedImp = true;
+            }
+        }
+    } catch (e) {
+        console.warn('[watchTowerService] Error checking sow table:', e.message);
+    }
+    return { kwTable, hasWeightedImp };
+}
+
+/**
  * Shared KPI column generator with change calculations
  */
 const generateKpiColumns = ({
-    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null, tacos = null, wtOsa = null, wtDiscount = null, listingPercent = null, spOfftake = null, mrpOfftake = null,
-    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null, prevTacos = null, prevWtOsa = null, prevWtDiscount = null, prevListingPercent = null, prevSpOfftake = null, prevMrpOfftake = null,
+    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null, tacos = null, wtOsa = null, wtDiscount = null, listingPercent = null, spOfftake = null, mrpOfftake = null, overallSov = null,
+    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null, prevTacos = null, prevWtOsa = null, prevWtDiscount = null, prevListingPercent = null, prevSpOfftake = null, prevMrpOfftake = null, prevOverallSov = null,
     offtakeUnits = 0, inorgUnits = 0, prevOfftakeUnits = 0, prevInorgUnits = 0
 }) => {
     const isNA = (val) => val === null || val === undefined || val === 0 || val === "0";
@@ -955,6 +985,7 @@ const generateKpiColumns = ({
     const conversionChange = safeChange(conversion, prevConversion, calcPPChange);
     const availabilityChange = safeChange(availability, prevAvailability, calcPPChange);
     const sosChange = safeChange(sos, prevSos, calcPPChange);
+    const overallSovChange = safeChange(overallSov, prevOverallSov, calcPPChange);
     const marketShareChange = safeChange(marketShare, prevMarketShare, calcPPChange);
     const promoMyBrandChange = safeChange(promoMyBrand, prevPromoMyBrand, calcPPChange);
     const promoCompeteChange = safeChange(promoCompete, prevPromoCompete, calcPPChange);
@@ -1000,6 +1031,7 @@ const generateKpiColumns = ({
         { title: "Wt OSA", value: fmtPct(wtOsa), change: { text: fmtChg(wtOsaChange, true), positive: wtOsaChange >= 0 }, meta: { units: "OSA × Listing %", change: fmtChg(wtOsaChange, true) } },
         { title: "Listing %", value: fmtPct(listingPercent), change: { text: fmtChg(listingPercentChange, true), positive: listingPercentChange >= 0 }, meta: { units: "Calculated", change: fmtChg(listingPercentChange, true) } },
         { title: "Share of Search", value: fmtPct(sos), change: { text: fmtChg(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: fmtChg(sosChange, true) } },
+        { title: "Overall SOV", value: fmtPct(overallSov), change: { text: fmtChg(overallSovChange, true), positive: overallSovChange >= 0 }, meta: { units: "weighted", change: fmtChg(overallSovChange, true) } },
         { title: "Ad SOV", value: fmtPct(adSov), change: { text: fmtChg(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: fmtChg(adSovChange, true) } },
         { title: "Organic SOV", value: fmtPct(organicSov), change: { text: fmtChg(organicSovChange, true), positive: organicSovChange >= 0 }, meta: { units: "organic", change: fmtChg(organicSovChange, true) } },
         { title: "Market Share", value: fmtPct(marketShare), change: { text: fmtChg(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: fmtChg(marketShareChange, true) } },
@@ -6345,7 +6377,9 @@ const getPlatformOverview = async (filters) => {
         ? `SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN if(sku_master.master_mrp > 0, sku_master.master_mrp, ifNull(${src.f.mrp}, 0)) * ${src.f.qty} ELSE 0 END) as mrp_offtake`
         : `SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(${src.f.mrp}, 0) * ${src.f.qty} ELSE 0 END) as mrp_offtake`;
 
-    const [currData, prevData, currPmData, prevPmData, currSosOurBrands, currSosTotal, prevSosOurBrands, prevSosTotal, currMsNum, currMsDenom, prevMsNum, prevMsDenom, currCatSizeByPlatform, prevCatSizeByPlatform, currAdSovOur, currAdSovTotal, prevAdSovOur, prevAdSovTotal, currOrgSovOur, currOrgSovTotal, prevOrgSovOur, prevOrgSovTotal] = await Promise.all([
+    const { kwTable: kwTableForSov, hasWeightedImp } = await resolveKwTableForSov(momStart.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
+
+    const [currData, prevData, currPmData, prevPmData, currSosOurBrands, currSosTotal, prevSosOurBrands, prevSosTotal, currMsNum, currMsDenom, prevMsNum, prevMsDenom, currCatSizeByPlatform, prevCatSizeByPlatform, currAdSovOur, currAdSovTotal, prevAdSovOur, prevAdSovTotal, currOrgSovOur, currOrgSovTotal, prevOrgSovOur, prevOrgSovTotal, currSovOur, currSovTotal, prevSovOur, prevSovTotal] = await Promise.all([
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
@@ -6537,7 +6571,35 @@ const getPlatformOverview = async (filters) => {
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
-                `)
+                `),
+        // Query 21: Current Overall SOV - sumIf(weighted_impressions) per platform
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT platform_name, sumIf(toFloat64OrZero(toString(weighted_impressions)), ${sosNumCondition}) as count
+                    FROM ${kwTableForSov}
+                    WHERE ${currSosConds}
+                    GROUP BY platform_name
+                `) : Promise.resolve([]),
+        // Query 22: Current Overall SOV - Total sum(weighted_impressions) per platform
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT platform_name, sum(toFloat64OrZero(toString(weighted_impressions))) as count
+                    FROM ${kwTableForSov}
+                    WHERE ${currSosConds}
+                    GROUP BY platform_name
+                `) : Promise.resolve([]),
+        // Query 23: Previous Overall SOV - sumIf(weighted_impressions) per platform
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT platform_name, sumIf(toFloat64OrZero(toString(weighted_impressions)), ${sosNumCondition}) as count
+                    FROM ${kwTableForSov}
+                    WHERE ${prevSosConds}
+                    GROUP BY platform_name
+                `) : Promise.resolve([]),
+        // Query 24: Previous Overall SOV - Total sum(weighted_impressions) per platform
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT platform_name, sum(toFloat64OrZero(toString(weighted_impressions))) as count
+                    FROM ${kwTableForSov}
+                    WHERE ${prevSosConds}
+                    GROUP BY platform_name
+                `) : Promise.resolve([])
     ]);
 
     // Calculate Market Share per platform from numerator/denominator
@@ -6600,6 +6662,12 @@ const getPlatformOverview = async (filters) => {
     const prevOrgSovOurMap = new Map(prevOrgSovOur.map(r => [r.platform_name?.toLowerCase(), parseInt(r.count) || 0]));
     const prevOrgSovTotalMap = new Map(prevOrgSovTotal.map(r => [r.platform_name?.toLowerCase(), parseInt(r.count) || 0]));
 
+    // Build Overall SOV lookup maps (weighted_impressions)
+    const currSovOurMap = new Map(currSovOur.map(r => [r.platform_name?.toLowerCase(), parseFloat(r.count) || 0]));
+    const currSovTotalMap = new Map(currSovTotal.map(r => [r.platform_name?.toLowerCase(), parseFloat(r.count) || 0]));
+    const prevSovOurMap = new Map(prevSovOur.map(r => [r.platform_name?.toLowerCase(), parseFloat(r.count) || 0]));
+    const prevSovTotalMap = new Map(prevSovTotal.map(r => [r.platform_name?.toLowerCase(), parseFloat(r.count) || 0]));
+
     // Build Market Share lookup maps
     const currMsMap = new Map(currMs.map(r => [r.platform?.toLowerCase(), (r.avg_ms !== undefined && r.avg_ms !== null) ? parseFloat(r.avg_ms) : null]));
     const prevMsMap = new Map(prevMs.map(r => [r.platform?.toLowerCase(), (r.avg_ms !== undefined && r.avg_ms !== null) ? parseFloat(r.avg_ms) : null]));
@@ -6613,6 +6681,8 @@ const getPlatformOverview = async (filters) => {
 
     // Helper to calculate SOS percentage
     const calcSos = (ourCount, totalCount) => totalCount > 0 ? (ourCount / totalCount) * 100 : null;
+    // Helper to calculate SOV percentage (null when weighted_impressions is absent)
+    const calcSov = (ourCount, totalCount) => (hasWeightedImp && totalCount > 0) ? (ourCount / totalCount) * 100 : null;
 
     // Fetch Bulk PM Conversion Maps
     const [currPmConvMap, prevPmConvMap] = await Promise.all([
@@ -6757,6 +6827,10 @@ const getPlatformOverview = async (filters) => {
         const currOrgSovValue = calcSos(findMapValue(currOrgSovOurMap, key), findMapValue(currOrgSovTotalMap, key));
         const prevOrgSovValue = calcSos(findMapValue(prevOrgSovOurMap, key), findMapValue(prevOrgSovTotalMap, key));
 
+        // Calculate Overall SOV for this platform (weighted_impressions)
+        const currOverallSovValue = calcSov(findMapValue(currSovOurMap, key), findMapValue(currSovTotalMap, key));
+        const prevOverallSovValue = calcSov(findMapValue(prevSovOurMap, key), findMapValue(prevSovTotalMap, key));
+
         // Get Market Share for this platform
         const currMsValue = findMapValue(currMsMap, key);
         const prevMsValue = findMapValue(prevMsMap, key);
@@ -6778,6 +6852,7 @@ const getPlatformOverview = async (filters) => {
                 buyBoxNeno: parseFloat(c?.buy_box_neno || 0),
                 ms: currMsValue,
                 sos: currSosValue,
+                overallSov: currOverallSovValue,
                 adSov: currAdSovValue,
                 organicSov: currOrgSovValue,
                 denomMS: currMsDenomMap.get(key) || 0,
@@ -6803,6 +6878,7 @@ const getPlatformOverview = async (filters) => {
                 buyBoxNeno: parseFloat(pv?.buy_box_neno || 0),
                 ms: prevMsValue,
                 sos: prevSosValue,
+                overallSov: prevOverallSovValue,
                 adSov: prevAdSovValue,
                 organicSov: prevOrgSovValue,
                 denomMS: prevMsDenomMap.get(key) || 0,
@@ -7047,6 +7123,17 @@ const getPlatformOverview = async (filters) => {
     for (const [, count] of prevOrgSovTotalMap) prevTotalOrgSovAll += count;
     const prevAllOrganicSov = calcSos(prevTotalOrgSovOur, prevTotalOrgSovAll);
 
+    // Calculate overall SOV (sum weighted impressions across all platforms)
+    let totalSovOur = 0, totalSovAll = 0;
+    for (const [, count] of currSovOurMap) totalSovOur += count;
+    for (const [, count] of currSovTotalMap) totalSovAll += count;
+    const allOverallSov = calcSov(totalSovOur, totalSovAll);
+
+    let prevTotalSovOur = 0, prevTotalSovAll = 0;
+    for (const [, count] of prevSovOurMap) prevTotalSovOur += count;
+    for (const [, count] of prevSovTotalMap) prevTotalSovAll += count;
+    const prevAllOverallSov = calcSov(prevTotalSovOur, prevTotalSovAll);
+
     // Calculate overall Market Share (weighted approach: sum of num / sum of denom)
     let sumMsNum = 0, sumMsDenom = 0;
     let prevSumMsNum = 0, prevSumMsDenom = 0;
@@ -7115,8 +7202,8 @@ const getPlatformOverview = async (filters) => {
             type: 'Overall',
             logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
             columns: generateKpiColumns({
-                offtake: allOfftake, spOfftake: allSpOfftake, mrpOfftake: allMrpOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPct, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov, tacos: allTacos,
-                prevOfftake: prevAllOfftake, prevSpOfftake: prevAllSpOfftake, prevMrpOfftake: prevAllMrpOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPct, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov, prevTacos: prevAllTacos,
+                offtake: allOfftake, spOfftake: allSpOfftake, mrpOfftake: allMrpOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPct, sos: allSos, overallSov: allOverallSov, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov, tacos: allTacos,
+                prevOfftake: prevAllOfftake, prevSpOfftake: prevAllSpOfftake, prevMrpOfftake: prevAllMrpOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPct, prevSos: prevAllSos, prevOverallSov: prevAllOverallSov, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov, prevTacos: prevAllTacos,
                 offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
             })
         });
@@ -7215,6 +7302,8 @@ const getPlatformOverview = async (filters) => {
         console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
         const sos = hasSosCheck ? (metrics.curr.sos ?? null) : null;
+        const hasSovCheck = hasMapKey(currSovOurMap, key) || hasMapKey(currSovTotalMap, key);
+        const overallSov = (hasSosCheck || hasSovCheck) ? (metrics.curr.overallSov ?? null) : null;
         const adSov = hasSosCheck ? (metrics.curr.adSov ?? null) : null;
         const organicSov = hasSosCheck ? (metrics.curr.organicSov ?? null) : null;
 
@@ -7254,6 +7343,8 @@ const getPlatformOverview = async (filters) => {
 
         let prevMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, p.label, rawCategory, rawBrand, locationArr, channel, rawSubCategory, rawSubBrand);
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
+        const prevHasSovCheck = prevSovOurMap.has(key) || prevSovTotalMap.has(key);
+        const prevOverallSov = (prevHasSosCheck || prevHasSovCheck) ? (metrics.prev.overallSov ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
         const prevOrganicSov = prevHasSosCheck ? (metrics.prev.organicSov ?? null) : null;
 
@@ -7300,8 +7391,8 @@ const getPlatformOverview = async (filters) => {
             type: p.type,
             logo: p.logo,
             columns: generateKpiColumns({
-                offtake, spOfftake, mrpOfftake, availability, wtOsa, listingPercent, sos, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, tacos,
-                prevOfftake, prevSpOfftake, prevMrpOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevTacos,
+                offtake, spOfftake, mrpOfftake, availability, wtOsa, listingPercent, sos, overallSov, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, tacos,
+                prevOfftake, prevSpOfftake, prevMrpOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevOverallSov, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevTacos,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         });
@@ -7498,8 +7589,10 @@ const getMonthOverview = async (filters) => {
     const msNumMoConds = buildMsMoConds(brandsForMonthMs);
     const msDenomMoConds = buildMsMoConds(null);
 
+    const { kwTable: kwTableForSov, hasWeightedImp } = await resolveKwTableForSov(fetchStartDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
+
     // ⚡ OPTIMIZED: Run all queries in PARALLEL with ClickHouse
-    const [monthlyData, monthlyPmData, sosNumMonth, sosDenomMonth, msMonthData, catSizeMonth, adSovNumMonth, adSovDenomMonth, orgSovNumMonth, orgSovDenomMonth] = await Promise.all([
+    const [monthlyData, monthlyPmData, sosNumMonth, sosDenomMonth, msMonthData, catSizeMonth, adSovNumMonth, adSovDenomMonth, orgSovNumMonth, orgSovDenomMonth, sovNumMonth, sovDenomMonth] = await Promise.all([
         queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(${src.f.date}), '%Y-%m-01') as month_date,
@@ -7598,11 +7691,29 @@ const getMonthOverview = async (filters) => {
                     FROM rb_kw_olap
                     WHERE ${sosMoConds}
                     GROUP BY month
-                `)
+                `),
+        // Overall SOV numerator by month (sumIf(weighted_impressions), flag='1')
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month,
+                        sumIf(toFloat64OrZero(toString(weighted_impressions)), toString(flag) = '1') as count
+                    FROM ${kwTableForSov}
+                    WHERE ${sosMoConds}
+                    GROUP BY month
+                `) : Promise.resolve([]),
+        // Overall SOV denominator by month (total sum(weighted_impressions))
+        hasWeightedImp ? queryClickHouse(`
+                    SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month,
+                        sum(toFloat64OrZero(toString(weighted_impressions))) as count
+                    FROM ${kwTableForSov}
+                    WHERE ${sosMoConds}
+                    GROUP BY month
+                `) : Promise.resolve([])
     ]);
 
     const sosNumMonthMap = new Map(sosNumMonth.map(r => [r.month, parseInt(r.count) || 0]));
     const sosDenomMonthMap = new Map(sosDenomMonth.map(r => [r.month, parseInt(r.count) || 0]));
+    const sovNumMonthMap = new Map(sovNumMonth.map(r => [r.month, parseFloat(r.count) || 0]));
+    const sovDenomMonthMap = new Map(sovDenomMonth.map(r => [r.month, parseFloat(r.count) || 0]));
     const msMonthMap = new Map(msMonthData.map(r => [r.month_date, parseFloat(r.avg_market_share || 0)]));
     const catSizeMonthMap = new Map(catSizeMonth.map(r => [r.month_date, parseFloat(r.cat_size || 0)]));
 
@@ -7766,6 +7877,14 @@ const getMonthOverview = async (filters) => {
         const prevOrgSovDenom = orgSovDenomMonthMap.get(prevMonthKey) || 0;
         const prevOrganicSov = prevHasSosCheck ? (prevOrgSovDenom > 0 ? (prevOrgSovNum / prevOrgSovDenom) * 100 : null) : null;
 
+        // Overall SOV (weighted_impressions)
+        const sovNum = sovNumMonthMap.get(monthKey) || 0;
+        const sovDenom = sovDenomMonthMap.get(monthKey) || 0;
+        const overallSov = (hasWeightedImp && (hasSosCheck || sovDenom > 0)) ? (sovDenom > 0 ? (sovNum / sovDenom) * 100 : null) : null;
+        const prevSovNum = sovNumMonthMap.get(prevMonthKey) || 0;
+        const prevSovDenom = sovDenomMonthMap.get(prevMonthKey) || 0;
+        const prevOverallSov = (hasWeightedImp && (prevHasSosCheck || prevSovDenom > 0)) ? (prevSovDenom > 0 ? (prevSovNum / prevSovDenom) * 100 : null) : null;
+
         return {
             key: bucket.label,
             label: bucket.label,
@@ -7773,8 +7892,8 @@ const getMonthOverview = async (filters) => {
             type: bucket.label,
             logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, overallSov, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevOverallSov, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         };
@@ -8196,6 +8315,23 @@ const getCategoryOverview = async (filters) => {
         GROUP BY keyword_category
     `);
 
+    // Overall SOV (weighted_impressions) per category
+    const { kwTable: kwTableForSov, hasWeightedImp } = await resolveKwTableForSov(momStart.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
+    const [currSovData, prevSovData] = hasWeightedImp ? await Promise.all([
+        queryClickHouse(`
+            SELECT keyword_category, sumIf(toFloat64OrZero(toString(weighted_impressions)), ${sosCatNumCondition}) as num, sum(toFloat64OrZero(toString(weighted_impressions))) as den
+            FROM ${kwTableForSov}
+            WHERE ${currSosConds}
+            GROUP BY keyword_category
+        `),
+        queryClickHouse(`
+            SELECT keyword_category, sumIf(toFloat64OrZero(toString(weighted_impressions)), ${sosCatNumCondition}) as num, sum(toFloat64OrZero(toString(weighted_impressions))) as den
+            FROM ${kwTableForSov}
+            WHERE ${prevSosConds}
+            GROUP BY keyword_category
+        `)
+    ]) : [[], []];
+
     const seenCatKeys = new Set();
     const categories = [];
     for (const c of distinctCategories) {
@@ -8225,6 +8361,8 @@ const getCategoryOverview = async (filters) => {
     const prevAdSovMap = buildSosMap(prevAdSovData);
     const currOrgSovMap = buildSosMap(currOrgSovData);
     const prevOrgSovMap = buildSosMap(prevOrgSovData);
+    const currSovMap = buildSosMap(currSovData);
+    const prevSovMap = buildSosMap(prevSovData);
 
     const currMsMap = buildMap(currMsData, 'category', 'market_share_percentage');
     const prevMsMap = buildMap(prevMsData, 'category', 'market_share_percentage');
@@ -8342,6 +8480,12 @@ const getCategoryOverview = async (filters) => {
         const prevOrgSovDataObj = prevOrgSovMap.get(catKey) || { num: 0, den: 0 };
         const prevOrganicSov = prevHasSosCheck ? (prevOrgSovDataObj.den > 0 ? (prevOrgSovDataObj.num / prevOrgSovDataObj.den) * 100 : null) : null;
 
+        // Overall SOV (weighted_impressions)
+        const sovDataObj = currSovMap.get(catKey) || { num: 0, den: 0 };
+        const overallSov = (hasWeightedImp && (hasSosCheck || sovDataObj.den > 0)) ? (sovDataObj.den > 0 ? (sovDataObj.num / sovDataObj.den) * 100 : null) : null;
+        const prevSovDataObj = prevSovMap.get(catKey) || { num: 0, den: 0 };
+        const prevOverallSov = (hasWeightedImp && (prevHasSosCheck || prevSovDataObj.den > 0)) ? (prevSovDataObj.den > 0 ? (prevSovDataObj.num / prevSovDataObj.den) * 100 : null) : null;
+
         const currCatSizeAbsolute = hasMsCheck ? (currCatSizeCatMap.get(catKey) || null) : null;
         const prevCatSizeAbsolute = prevHasMsCheck ? (prevCatSizeCatMap.get(catKey) || null) : null;
 
@@ -8351,8 +8495,8 @@ const getCategoryOverview = async (filters) => {
             type: catName,
             logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, overallSov, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevOverallSov, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
 
@@ -8710,6 +8854,16 @@ const getBrandsOverview = async (filters) => {
     const prevTotalSpons = parseInt(prevDenomData[0]?.total_spons || 0);
     const prevTotalOrganic = parseInt(prevDenomData[0]?.total_organic || 0);
 
+    // Overall SOV (weighted_impressions)
+    const { kwTable: kwTableForSov, hasWeightedImp } = await resolveKwTableForSov(momStart.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
+    const [currSovDenomData, prevSovDenomData] = hasWeightedImp ? await Promise.all([
+        queryClickHouse(`SELECT sum(toFloat64OrZero(toString(weighted_impressions))) as total_sov FROM ${kwTableForSov} WHERE ${currSosConds}`),
+        queryClickHouse(`SELECT sum(toFloat64OrZero(toString(weighted_impressions))) as total_sov FROM ${kwTableForSov} WHERE ${prevSosConds}`)
+    ]) : [[], []];
+
+    const currTotalSov = parseFloat(currSovDenomData[0]?.total_sov || 0);
+    const prevTotalSov = parseFloat(prevSovDenomData[0]?.total_sov || 0);
+
     // Numerators: per-brand sums where flag='1' (our brand)
     const [currSosData, prevSosData, currAdSovData, prevAdSovData, currOrgSovData, prevOrgSovData] = await Promise.all([
         // Overall SOS per brand
@@ -8753,6 +8907,21 @@ const getBrandsOverview = async (filters) => {
         `)
     ]);
 
+    const [currSovNumData, prevSovNumData] = hasWeightedImp ? await Promise.all([
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toFloat64OrZero(toString(weighted_impressions))) as num
+            FROM ${kwTableForSov}
+            WHERE ${currSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toFloat64OrZero(toString(weighted_impressions))) as num
+            FROM ${kwTableForSov}
+            WHERE ${prevSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `)
+    ]) : [[], []];
+
     const brands = distinctBrands.map(d => d.brand).filter(Boolean);
     const currBrandCatSize = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
     const prevBrandCatSize = parseFloat(prevCatSizeTotal[0]?.cat_size || 0);
@@ -8789,6 +8958,8 @@ const getBrandsOverview = async (filters) => {
     const prevAdSovMap = buildSosNumMap(prevAdSovData);
     const currOrgSovMap = buildSosNumMap(currOrgSovData);
     const prevOrgSovMap = buildSosNumMap(prevOrgSovData);
+    const currSovMap = buildSosNumMap(currSovNumData);
+    const prevSovMap = buildSosNumMap(prevSovNumData);
 
     // Build Market Share maps (Brand MS = Brand Sales / Total Cat Sales)
     const currCatTotalSales = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
@@ -8903,6 +9074,11 @@ const getBrandsOverview = async (filters) => {
         const prevOrgSovNum = prevOrgSovMap.get(brandKey) || 0;
         const prevOrganicSov = prevHasSosCheck ? (prevTotalOrganic > 0 ? (prevOrgSovNum / prevTotalOrganic) * 100 : null) : null;
 
+        // Overall SOV (weighted_impressions)
+        const sovNum = currSovMap.get(brandKey) || 0;
+        const overallSov = (hasWeightedImp && (hasSosCheck || currTotalSov > 0)) ? (currTotalSov > 0 ? (sovNum / currTotalSov) * 100 : null) : null;
+        const prevSovNum = prevSovMap.get(brandKey) || 0;
+        const prevOverallSov = (hasWeightedImp && (prevHasSosCheck || prevTotalSov > 0)) ? (prevTotalSov > 0 ? (prevSovNum / prevTotalSov) * 100 : null) : null;
 
         return {
             key: brandKey.replace(/\s+/g, '_'),
@@ -8910,8 +9086,8 @@ const getBrandsOverview = async (filters) => {
             type: "Brand",
             logo: brandImageMap.get(brandKey) || null,
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, overallSov, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevOverallSov, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits: offtakeUnits, inorgUnits: orders, prevOfftakeUnits: prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };

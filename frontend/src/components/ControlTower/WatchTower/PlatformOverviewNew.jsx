@@ -126,6 +126,7 @@ const kpiLabels = {
     marketShare: 'Mkt Share',
     conversion: 'Conversion',
     shareOfVolume: 'SOS',
+    overall_sov: 'Overall SOV',
     ad_sov: 'Ad SOS',
     organic_sov: 'Organic SOS',
     inorgSales: 'Inorganic Sales',
@@ -163,6 +164,10 @@ const BACKEND_TITLE_TO_KEY = {
     'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
+    'Overall SOV': 'overall_sov',
+    'Overall Sov': 'overall_sov',
+    'overall_sov': 'overall_sov',
+    'SOV': 'overall_sov',
     'Ad SOS': 'ad_sov',
     'Ad SOV': 'ad_sov',
     'Organic SOS': 'organic_sov',
@@ -310,6 +315,7 @@ const PlatformOverviewNew = ({
         { key: 'wtDiscount', label: 'Wt Discount' },
         { key: 'asp', label: 'ASP' },
         { key: 'listingPercent', label: 'Listing %' },
+        { key: 'overall_sov', label: 'Overall SOV' },
         { key: 'ad_sov', label: 'Ad SOS' },
         { key: 'organic_sov', label: 'Organic SOS' },
         { key: 'shareOfVolume', label: 'SOS' },
@@ -489,11 +495,11 @@ const PlatformOverviewNew = ({
         }
 
         if (dimension === 'location') {
-            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov');
+            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov' && k.key !== 'overall_sov');
         }
         if (dimension === 'sku') {
             return baseKpis.filter(k => {
-                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
+                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov' || k.key === 'overall_sov') return false;
                 // CPM is never shown at SKU level
                 if (k.key === 'cpm') return false;
                 // Spend/Conversion/CPC are ecom-only at SKU level
@@ -518,6 +524,7 @@ const PlatformOverviewNew = ({
             'wtOsa',
             'asp',
             'listingPercent',
+            'overall_sov',
             'ad_sov',
             'organic_sov',
             'shareOfVolume',
@@ -530,7 +537,7 @@ const PlatformOverviewNew = ({
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
         if (dimension === 'location') {
-            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov');
+            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov' && k !== 'overall_sov');
         }
 
         if (dimension === 'platform') {
@@ -550,7 +557,7 @@ const PlatformOverviewNew = ({
         }
 
         if (dimension === 'sku') {
-            let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+            let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'overall_sov' && k !== 'cpm');
             if (!allowBuyBox) skuBase = skuBase.filter(k => k !== 'buyBoxPct');
             if (isSkuQcom) {
                 skuBase = skuBase.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
@@ -575,6 +582,7 @@ const PlatformOverviewNew = ({
         'wtOsa',
         'asp',
         'listingPercent',
+        'overall_sov',
         'ad_sov',
         'organic_sov',
         'shareOfVolume',
@@ -644,10 +652,10 @@ const PlatformOverviewNew = ({
     // Keep glanceKpis in sync with dimension switch & platform changes
     useEffect(() => {
         if (dimension === 'location') {
-            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov'));
+            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov' && k !== 'overall_sov'));
         } else if (dimension === 'sku') {
             setGlanceKpis(prev => {
-                let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'overall_sov' && k !== 'cpm');
                 if (isSkuQcom) {
                     next = next.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
                 }

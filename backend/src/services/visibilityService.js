@@ -164,7 +164,37 @@ async function buildChannelCondition(channel, columnName = 'platform_name', plat
 
 
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null, channel = null, rank = null) {
+/**
+ * Shared helper to resolve whether to use rb_kw_olap_sow or rb_kw_olap
+ * and whether weighted_impressions is available for Share of Voice (SOV)
+ */
+async function resolveKwTableForSov(dateFrom, dateTo) {
+    const targetDb = getCurrentDbName();
+    let kwTable = 'rb_kw_olap';
+    let hasWeightedImp = false;
+    try {
+        const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+        if (checkTblRes && checkTblRes.length > 0) {
+            const dateClause = (dateFrom && dateTo) ? `WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'` : '';
+            const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow ${dateClause}`);
+            if (Number(sowCountRes[0]?.cnt) > 0) {
+                kwTable = 'rb_kw_olap_sow';
+                hasWeightedImp = true;
+            }
+        }
+        if (!hasWeightedImp) {
+            const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+            if (checkKwCols && checkKwCols.length > 0) {
+                hasWeightedImp = true;
+            }
+        }
+    } catch (e) {
+        console.warn('[VisibilityService] Error checking sow table:', e.message);
+    }
+    return { kwTable, hasWeightedImp };
+}
+
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null, channel = null, rank = null, sovTableInfo = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
         // Skip channel condition when a specific platform is selected (platform takes precedence)
@@ -191,12 +221,19 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
 
         console.log(`[calculateAllSOS] Rank: ${rank}, RankCondition: ${rankCondition}, Platform: ${platform}, IsSpecific: ${isSpecificPlatform}`);
 
+        const { kwTable, hasWeightedImp } = sovTableInfo || await resolveKwTableForSov(dateFrom, dateTo);
+
+        const sovSelect = hasWeightedImp
+            ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+            : `null AS overall_sov,`;
+
         const query = `
             SELECT 
                 ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                ${sovSelect}
                 ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
-            FROM rb_kw_olap
+            FROM ${kwTable}
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${channelCondition}
@@ -210,25 +247,29 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         console.log(`[calculateAllSOS] Final Query:\n${query}`);
         const result = await queryClickHouse(query);
 
+        const rawSov = result[0]?.overall_sov;
+        const parsedSov = rawSov != null && rawSov !== '' && rawSov !== 'null' && !isNaN(Number(rawSov)) ? Number(rawSov) : null;
+
         return {
             overall: Number(result[0]?.overall_sos) || 0,
+            sov: parsedSov,
             sponsored: Number(result[0]?.sponsored_sos) || 0,
             organic: Number(result[0]?.organic_sos) || 0
         };
     } catch (error) {
         console.error('Error calculating all SOS (ClickHouse):', error);
-        return { overall: 0, sponsored: 0, organic: 0 };
+        return { overall: 0, sov: null, sponsored: 0, organic: 0 };
     }
 }
 
 /**
  * OPTIMIZED: Get ALL SOS trends in a SINGLE query
- * Returns daily trends for overall, sponsored, and organic SOS
+ * Returns daily trends for overall, SOV, sponsored, and organic SOS
  * @param {number} days - Number of days to include
  * @param {string|null} platform - Platform filter
- * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
+ * @returns {Promise<{overall: {dates: string[], values: number[]}, sov: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null, channel = null, rank = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null, channel = null, rank = null, sovTableInfo = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -267,13 +308,20 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const excludeCondition = isSpecificPlatform ? '1=1' : `platform_name NOT IN (${excludedList})`;
         console.log(`[getAllSOSTrends] Rank: ${rank}, RankCondition: ${rankCondition}, Platform: ${platform}, IsSpecific: ${isSpecificPlatform}`);
 
+        const { kwTable, hasWeightedImp } = sovTableInfo || await resolveKwTableForSov(dateFrom, dateTo);
+
+        const sovSelect = hasWeightedImp
+            ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+            : `null AS overall_sov,`;
+
         const query = `
             SELECT 
                 DATE as crawl_date,
                 ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                ${sovSelect}
                 ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
-            FROM rb_kw_olap
+            FROM ${kwTable}
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${channelCondition}
@@ -289,6 +337,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const results = await queryClickHouse(query);
 
         const overall = { dates: [], values: [] };
+        const sov = { dates: [], values: [] };
         const sponsored = { dates: [], values: [] };
         const organic = { dates: [], values: [] };
 
@@ -299,6 +348,11 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             overall.dates.push(dateStr);
             overall.values.push(Number(row.overall_sos) || 0);
 
+            sov.dates.push(dateStr);
+            const rawSov = row.overall_sov;
+            const parsedSov = rawSov != null && rawSov !== '' && rawSov !== 'null' && !isNaN(Number(rawSov)) ? Number(rawSov) : 0;
+            sov.values.push(parsedSov);
+
             sponsored.dates.push(dateStr);
             sponsored.values.push(Number(row.sponsored_sos) || 0);
 
@@ -306,11 +360,12 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             organic.values.push(Number(row.organic_sos) || 0);
         });
 
-        return { overall, sponsored, organic };
+        return { overall, sov, sponsored, organic };
     } catch (error) {
         console.error('Error getting all SOS trends (ClickHouse):', error);
         return {
             overall: { dates: [], values: [] },
+            sov: { dates: [], values: [] },
             sponsored: { dates: [], values: [] },
             organic: { dates: [], values: [] }
         };
@@ -355,6 +410,9 @@ function getDateRanges() {
  * Format PP change string
  */
 function formatPPChange(currentValue, previousValue) {
+    if (currentValue == null || previousValue == null) {
+        return { text: "—", color: "gray" };
+    }
     // Ensure we have valid numbers
     const current = Number(currentValue) || 0;
     const previous = Number(previousValue) || 0;
@@ -420,28 +478,34 @@ async function getVisibilityOverviewData(filters = {}) {
         console.log('[VisibilityService] Calculating SOS with date ranges:', dateRanges);
         console.log('[VisibilityService] Using filters:', { platform: filters.platform, category: filters.category, startDate: filters.startDate, endDate: filters.endDate });
 
+        const sovTableInfo = await resolveKwTableForSov(dateRanges.previous.start, dateRanges.current.end);
+
         // OPTIMIZED: Only 3 database queries instead of 9
-        // 1. Current period SOS (all 3 types in 1 query)
-        // 2. Previous period SOS (all 3 types in 1 query)
-        // 3. Sparkline trends (all 3 types in 1 query)
+        // 1. Current period SOS (all 4 types in 1 query)
+        // 2. Previous period SOS (all 4 types in 1 query)
+        // 3. Sparkline trends (all 4 types in 1 query)
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo)
         ]);
 
         // Use daily trends directly for the sparkline graphs
         const dailyTrends = {
             overall: trends.overall || { dates: [], values: [] },
+            sov: trends.sov || { dates: [], values: [] },
             sponsored: trends.sponsored || { dates: [], values: [] },
             organic: trends.organic || { dates: [], values: [] }
         };
 
-        console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
+        console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, SOV=${currentSOS.sov != null ? currentSOS.sov.toFixed(1) : 'null'}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
         console.log('[VisibilityService] Trends Received:', !!trends);
 
         const overallChange = formatPPChange(currentSOS.overall, prevSOS.overall);
+        const sovChange = (currentSOS.sov != null && prevSOS.sov != null)
+            ? formatPPChange(currentSOS.sov, prevSOS.sov)
+            : { text: "—", color: "gray" };
         const sponsoredChange = formatPPChange(currentSOS.sponsored, prevSOS.sponsored);
         const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
 
@@ -464,6 +528,22 @@ async function getVisibilityOverviewData(filters = {}) {
                     startDate: dateRanges.current.start,
                     endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.overall.values
+                },
+                {
+                    title: "Overall SOV",
+                    value: currentSOS.sov != null ? `${currentSOS.sov.toFixed(1)}%` : "—",
+                    sub: "Share of voice weighted by search position",
+                    change: sovChange.text,
+                    changeColor: sovChange.color,
+                    prevText: "vs Previous Period",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "green",
+                    months: dailyTrends.sov.dates,
+                    dates: dailyTrends.sov.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
+                    sparklineData: currentSOS.sov != null ? dailyTrends.sov.values : []
                 },
                 {
                     title: "Sponsored SOS",
@@ -517,6 +597,17 @@ const getVisibilityOverviewMockData = () => ({
             prevText: "vs Previous Period",
             extra: "New launches contributing: 7 SKUs",
             extraChange: "▲12.5%",
+            extraChangeColor: "green",
+        },
+        {
+            title: "Overall SOV",
+            value: "18.4%",
+            sub: "Share of voice weighted by search position",
+            change: "▲3.1 pts (from 15.3%)",
+            changeColor: "green",
+            prevText: "vs Previous Period",
+            extra: "",
+            extraChange: "",
             extraChangeColor: "green",
         },
         {
