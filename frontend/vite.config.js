@@ -31,6 +31,24 @@ export default defineConfig({
     ],
     exclude: [],
   },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "@mui/material",
+      "@mui/icons-material",
+      "@mui/x-date-pickers",
+      "@mui/x-date-pickers/DatePicker",
+      "@mui/x-date-pickers/TimePicker",
+      "@mui/x-date-pickers/AdapterDayjs",
+      "@emotion/react",
+      "@emotion/styled",
+      "dayjs",
+      "axios",
+      "lucide-react",
+    ],
+  },
   // Allow importing from the sibling trailytics_ratings directory
   server: {
     port: 9500,
