@@ -9,7 +9,7 @@ import { fetchAllPlatformCategoryKPIs, getCWDateRange } from './categoryPerfSumm
 import { generateCategoryPerfSummaryEmailHtml } from '../utils/categoryPerfSummaryEmailTemplate.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
-import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
+import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa, getSellingPriceCompData } from './alertDataService.js';
 import { fetchPTDPlatformKPIs } from './ptdPerfSummaryDataService.js';
 import { generatePtdPerfSummaryEmailHtml } from '../utils/ptdPerfSummaryEmailTemplate.js';
 
@@ -1354,6 +1354,138 @@ export const runEmailAlertsJob = async () => {
                         conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
+                // Rule 4b: Average Selling Price vs Competition Alert (avg_selling_price_comp)
+                else if (alertType === 'avg_selling_price_comp' || alertType === 'avg_selling_price_comp_weekly' || alertType.includes('selling_price') || alertType.includes('price_comp')) {
+                    isDynamicAlert = true;
+                    const latestDateStr = await getLatestDataDate(dbName);
+                    const dateRanges = computeDateRanges(alert.benchmark_period, latestDateStr);
+
+                    const priceData = await getSellingPriceCompData(
+                        dbName,
+                        alert.platforms,
+                        alert.brands,
+                        dateRanges.currentStart,
+                        dateRanges.currentEnd,
+                        dateRanges.prevStart,
+                        dateRanges.prevEnd
+                    );
+
+                    const overallBrandCurr = parseFloat(priceData.overall?.overall_brand_curr) || 0;
+                    const overallBrandPrev = parseFloat(priceData.overall?.overall_brand_prev) || 0;
+                    const overallCompCurr = parseFloat(priceData.overall?.overall_comp_curr) || 0;
+                    const overallCompPrev = parseFloat(priceData.overall?.overall_comp_prev) || 0;
+
+                    const brandDelta = overallBrandCurr - overallBrandPrev;
+                    const brandDeltaPct = overallBrandPrev > 0 ? (brandDelta / overallBrandPrev) * 100 : 0;
+
+                    // Condition check: "email which is going to client should go only when the threshold value is less than the brand value picked by client"
+                    // Threshold < Brand Value (meaning brandValue > threshold)
+                    const brandValue = overallBrandCurr;
+                    if (alert.conditional_operator === 'lt') {
+                        isTriggered = brandValue < threshold;
+                    } else {
+                        // Default operator / 'gt': threshold < brandValue (i.e. brandValue > threshold)
+                        isTriggered = threshold < brandValue;
+                    }
+
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator) || '>';
+
+                    metricDetails = {
+                        ruleType: 'Average Selling Price vs Competition Alert',
+                        calculatedOSA: `${currency}${overallBrandCurr.toFixed(2)}`,
+                        aggDelta: `${brandDelta >= 0 ? '+' : ''}${currency}${brandDelta.toFixed(2)} (${brandDeltaPct >= 0 ? '+' : ''}${brandDeltaPct.toFixed(1)}%)`,
+                        conditionText: `${platPrefix}Brand Avg SP (${currency}${overallBrandCurr.toFixed(2)}) ${opSym} Threshold (${currency}${threshold}) | Comp Avg SP: ${currency}${overallCompCurr.toFixed(2)}`,
+                    };
+
+                    if (isTriggered) {
+                        const platformSummaries = priceData.platformSummary || [];
+                        const detailedBrands = priceData.detailedBrands || [];
+
+                        const distinctPlatforms = [...new Set(platformSummaries.map(p => p.Platform))];
+
+                        dynamicEmailData = (distinctPlatforms.length > 0 ? distinctPlatforms : ['All Platforms']).map(plat => {
+                            const platSummary = platformSummaries.find(p => p.Platform?.toLowerCase() === plat?.toLowerCase()) || {};
+                            const pBrandCurr = parseFloat(platSummary.brand_curr_sp) || overallBrandCurr;
+                            const pBrandPrev = parseFloat(platSummary.brand_prev_sp) || overallBrandPrev;
+                            const pCompCurr = parseFloat(platSummary.comp_curr_sp) || overallCompCurr;
+                            const pCompPrev = parseFloat(platSummary.comp_prev_sp) || overallCompPrev;
+
+                            const pBrandDelta = pBrandCurr - pBrandPrev;
+                            const pBrandDeltaPct = pBrandPrev > 0 ? (pBrandDelta / pBrandPrev) * 100 : 0;
+
+                            const pCompDelta = pCompCurr - pCompPrev;
+                            const pCompDeltaPct = pCompPrev > 0 ? (pCompDelta / pCompPrev) * 100 : 0;
+
+                            const pGapCurr = pBrandCurr - pCompCurr;
+                            const pGapPrev = pBrandPrev - pCompPrev;
+                            const pGapDelta = pGapCurr - pGapPrev;
+                            const pGapDeltaPct = pCompCurr > 0 ? (pGapCurr / pCompCurr) * 100 : 0;
+
+                            const summaryRows = [
+                                [
+                                    'Our Brand(s) Avg SP',
+                                    `${currency}${pBrandCurr.toFixed(2)}`,
+                                    `${currency}${pBrandPrev.toFixed(2)}`,
+                                    `${pBrandDelta >= 0 ? '+' : ''}${currency}${pBrandDelta.toFixed(2)}`,
+                                    `${pBrandDeltaPct >= 0 ? '+' : ''}${pBrandDeltaPct.toFixed(2)}%`
+                                ],
+                                [
+                                    'Competition Avg SP',
+                                    `${currency}${pCompCurr.toFixed(2)}`,
+                                    `${currency}${pCompPrev.toFixed(2)}`,
+                                    `${pCompDelta >= 0 ? '+' : ''}${currency}${pCompDelta.toFixed(2)}`,
+                                    `${pCompDeltaPct >= 0 ? '+' : ''}${pCompDeltaPct.toFixed(2)}%`
+                                ],
+                                [
+                                    'Price Gap (Our vs Comp)',
+                                    `${pGapCurr >= 0 ? '+' : ''}${currency}${pGapCurr.toFixed(2)}`,
+                                    `${pGapPrev >= 0 ? '+' : ''}${currency}${pGapPrev.toFixed(2)}`,
+                                    `${pGapDelta >= 0 ? '+' : ''}${currency}${pGapDelta.toFixed(2)}`,
+                                    `${pGapDeltaPct >= 0 ? '+' : ''}${pGapDeltaPct.toFixed(2)}%`
+                                ]
+                            ];
+
+                            const platBrands = detailedBrands.filter(b => b.Platform?.toLowerCase() === plat?.toLowerCase());
+                            const brandRows = platBrands.map(b => {
+                                const cSp = parseFloat(b.curr_sp) || 0;
+                                const pSp = parseFloat(b.prev_sp) || 0;
+                                const dSp = cSp - pSp;
+                                const dPct = pSp > 0 ? (dSp / pSp) * 100 : 0;
+                                return [
+                                    b.Brand || 'Unknown',
+                                    Number(b.Comp_flag) === 1 ? 'Competitor' : 'Our Brand',
+                                    `${currency}${cSp.toFixed(2)}`,
+                                    `${currency}${pSp.toFixed(2)}`,
+                                    `${dSp >= 0 ? '+' : ''}${currency}${dSp.toFixed(2)}`,
+                                    `${dPct >= 0 ? '+' : ''}${dPct.toFixed(2)}%`
+                                ];
+                            });
+
+                            const tables = [
+                                {
+                                    tableName: 'Average Selling Price Overview (Brand vs Competition)',
+                                    headers: ['Segment', 'Current Period', 'Previous Period', 'Delta', 'Change %'],
+                                    rows: summaryRows
+                                }
+                            ];
+
+                            if (brandRows.length > 0) {
+                                tables.push({
+                                    tableName: 'Brand & Competitor Price Breakdown',
+                                    headers: ['Brand', 'Classification', 'Current SP', 'Previous SP', 'Delta', 'Change %'],
+                                    rows: brandRows
+                                });
+                            }
+
+                            return {
+                                platformName: plat,
+                                tables
+                            };
+                        });
+                    }
+                }
                 // Rule 5: Low OSA – Product Level | vs Previous Day
                 else if (alertType === 'low_osa_product') {
                     isDynamicAlert = true;
@@ -1870,7 +2002,7 @@ export const runEmailAlertsJob = async () => {
                                     currentMetricValue: isDynamicAlert ? metricDetails.calculatedOSA : (aggregateOsa.currentOsa ? `${aggregateOsa.currentOsa}%` : 'N/A'),
                                     metricDelta: isDynamicAlert ? (metricDetails.aggDelta !== undefined ? metricDetails.aggDelta : aggregateOsa.delta) : aggregateOsa.delta,
                                     operator: isDynamicAlert ? (formatOperatorSymbol(alert.conditional_operator) || '<=') : alertOpSym,
-                                    threshold: threshold,
+                                    threshold: (alert.alert_type && (alert.alert_type.includes('selling_price') || alert.alert_type.includes('price'))) ? ` ${currency}${threshold}` : threshold,
                                     platformData: finalDynamicEmailData,
                                     cwStart: finalCwStart,
                                     cwEnd: finalCwEnd,
