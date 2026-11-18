@@ -3,7 +3,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
 import { useAuth } from "../../utils/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Search, X, Filter, ChevronRight, TrendingUp, ExternalLink } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight, TrendingUp, ExternalLink, Calendar } from "lucide-react";
 
 
 const sosColor = (val) => {
@@ -89,198 +89,361 @@ const DrilldownModal = ({
   items, title, onClose, loading, type = "sku", 
   onToggleLocations, expandedLocs, locsLoading,
   keywordTypeFilter, onKeywordTypeFilterChange 
-}) => (
-  <div
-    style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(2px)" }}
-    onClick={onClose}
-  >
+}) => {
+  const downloadModalCSV = () => {
+    if (!items || items.length === 0) return;
+    const isKeyword = type === "keyword";
+    const headers = isKeyword
+      ? ["Keyword", "Ad Position", "Organic Position", "Top 5 Days", "Top 10 Days", "Top 20 Days"]
+      : [type === "sku" ? "SKU" : "Keyword", "Ad Position", "Organic Position", "Overall SOS", "Organic SOS", "Paid SOS"];
+    
+    const rows = items.map(it => isKeyword ? [
+      `"${(it.name || "").replace(/"/g, '""')}"`,
+      it.adPosition || "",
+      it.organicPosition || "",
+      it.top5Days || 0,
+      it.top10Days || 0,
+      it.top20Days || 0,
+    ] : [
+      `"${(it.name || "").replace(/"/g, '""')}"`,
+      it.adPosition || "",
+      it.organicPosition || "",
+      it.overallSOS != null ? it.overallSOS.toFixed(2) : "",
+      it.organicSOS != null ? it.organicSOS.toFixed(2) : "",
+      it.paidSOS != null ? it.paidSOS.toFixed(2) : "",
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${(title || "drilldown").replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
     <div
-      style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: (type === "sku" || type === "brandKeywords") ? 880 : 600, maxWidth: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
-      onClick={e => e.stopPropagation()}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(2px)" }}
+      onClick={onClose}
     >
-      {/* Header */}
-      <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
-            {type === "sku" ? "SKU Analysis" : (type === "brandKeywords" ? "Brand Keyword Analysis" : "Keyword Analysis")}
-          </h3>
-          <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
-            {type === "brandKeywords" 
-              ? (title?.split('—')?.[1]?.trim() || title || "").replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
-              : (title?.split('—')?.[1]?.trim() || title || "")}
-          </span>
-        </div>
-        <button 
-          onClick={onClose} 
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 6, transition: "background 0.2s" }}
-          onMouseOver={e => e.currentTarget.style.background = "#e2e8f0"}
-          onMouseOut={e => e.currentTarget.style.background = "transparent"}
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      <div style={{ padding: "0 24px 24px 24px", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-        {/* Filters for Brand Keyword View */}
-        {type === "brandKeywords" ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 20px" }}>
-            <div style={{ display: "inline-flex", background: "#f1f5f9", borderRadius: 10, padding: 3, gap: 2, border: "1px solid #e2e8f0" }}>
-              {["All", "Branded", "Competition", "Generic"].map(v => (
-                <button 
-                  key={v} 
-                  onClick={() => onKeywordTypeFilterChange?.(v)} 
-                  style={{
-                    padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-                    fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-                    background: (keywordTypeFilter || "All") === v ? "#fff" : "transparent",
-                    color: (keywordTypeFilter || "All") === v ? "#0f172a" : "#64748b",
-                    boxShadow: (keywordTypeFilter || "All") === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                  }}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+      <div
+        style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: 840, maxWidth: "96%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
+              {type === "sku" ? "SKU Analysis" : (type === "brandKeywords" ? "Brand Keyword Analysis" : "Keyword Analysis")}
+            </h3>
+            <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
+              {type === "brandKeywords" 
+                ? (title?.split('—')?.[1]?.trim() || title || "").replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+                : (title?.split('—')?.[1]?.trim() || title || "")}
+            </span>
           </div>
-        ) : (
-          <div style={{ marginTop: 20 }}></div>
-        )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button 
+              onClick={downloadModalCSV} 
+              title="Download CSV"
+              style={{ border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center", padding: "5px 10px", borderRadius: 7, fontSize: 11, fontWeight: 600, gap: 5, transition: "background 0.2s" }}
+              onMouseOver={e => e.currentTarget.style.background = "#f1f5f9"}
+              onMouseOut={e => e.currentTarget.style.background = "#fff"}
+            >
+              <Download size={13} />
+              <span>Export</span>
+            </button>
+            <button 
+              onClick={onClose} 
+              style={{ border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 6, transition: "background 0.2s" }}
+              onMouseOver={e => e.currentTarget.style.background = "#e2e8f0"}
+              onMouseOut={e => e.currentTarget.style.background = "transparent"}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
 
-      {loading ? (
-        <MiniSpinner />
-      ) : items.length === 0 ? (
-        <p style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: "32px 0", fontFamily: "'Inter', sans-serif" }}>
-          No {type === "sku" ? "SKUs" : "keywords"} available for this {type === "sku" ? "keyword" : "SKU"}
-        </p>
-      ) : (
-        <div style={{ maxHeight: 520, overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid #f1f5f9" }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-          <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-            <tr>
-              <th rowSpan={2} style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#f8fafc" }}>{type === "sku" ? "SKU" : "Keyword"}</th>
-              <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Avg. Position</th>
-              {(type === "sku" || type === "brandKeywords") && <th colSpan={3} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Share of Search (SOS)</th>}
-            </tr>
-            <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords.">ⓘ</span></th>
-              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.">ⓘ</span></th>
-              {(type === "sku" || type === "brandKeywords") && (
-                <>
-                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Overall</th>
-                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic</th>
-                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Paid</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, i) => (
-              <React.Fragment key={i}>
-                <tr style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      {type === "sku" && (
-                        item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
-                            style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
-                          />
-                        ) : (
-                          <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-                              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                              <line x1="12" y1="22.08" x2="12" y2="12" />
-                            </svg>
-                          </div>
-                        )
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
-                        
-                        {onToggleLocations && (
-                          <div 
-                            onClick={() => {
-                              const nameFromTitle = title?.split('—')?.[1]?.trim().replace(/"/g, '') || "";
-                              if (type === "sku") {
-                                onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
-                              } else if (type === "brandKeywords") {
-                                onToggleLocations?.(item.name, "All", nameFromTitle, item.name);
-                              } else {
-                                onToggleLocations?.(item.name, nameFromTitle, "All", item.name);
-                              }
-                            }}
-                            style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
-                          >
-                            {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
-                          </div>
+        <div style={{ padding: "0 24px 24px 24px", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+          {/* Filters for Brand Keyword View */}
+          {type === "brandKeywords" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 20px" }}>
+              <div style={{ display: "inline-flex", background: "#f1f5f9", borderRadius: 10, padding: 3, gap: 2, border: "1px solid #e2e8f0" }}>
+                {["All", "Branded", "Competition", "Generic"].map(v => (
+                  <button 
+                    key={v} 
+                    onClick={() => onKeywordTypeFilterChange?.(v)} 
+                    style={{
+                      padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                      background: (keywordTypeFilter || "All") === v ? "#fff" : "transparent",
+                      color: (keywordTypeFilter || "All") === v ? "#0f172a" : "#64748b",
+                      boxShadow: (keywordTypeFilter || "All") === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 20 }}></div>
+          )}
+
+        {loading ? (
+          <MiniSpinner />
+        ) : items.length === 0 ? (
+          <p style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: "32px 0", fontFamily: "'Inter', sans-serif" }}>
+            No {type === "sku" ? "SKUs" : "keywords"} available for this {type === "sku" ? "keyword" : "SKU"}
+          </p>
+        ) : (
+          <div style={{ maxHeight: 520, overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid #f1f5f9" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+              <tr>
+                <th rowSpan={2} style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#f8fafc" }}>
+                  {type === "sku" ? "SKU" : "Keyword"}
+                </th>
+                <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>
+                  Avg. Position
+                </th>
+                {type === "keyword" ? (
+                  <th colSpan={3} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>
+                    # Shelf Presence
+                  </th>
+                ) : (
+                  <th colSpan={3} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>
+                    Share of Search (SOS)
+                  </th>
+                )}
+              </tr>
+              <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+                <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                  Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords.">ⓘ</span>
+                </th>
+                <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                  Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.">ⓘ</span>
+                </th>
+                {type === "keyword" ? (
+                  <>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                      Top 5 <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Number of days the SKU held a top 5 search slot over the selected period">ⓘ</span>
+                    </th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                      Top 10 <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Number of days the SKU held a top 10 search slot over the selected period">ⓘ</span>
+                    </th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                      Top 20 <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Number of days the SKU held a top 20 search slot over the selected period">ⓘ</span>
+                    </th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Overall</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic</th>
+                    <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Paid</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <React.Fragment key={i}>
+                  <tr style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
+                    <td style={{ padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {type === "sku" && (
+                          item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                              style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                            />
+                          ) : (
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                <line x1="12" y1="22.08" x2="12" y2="12" />
+                              </svg>
+                            </div>
+                          )
                         )}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "center", padding: "12px" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                      {item.adPosition || "—"}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "center", padding: "12px" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                      {item.organicPosition || "—"}
-                    </span>
-                  </td>
-                  {(type === "sku" || type === "brandKeywords") && (
-                    <>
-                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.overallSOS} /></td>
-                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.organicSOS} /></td>
-                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.paidSOS} /></td>
-                    </>
-                  )}
-                </tr>
-                
-                {expandedLocs?.[item.name] && expandedLocs[item.name].map((loc, j) => (
-                  <tr key={`${i}-loc-${j}`} style={{ background: "#f8fafc", borderBottom: "1px solid #edf2f7" }}>
-                    <td style={{ padding: "8px 16px 8px 32px" }}>
-                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1" }}></div>
-                        {loc.city}
-                        {loc.searchVolume != null && loc.searchVolume > 0 && (
-                          <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "1px 6px", marginLeft: 4 }}>
-                            Vol: {Number(loc.searchVolume).toLocaleString()}
-                          </span>
-                        )}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>
+                              {item.name}
+                            </span>
+                            {item.volShare > 0 && (
+                              <span style={{ background: "#f1f5f9", color: "#475569", fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "1px 5px", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                <TrendingUp size={10} color="#64748b" /> {item.volShare}%
+                              </span>
+                            )}
+                          </div>
+                          
+                          {onToggleLocations && (
+                            <div 
+                              onClick={() => {
+                                const nameFromTitle = title?.split('—')?.[1]?.trim().replace(/"/g, '') || "";
+                                if (type === "sku") {
+                                  onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
+                                } else if (type === "brandKeywords") {
+                                  onToggleLocations?.(item.name, "All", nameFromTitle, item.name);
+                                } else {
+                                  onToggleLocations?.(item.name, nameFromTitle, "All", item.name);
+                                }
+                              }}
+                              style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
+                            >
+                              {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td style={{ textAlign: "center", padding: "8px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: loc.paidRank ? "#0f172a" : "#94a3b8" }}>
-                        {loc.paidRank ? `#${Math.round(loc.paidRank)}` : "—"}
+                    <td style={{ textAlign: "center", padding: "12px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                        {item.adPosition || "—"}
                       </span>
                     </td>
-                    <td style={{ textAlign: "center", padding: "8px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: loc.organicRank ? "#0f172a" : "#94a3b8" }}>
-                        {loc.organicRank ? `#${Math.round(loc.organicRank)}` : "—"}
+                    <td style={{ textAlign: "center", padding: "12px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                        {item.organicPosition || "—"}
                       </span>
                     </td>
-                    {(type === "sku" || type === "brandKeywords") && (
+                    {type === "keyword" ? (
                       <>
-                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.overallSOS} fontSize={12} /></td>
-                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.organicSOS} fontSize={12} /></td>
-                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.paidSOS} fontSize={12} /></td>
+                        <td style={{ textAlign: "center", padding: "12px 8px" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: (item.top5Days || 0) > 0 ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                              {item.top5Days || 0}
+                            </span>
+                            <span
+                              title={`${item.top5Days || 0} days in Top 5`}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 4, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", flexShrink: 0 }}
+                            >
+                              <Calendar size={11} />
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center", padding: "12px 8px" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: (item.top10Days || 0) > 0 ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                              {item.top10Days || 0}
+                            </span>
+                            <span
+                              title={`${item.top10Days || 0} days in Top 10`}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 4, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", flexShrink: 0 }}
+                            >
+                              <Calendar size={11} />
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center", padding: "12px 8px" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: (item.top20Days || 0) > 0 ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                              {item.top20Days || 0}
+                            </span>
+                            <span
+                              title={`${item.top20Days || 0} days in Top 20`}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 4, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", flexShrink: 0 }}
+                            >
+                              <Calendar size={11} />
+                            </span>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.overallSOS} /></td>
+                        <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.organicSOS} /></td>
+                        <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.paidSOS} /></td>
                       </>
                     )}
                   </tr>
-                ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+                  
+                  {expandedLocs?.[item.name] && expandedLocs[item.name].map((loc, j) => (
+                    <tr key={`${i}-loc-${j}`} style={{ background: "#f8fafc", borderBottom: "1px solid #edf2f7" }}>
+                      <td style={{ padding: "8px 16px 8px 32px" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1" }}></div>
+                          {loc.city}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "8px" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: loc.paidRank ? "#0f172a" : "#94a3b8" }}>
+                          {loc.paidRank ? `#${Math.round(loc.paidRank)}` : "—"}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "8px" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: loc.organicRank ? "#0f172a" : "#94a3b8" }}>
+                          {loc.organicRank ? `#${Math.round(loc.organicRank)}` : "—"}
+                        </span>
+                      </td>
+                      {type === "keyword" ? (
+                        <>
+                          <td style={{ textAlign: "center", padding: "8px" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: (loc.top5Days || 0) > 0 ? "#0f172a" : "#94a3b8" }}>
+                                {loc.top5Days || 0}
+                              </span>
+                              <span
+                                title={`${loc.top5Days || 0} days in Top 5 in ${loc.city}`}
+                                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: 3, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb" }}
+                              >
+                                <Calendar size={10} />
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: "center", padding: "8px" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: (loc.top10Days || 0) > 0 ? "#0f172a" : "#94a3b8" }}>
+                                {loc.top10Days || 0}
+                              </span>
+                              <span
+                                title={`${loc.top10Days || 0} days in Top 10 in ${loc.city}`}
+                                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: 3, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb" }}
+                              >
+                                <Calendar size={10} />
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: "center", padding: "8px" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: (loc.top20Days || 0) > 0 ? "#0f172a" : "#94a3b8" }}>
+                                {loc.top20Days || 0}
+                              </span>
+                              <span
+                                title={`${loc.top20Days || 0} days in Top 20 in ${loc.city}`}
+                                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: 3, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb" }}
+                              >
+                                <Calendar size={10} />
+                              </span>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.overallSOS} fontSize={12} /></td>
+                          <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.organicSOS} fontSize={12} /></td>
+                          <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.paidSOS} fontSize={12} /></td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
         </div>
-      )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function SearchTermsPerformance() {
   const { user } = useAuth();
