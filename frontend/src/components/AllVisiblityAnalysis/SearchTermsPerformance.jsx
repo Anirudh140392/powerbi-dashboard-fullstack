@@ -245,6 +245,11 @@ const DrilldownModal = ({
                       <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
                         <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1" }}></div>
                         {loc.city}
+                        {loc.searchVolume != null && loc.searchVolume > 0 && (
+                          <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "1px 6px", marginLeft: 4 }}>
+                            Vol: {Number(loc.searchVolume).toLocaleString()}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ textAlign: "center", padding: "8px" }}>
@@ -641,12 +646,13 @@ export default function SearchTermsPerformance() {
     
     const isKeyword = activeView === "keyword";
     const headers = isKeyword 
-      ? (isSugarUser ? ["Keyword", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Keyword", "Leading Brand", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"])
+      ? (isSugarUser ? ["Keyword", "Search Volume", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Keyword", "Search Volume", "Leading Brand", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"])
       : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
       
     const rows = items.map(item => {
       const row = [
         `"${(item.name || "").replace(/"/g, '""')}"`,
+        ...(isKeyword ? [`"${item.searchVolume != null ? item.searchVolume : 0}"`] : []),
         ...(isKeyword ? (isSugarUser ? [] : [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`]) : []),
         `"${(item.overallSOS || 0).toFixed(2)}%"`,
         ...(isKeyword ? [`"${item.overallSOV != null ? item.overallSOV.toFixed(2) + '%' : '—'}"`] : []),
@@ -687,7 +693,7 @@ export default function SearchTermsPerformance() {
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
-    ? (isSugarUser ? "minmax(260px,1fr) 120px 120px 120px 120px" : "minmax(260px,1fr) 140px 120px 120px 120px 120px")
+    ? (isSugarUser ? "minmax(240px,1fr) 120px 110px 110px 110px 110px" : "minmax(240px,1fr) 120px 130px 110px 110px 110px 110px")
     : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
 
   return (
@@ -819,6 +825,7 @@ export default function SearchTermsPerformance() {
         <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
           {[
             { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
+            ...(activeView === "keyword" ? [{ label: "Search Volume", sub: null }] : []),
             ...(activeView === "keyword" ? (isSugarUser ? [] : [{ label: "Leading Brand", sub: "by Overall SOS" }]) : []),
             { label: "Overall SOS", sub: null },
             ...(activeView === "keyword" ? [{ label: "Overall SOV", sub: null }] : []),
@@ -904,6 +911,19 @@ export default function SearchTermsPerformance() {
                     </div>
                   </div>
 
+                  {/* Search Volume */}
+                  <div style={{ textAlign: "center" }}>
+                    {(() => {
+                      const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
+                      const totalVol = summarySearchVolume > 0 ? summarySearchVolume : (summaryData.totalSearchVolume || 0);
+                      return (
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#4f46e5", letterSpacing: "-0.01em", fontFamily: "'Inter', sans-serif" }}>
+                          {totalVol > 0 ? totalVol.toLocaleString() : "—"}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
                   {/* Leading Brand */}
                   {!isSugarUser && (
                     <div style={{ textAlign: "center" }}>
@@ -951,6 +971,7 @@ export default function SearchTermsPerformance() {
                   <div style={{ background: "#f0f0ff", borderTop: "1px solid #c7d2fe", animation: "slideDown 0.18s ease" }}>
                     <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#4f46e5", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Search Volume</div>
                       {!isSugarUser && <div />}
                       {["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"].map((h) => (
                         <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
@@ -969,6 +990,11 @@ export default function SearchTermsPerformance() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>
+                              {loc.searchVolume != null && loc.searchVolume > 0 ? Number(loc.searchVolume).toLocaleString() : "—"}
+                            </span>
                           </div>
                           {!isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
@@ -1054,15 +1080,6 @@ export default function SearchTermsPerformance() {
                             : row.name}
                         </span>
                       )}
-                      {row.searchVolume > 0 && activeView === "keyword" ? (
-                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
-                          Search Vol. {row.searchVolume.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%
-                        </span>
-                      ) : (row.volShare > 0 && activeView === "keyword" ? (
-                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
-                          {row.volShare}% VOL.
-                        </span>
-                      ) : null)}
                     </div>
 
                     {/* My SKUs / All SKUs buttons — only in keyword mode */}
@@ -1093,6 +1110,15 @@ export default function SearchTermsPerformance() {
                       </div>
                     )}
                   </div>
+
+                  {/* Search Volume — keyword mode only */}
+                  {activeView === "keyword" && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
+                        {row.searchVolume > 0 ? row.searchVolume.toLocaleString() : "—"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Leading Brand — keyword mode only */}
                   {activeView === "keyword" && !isSugarUser && (
@@ -1154,6 +1180,9 @@ export default function SearchTermsPerformance() {
                   <div style={{ background: "#f8fafc", borderTop: "1px solid #e2e8f0", animation: "slideDown 0.18s ease" }}>
                     <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #e2e8f0" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#3b82f6", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
+                      {activeView === "keyword" && (
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Search Volume</div>
+                      )}
                       {activeView === "keyword" && !isSugarUser && <div />}
                       {(activeView === "keyword" ? ["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Overall SOS", "Organic SOS", "Paid SOS"]).map((h) => (
                         <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
@@ -1173,6 +1202,13 @@ export default function SearchTermsPerformance() {
                               {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(loc.city?.toLowerCase()) ? "Nation" : loc.city}
                             </span>
                           </div>
+                          {activeView === "keyword" && (
+                            <div style={{ textAlign: "center" }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", background: "#fff", padding: "2px 8px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                                {loc.searchVolume != null && loc.searchVolume > 0 ? Number(loc.searchVolume).toLocaleString() : "—"}
+                              </span>
+                            </div>
+                          )}
                           {activeView === "keyword" && !isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
                           {activeView === "keyword" && (

@@ -4035,12 +4035,6 @@ class VisibilityService {
                 : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : `lower(t1.brand) IN (${ownBrandSubquery})`;
 
             const targetDb = filters.dbName || getCurrentDbName();
-            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap'`);
-            const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
-            const searchVolumeSelect = hasSearchVolPct
-                ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
-                : `0`;
-
             let kwTable = 'rb_kw_olap';
             let hasWeightedImp = false;
             if (viewMode === 'keyword') {
@@ -4062,6 +4056,23 @@ class VisibilityService {
                 } catch (e) {
                     console.warn('[VisibilityService] Error checking sow table:', e.message);
                 }
+            }
+
+            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = '${kwTable}'`);
+            const colNames = colsRes.map((c) => c.name);
+            const hasVolSearch = colNames.includes('volume_search');
+            const hasVolDist = colNames.includes('volume_search_distribution');
+            const hasSearchVolPct = colNames.includes('search_volume_percentage');
+
+            let searchVolumeSelect = '0';
+            if (hasVolSearch) {
+                if (location && location !== 'All' && hasVolDist) {
+                    searchVolumeSelect = `ROUND(coalesce(nullIf(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0), nullIf(AVG(toFloat64OrZero(toString(volume_search))), 0), 0), 0)`;
+                } else {
+                    searchVolumeSelect = `ROUND(any(toFloat64OrZero(toString(volume_search))), 0)`;
+                }
+            } else if (hasSearchVolPct) {
+                searchVolumeSelect = `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`;
             }
 
             // Calculate total landscape volume for relative share (ignoring local segment filters)
@@ -4263,7 +4274,7 @@ class VisibilityService {
                             ` : ''}
 
                             count(*) as impressions_keyword,
-                            ${searchVolumeSelect.replace(/search_volume/g, 't1.search_volume')} as search_volume,
+                            ${searchVolumeSelect.replace(/volume_search_distribution/g, 't1.volume_search_distribution').replace(/volume_search/g, 't1.volume_search').replace(/search_volume_percentage/g, 't1.search_volume_percentage')} as search_volume,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND ${numeratorCondition}), 1) AS ad_position_keyword,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND ${numeratorCondition}), 1) AS organic_position_keyword
                         FROM ${kwTable} t1
@@ -4470,6 +4481,7 @@ class VisibilityService {
                     const summaryLocQuery = `
                             SELECT
                                 location_name as city,
+                                ${hasVolDist ? `ROUND(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0) AS search_volume,` : (hasVolSearch ? `ROUND(AVG(toFloat64OrZero(toString(volume_search))), 0) AS search_volume,` : `null AS search_volume,`)}
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery})) as num_overall,
                                 COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
@@ -4519,6 +4531,7 @@ class VisibilityService {
                             .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
                             .map(l => ({
                                 city: l.city,
+                                searchVolume: l.search_volume != null ? Number(l.search_volume) : null,
                                 overallSOS: Number(l.overall_sos) || 0,
                                 overallSOV: l.overall_sov != null ? Number(l.overall_sov) : null,
                                 organicSOS: Number(l.organic_sos) || 0,
@@ -4634,7 +4647,7 @@ class VisibilityService {
             const targetDb = filters.dbName || getCurrentDbName();
             let kwTable = 'rb_kw_olap';
             let hasWeightedImp = false;
-            if (viewMode === 'keyword') {
+            if (viewMode === 'keyword' || keyword) {
                 try {
                     const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
                     if (checkTblRes.length > 0) {
@@ -4655,9 +4668,25 @@ class VisibilityService {
                 }
             }
 
+            let volColSelect = 'null AS search_volume';
+            try {
+                const volColsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = '${kwTable}' AND name IN ('volume_search_distribution', 'volume_search', 'search_volume_percentage')`);
+                const colNames = volColsRes.map(c => c.name);
+                if (colNames.includes('volume_search_distribution')) {
+                    volColSelect = `ROUND(coalesce(nullIf(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0), nullIf(AVG(toFloat64OrZero(toString(volume_search))), 0), 0), 0) AS search_volume`;
+                } else if (colNames.includes('volume_search')) {
+                    volColSelect = `ROUND(AVG(toFloat64OrZero(toString(volume_search))), 0) AS search_volume`;
+                } else if (colNames.includes('search_volume_percentage')) {
+                    volColSelect = `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2) AS search_volume`;
+                }
+            } catch (e) {
+                console.warn('[VisibilityService] Error checking volume columns in drilldown:', e.message);
+            }
+
             const query = `
                 SELECT
                     location_name AS city,
+                    ${volColSelect},
                     COUNTIf(${numCondition}) AS num_overall,
                     COUNTIf(${numCondition} AND toInt32(spons) = 0) AS num_organic,
                     COUNTIf(${numCondition} AND toInt32(spons) = 1) AS num_spons,
@@ -4698,6 +4727,7 @@ class VisibilityService {
             return {
                 locations: results.map(row => ({
                     city: row.city,
+                    searchVolume: row.search_volume != null ? Number(row.search_volume) : null,
                     overallSOS: Number(row.overall_sos) || 0,
                     overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
