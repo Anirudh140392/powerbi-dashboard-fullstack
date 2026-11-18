@@ -660,6 +660,12 @@ async function getPricingKpis(filters = {}) {
                     THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_curr,
 
+                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AND ${brandCondition}
+                         AND ${f.wMrp} > 0
+                    THEN ${f.wMrp} 
+                    ELSE NULL END) AS mrp_curr,
+
                 -- Previous Period
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 
@@ -687,7 +693,13 @@ async function getPricingKpis(filters = {}) {
                          AND ${f.wSellingPrice} > 0
                          AND ${f.wNenoOsa} > 0
                     THEN ${f.wSellingPrice} 
-                    ELSE NULL END) AS asp_prev
+                    ELSE NULL END) AS asp_prev,
+
+                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                         AND ${brandCondition}
+                         AND ${f.wMrp} > 0
+                    THEN ${f.wMrp} 
+                    ELSE NULL END) AS mrp_prev
 
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
@@ -703,7 +715,9 @@ async function getPricingKpis(filters = {}) {
                 
                 AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition} THEN ${f.wPpu} ELSE NULL END) AS price_per_unit_curr,
                 
-                AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr
+                AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr,
+
+                AVG(CASE WHEN ${brandCondition} AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp_curr
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
               AND ${whereClause}
@@ -740,6 +754,7 @@ async function getPricingKpis(filters = {}) {
             const discountTrend = [];
             const weightedDiscountTrend = [];
             const aspTrend = [];
+            const mrpTrend = [];
             const trendDates = [];
 
             if (trendResults && trendResults.length > 0) {
@@ -757,6 +772,11 @@ async function getPricingKpis(filters = {}) {
                     });
                     aspTrend.push({
                         value: formatVal(row.asp_curr),
+                        label: formattedDate,
+                        date: row.date
+                    });
+                    mrpTrend.push({
+                        value: formatVal(row.mrp_curr),
                         label: formattedDate,
                         date: row.date
                     });
@@ -794,6 +814,13 @@ async function getPricingKpis(filters = {}) {
                     prev: formatVal(r.asp_prev),
                     change: calcChange(formatVal(r.asp_curr), formatVal(r.asp_prev)),
                     sparklineData: aspTrend,
+                    dates: trendDates
+                },
+                mrp: {
+                    value: formatVal(r.mrp_curr),
+                    prev: formatVal(r.mrp_prev),
+                    change: calcChange(formatVal(r.mrp_curr), formatVal(r.mrp_prev)),
+                    sparklineData: mrpTrend,
                     dates: trendDates
                 }
             };

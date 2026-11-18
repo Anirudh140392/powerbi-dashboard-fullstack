@@ -852,6 +852,16 @@ const HelpDrawer = ({ userDbName }) => {
   ];
   const pricingAnalysisGlossary = [
     {
+      kpi: "Maximum Retail Price (MRP)",
+      definition: "Maximum Retail Price (MRP) represents the average maximum retail price across SKUs on the selected platform during the selected period.",
+      usage: "Track catalog MRP levels and monitor price changes or portfolio premiumization.",
+      interpretation: "Higher MRP indicates higher list price or premium pack mix; change in MRP reflects catalog price adjustments.",
+      pitfalls: "Product pack size changes or assortment changes can influence average MRP.",
+      example: "Average MRP across active SKUs is ₹150.00.",
+      logic: "Average of MRP column from rb_pdp_olap",
+      aliases: ["MRP", "mrp", "Maximum Retail Price", "Average MRP"],
+    },
+    {
       kpi: "Average Selling Price (ASP)",
       definition: "Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.",
       usage: "Track SKU-level and brand pricing trends over time to identify price erosion or premiumization.",

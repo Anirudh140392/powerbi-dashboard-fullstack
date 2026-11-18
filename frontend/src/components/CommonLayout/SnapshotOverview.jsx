@@ -1043,7 +1043,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                                         return ['N/A', ''];
                                     }
                                     if (typeof value !== 'number') return [value, ''];
-                                    let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                    let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)') || kpi.title?.toLowerCase().includes('price') || kpi.title?.toLowerCase().includes('mrp') || kpi.title?.toLowerCase().includes('asp');
                                     let isPercentage = kpi.title?.includes('%') || kpi.subtitle?.includes('%') || kpi.title?.toLowerCase().includes('share') || kpi.title?.toLowerCase().includes('availability');
                                     let prefix = isCurrency ? '₹ ' : '';
                                     let suffix = isPercentage ? '%' : '';
@@ -1476,7 +1476,7 @@ const SnapshotOverview = ({
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${detailedKpis.length === 5 ? 'lg:grid-cols-5' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 4 ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-3'} ${detailedKpis.length === 5 ? 'lg:grid-cols-5' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
                             Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
                                 <DetailedSparklineCard key={i} loading={true} />

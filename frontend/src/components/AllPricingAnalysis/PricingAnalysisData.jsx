@@ -90,7 +90,7 @@ import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
-import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
+import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide, Tag } from "lucide-react";
 import { getLogicalKpiTrend, getLogicalKpiValue } from "../AllAvailablityAnalysis/availablityDataCenter";
 import { FilterContext } from "@/utils/FilterContext";
 import InsightsPricingView from "./InsightsPricingView";
@@ -2471,11 +2471,12 @@ export default function PricingAnalysisData() {
 
 
   const pricingKpis = useMemo(() => {
-    const icons = [Discount, PieChart, Target];
+    const icons = [Discount, PieChart, Target, Tag];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
       ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899']
+      ['#f43f5e', '#ec4899'],
+      ['#f59e0b', '#fbbf24']
     ];
 
     if (!pricingKpiData) {
@@ -2483,6 +2484,7 @@ export default function PricingAnalysisData() {
         { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0], infoTooltip: 'Discount represents the average discount percentage applied across all active SKUs on the selected platform during the current period.' },
         { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1], infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.' },
         { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2], infoTooltip: 'Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.' },
+        { id: 'vis-3', title: 'MRP', value: '-', subtitle: 'Loading...', icon: icons[3], gradient: gradients[3], infoTooltip: 'Maximum Retail Price (MRP) represents the average maximum retail price across SKUs on the selected platform during the current period.' },
       ];
     }
 
@@ -2536,6 +2538,22 @@ export default function PricingAnalysisData() {
         trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period',
         infoTooltip: 'Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.'
+      },
+      {
+        id: 'vis-3',
+        title: 'MRP',
+        value: formatKpiValue(d.mrp?.value, "₹", 2),
+        subtitle: 'Average MRP of SKUs',
+        delta: Math.abs(d.mrp?.change || 0),
+        deltaLabel: !d.mrp?.value || d.mrp?.value === 0 || d.mrp?.change === null || d.mrp?.change === undefined ? "N/A" : `${(d.mrp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.mrp?.change || 0).toFixed(1)}%`,
+        icon: icons[3],
+        gradient: gradients[3],
+        trend: d.mrp?.sparklineData || [],
+        trendSeries: d.mrp?.sparklineData || [],
+        dates: d.mrp?.dates || [],
+        trendDir: (d.mrp?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Maximum Retail Price (MRP) represents the average maximum retail price across SKUs on the selected platform during the current period.'
       }
     ];
   }, [pricingKpiData, pricingKpiLoading]);
