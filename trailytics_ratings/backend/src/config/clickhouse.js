@@ -12,7 +12,11 @@ dotenv.config({ path: path.resolve(__dirname, '../../../backend/.env') });
 
 export const clickhouseStorage = new AsyncLocalStorage();
 
+<<<<<<< HEAD
 const defaultDb = (process.env.CLICKHOUSE_DB && !process.env.CLICKHOUSE_DB.toLowerCase().includes('marico')) ? process.env.CLICKHOUSE_DB : 'default';
+=======
+const defaultDb = 'default';
+>>>>>>> 404372ce (fix(ratings): resolve clickhouse cluster routing and olap fallback for competitor matrix)
 
 const clickhouse = createClient({
     url: process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL || 'http://localhost:8123',
@@ -46,6 +50,10 @@ clickhouse.query = function (options) {
         };
         console.log(`[CH Query] Intercepted. Database: ${targetDb}, Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
     } else {
+        options.clickhouse_settings = {
+            ...options.clickhouse_settings,
+            database: 'default'
+        };
         console.log(`[CH Query] Querying admin_master or default. Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
     }
 

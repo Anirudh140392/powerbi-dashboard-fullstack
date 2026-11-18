@@ -1,8 +1,35 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+};
+
+const queryChWithFallback = async (db, queryOlap, queryMl, params) => {
+    try {
+        const chRes = await clickhouse.query({
+            database: db,
+            query: queryOlap,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        return await chRes.json();
+    } catch (err) {
+        console.warn(`[queryChWithFallback] Primary query on OLAP table failed for database '${db}': ${err.message}. Trying fallback query on ml_reviews...`);
+        try {
+            const chRes = await clickhouse.query({
+                database: db,
+                query: queryMl,
+                query_params: params,
+                format: 'JSONEachRow'
+            });
+            return await chRes.json();
+        } catch (fallbackErr) {
+            console.error(`[queryChWithFallback] Fallback query on ml_reviews also failed for database '${db}': ${fallbackErr.message}`);
+            return [];
+        }
+    }
 };
 
 export const getCompetitorMentions = async (req, res) => {
@@ -106,7 +133,26 @@ export const getCompetitorMatrix = async (req, res) => {
             where.push(`review_date >= subtractMonths(today(), ${pm})`);
         }
 
-        const sql = `
+        const targetDb = getTargetDb(req);
+        const olapTable = getOlapTableName(targetDb);
+        const whereClause = where.join(' AND ');
+
+        const olapSql = `
+            SELECT
+                initcap(lower(brand)) AS brand,
+                is_competitor,
+                count() as total_reviews,
+                round(avg(rating), 2) as avg_rating,
+                round(avg(quality_score), 2) as avg_quality,
+                category as primary_category
+            FROM ${olapTable}
+            WHERE ${whereClause}
+            GROUP BY brand, is_competitor, category
+            ORDER BY total_reviews DESC
+            LIMIT 50
+        `;
+
+        const mlSql = `
             SELECT
                 initcap(lower(brand)) AS brand,
                 is_competitor,
@@ -115,14 +161,13 @@ export const getCompetitorMatrix = async (req, res) => {
                 round(avg(quality_score), 2) as avg_quality,
                 category as primary_category
             FROM ml_reviews
-            WHERE ${where.join(' AND ')}
+            WHERE ${whereClause}
             GROUP BY brand, is_competitor, category
             ORDER BY total_reviews DESC
             LIMIT 50
         `;
         
-        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await chRes.json();
+        const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
 
         res.json({ success: true, matrix: rows });
     } catch (err) {
@@ -476,7 +521,22 @@ export const exportCompetitorMappingPairs = async (req, res) => {
 export const getCompetitorBrands = async (req, res) => {
     try {
         const queryParams = { companyId: String(req.companyId) };
-        const sql = `
+        const targetDb = getTargetDb(req);
+        const olapTable = getOlapTableName(targetDb);
+
+        const olapSql = `
+            SELECT brand FROM (
+                SELECT initcap(lower(brand)) AS brand, count() AS n FROM ${olapTable}
+                WHERE company_id = {companyId:String} AND coalesce(is_competitor, 0) = 1
+                  AND isNotNull(brand) AND brand != ''
+                  AND length(brand) >= 3
+                  AND lower(brand) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')
+                GROUP BY brand
+                HAVING count() >= 3
+            ) ORDER BY brand ASC
+        `;
+
+        const mlSql = `
             SELECT brand FROM (
                 SELECT initcap(lower(brand)) AS brand, count() AS n FROM ml_reviews
                 WHERE company_id = {companyId:String} AND coalesce(is_competitor, 0) = 1
@@ -487,8 +547,8 @@ export const getCompetitorBrands = async (req, res) => {
                 HAVING count() >= 3
             ) ORDER BY brand ASC
         `;
-        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await chRes.json();
+
+        const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
         
         res.json({ brands: rows.map(r => r.brand) });
     } catch (err) {
