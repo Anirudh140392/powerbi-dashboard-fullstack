@@ -3,7 +3,30 @@ import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
 import { useAuth } from "../../utils/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Search, X, Filter, ChevronRight, TrendingUp, ExternalLink } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight, TrendingUp, ExternalLink, SlidersHorizontal, Check, PieChart } from "lucide-react";
+import VisibilityTrendsCompetitionDrawer from "./VisibilityTrendsCompetitionDrawer";
+
+const ALL_KPIS = [
+  { id: "searchVolume", label: "Search Volume", group: "Volume", description: "Search query volume for keyword", keywordOnly: true },
+  { id: "leadingBrand", label: "Leading Brand", group: "Brand", description: "Top ranking brand by Overall SOS", keywordOnly: true, hideIfSugar: true },
+  { id: "overallSOS", label: "Overall SOS", group: "SOS", description: "Share of Search across all positions" },
+  { id: "overallSOV", label: "Overall SOV", group: "SOV", description: "Share of Voice based on weighted impressions", keywordOnly: true },
+  { id: "organicSOS", label: "Organic SOS", group: "SOS", description: "Organic (non-sponsored) Share of Search" },
+  { id: "organicSOV", label: "Organic SOV", group: "SOV", description: "Organic Share of Voice based on weighted impressions", keywordOnly: true },
+  { id: "paidSOS", label: "Paid SOS", group: "SOS", description: "Paid (sponsored) Share of Search" },
+  { id: "adSOV", label: "Ad SOV", group: "SOV", description: "Ad (sponsored) Share of Voice based on weighted impressions", keywordOnly: true },
+];
+
+const DEFAULT_VISIBLE_KPIS = {
+  searchVolume: true,
+  leadingBrand: true,
+  overallSOS: true,
+  overallSOV: true,
+  organicSOS: true,
+  organicSOV: true,
+  paidSOS: true,
+  adSOV: true,
+};
 
 
 const sosColor = (val) => {
@@ -334,6 +357,88 @@ export default function SearchTermsPerformance() {
   const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [] });
   const [optionsLoading, setOptionsLoading] = useState({ platforms: false, categories: false, brands: false });
 
+  // Custom KPI Column Visibility State
+  const [visibleKpis, setVisibleKpis] = useState(() => {
+    try {
+      const saved = localStorage.getItem("top_search_terms_visible_kpis");
+      if (saved) {
+        return { ...DEFAULT_VISIBLE_KPIS, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      // ignore
+    }
+    return DEFAULT_VISIBLE_KPIS;
+  });
+  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+  const [tempVisibleKpis, setTempVisibleKpis] = useState(visibleKpis);
+
+  const updateVisibleKpis = (newKpis) => {
+    setVisibleKpis(newKpis);
+    try {
+      localStorage.setItem("top_search_terms_visible_kpis", JSON.stringify(newKpis));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  // Trends Drawer State
+  const [isTrendDrawerOpen, setIsTrendDrawerOpen] = useState(false);
+  const [trendDrawerFilters, setTrendDrawerFilters] = useState(null);
+
+  const handleOpenTrend = (e, keywordName = null) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    const effPlatform = localFilters.platform.length > 0
+      ? (Array.isArray(localFilters.platform) ? localFilters.platform[0] : localFilters.platform)
+      : (globalPlatform && globalPlatform !== "All" ? (Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform) : "All");
+
+    const effCategory = localFilters.category.length > 0
+      ? (Array.isArray(localFilters.category) ? localFilters.category[0] : localFilters.category)
+      : (selectedCategory && selectedCategory !== "All" ? (Array.isArray(selectedCategory) ? selectedCategory[0] : selectedCategory) : "All");
+
+    const effBrand = localFilters.brand.length > 0
+      ? (Array.isArray(localFilters.brand) ? localFilters.brand[0] : localFilters.brand)
+      : (selectedBrand && selectedBrand !== "All" ? (Array.isArray(selectedBrand) ? selectedBrand[0] : selectedBrand) : "All");
+
+    const effLocation = selectedLocation && selectedLocation !== "All"
+      ? (Array.isArray(selectedLocation) ? selectedLocation[0] : selectedLocation)
+      : "All";
+
+    const effKeywordType = activeFilter && activeFilter !== "All"
+      ? activeFilter
+      : (selectedKeywordType && selectedKeywordType !== "All" ? selectedKeywordType : "All");
+
+    const effKeyword = keywordName || (selectedKeyword && selectedKeyword !== "All" ? selectedKeyword : "All");
+
+    setTrendDrawerFilters({
+      Platform: effPlatform,
+      Format: effCategory,
+      Brand: effBrand,
+      City: effLocation,
+      SKU: "All",
+      Keyword_Type: effKeywordType,
+      Keyword: effKeyword,
+      rank: selectedRank || "All",
+    });
+    setIsTrendDrawerOpen(true);
+  };
+
+  const activeKpis = useMemo(() => {
+    return ALL_KPIS.filter(kpi => {
+      if (activeView !== "keyword" && kpi.keywordOnly) return false;
+      if (kpi.hideIfSugar && isSugarUser) return false;
+      return visibleKpis[kpi.id] !== false;
+    });
+  }, [activeView, isSugarUser, visibleKpis]);
+
+  const availableKpisForModal = useMemo(() => {
+    return ALL_KPIS.filter(kpi => {
+      if (activeView !== "keyword" && kpi.keywordOnly) return false;
+      if (kpi.hideIfSugar && isSugarUser) return false;
+      return true;
+    });
+  }, [activeView, isSugarUser]);
+
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
 
@@ -644,20 +749,28 @@ export default function SearchTermsPerformance() {
   const downloadCSV = () => {
     if (!items || items.length === 0) return;
     
-    const isKeyword = activeView === "keyword";
-    const headers = isKeyword 
-      ? (isSugarUser ? ["Keyword", "Search Volume", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Keyword", "Search Volume", "Leading Brand", "Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"])
-      : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
+    const isSku = activeView === "sku";
+    const headers = [
+      activeView === "keyword" ? "Keyword" : (activeView === "brand" ? "Brand" : "SKU"),
+      ...(isSku ? ["Offtake Share"] : []),
+      ...activeKpis.map(k => k.label)
+    ];
       
     const rows = items.map(item => {
       const row = [
         `"${(item.name || "").replace(/"/g, '""')}"`,
-        ...(isKeyword ? [`"${item.searchVolume != null ? item.searchVolume : 0}"`] : []),
-        ...(isKeyword ? (isSugarUser ? [] : [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`]) : []),
-        `"${(item.overallSOS || 0).toFixed(2)}%"`,
-        ...(isKeyword ? [`"${item.overallSOV != null ? item.overallSOV.toFixed(2) + '%' : '—'}"`] : []),
-        `"${(item.organicSOS || 0).toFixed(2)}%"`,
-        `"${(item.paidSOS || 0).toFixed(2)}%"`
+        ...(isSku ? [`"${item.offtakeShare != null ? Number(item.offtakeShare).toFixed(2) + '%' : '—'}"`] : []),
+        ...activeKpis.map(k => {
+          if (k.id === "searchVolume") return `"${item.searchVolume != null ? item.searchVolume : 0}"`;
+          if (k.id === "leadingBrand") return `"${(item.leadingBrand || "").replace(/"/g, '""')}"`;
+          if (k.id === "overallSOS") return `"${(item.overallSOS || 0).toFixed(2)}%"`;
+          if (k.id === "overallSOV") return `"${item.overallSOV != null ? item.overallSOV.toFixed(2) + '%' : '—'}"`;
+          if (k.id === "organicSOS") return `"${(item.organicSOS || 0).toFixed(2)}%"`;
+          if (k.id === "organicSOV") return `"${item.organicSOV != null ? item.organicSOV.toFixed(2) + '%' : '—'}"`;
+          if (k.id === "paidSOS") return `"${(item.paidSOS || 0).toFixed(2)}%"`;
+          if (k.id === "adSOV") return `"${item.adSOV != null ? item.adSOV.toFixed(2) + '%' : '—'}"`;
+          return '""';
+        })
       ];
       return row;
     });
@@ -692,9 +805,22 @@ export default function SearchTermsPerformance() {
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  const GRID = activeView === "keyword"
-    ? (isSugarUser ? "minmax(240px,1fr) 120px 110px 110px 110px 110px" : "minmax(240px,1fr) 120px 130px 110px 110px 110px 110px")
-    : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
+
+  const GRID = useMemo(() => {
+    const firstCol = activeView === "sku" ? "minmax(260px, 1fr)" : "minmax(220px, 1fr)";
+    const colWidths = activeKpis.map(kpi => {
+      if (kpi.id === "searchVolume") return "110px";
+      if (kpi.id === "leadingBrand") return "125px";
+      return activeKpis.length <= 4 ? "120px" : "95px";
+    });
+    return [firstCol, ...colWidths].join(" ");
+  }, [activeView, activeKpis]);
+
+  const tableMinWidth = useMemo(() => {
+    if (activeKpis.length > 5) return 1040;
+    if (activeKpis.length > 3) return 820;
+    return "100%";
+  }, [activeKpis.length]);
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#f1f5f9", minHeight: 200, padding: "28px 32px", borderRadius: 24, margin: "24px 0", border: "1px solid #e2e8f0" }}>
@@ -717,37 +843,51 @@ export default function SearchTermsPerformance() {
       </div>
 
       {/* Controls Row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 16,
+        gap: 10,
+        flexWrap: "nowrap",
+        width: "100%",
+        minHeight: 38,
+        overflowX: "auto",
+        paddingBottom: 2,
+        scrollbarWidth: "none",
+        msOverflowStyle: "none"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
             {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "brand", label: "Brands" }].map(v => (
               <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
-                padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
                 background: activeView === v.id ? "#0f172a" : "transparent",
                 color: activeView === v.id ? "#fff" : "#64748b",
                 boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
+                whiteSpace: "nowrap"
               }}>{v.label}</button>
             ))}
           </div>
 
           {/* Search Bar */}
-          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={15} style={{ position: "absolute", left: 10, color: "#94a3b8", pointerEvents: "none" }} />
+          <div style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <Search size={14} style={{ position: "absolute", left: 10, color: "#94a3b8", pointerEvents: "none" }} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
               placeholder={activeView === "keyword" ? "Search keywords..." : (activeView === "brand" ? "Search brands..." : "Search SKUs...")}
               style={{
-                padding: "7px 32px 7px 32px",
+                padding: "6px 28px 6px 30px",
                 borderRadius: 10,
                 border: "1.5px solid #e2e8f0",
                 background: "#fff",
-                fontSize: 13,
+                fontSize: 12,
                 fontFamily: "'Inter', sans-serif",
                 color: "#0f172a",
-                width: 220,
+                width: 175,
                 outline: "none",
                 transition: "border-color 0.18s, box-shadow 0.18s",
               }}
@@ -760,7 +900,7 @@ export default function SearchTermsPerformance() {
                 style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "#94a3b8" }}
                 title="Clear search"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
           </div>
@@ -772,67 +912,96 @@ export default function SearchTermsPerformance() {
               setIsFilterModalOpen(true);
             }}
             style={{
-              padding: "7px 14px", borderRadius: 10, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#3b82f6",
-              fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6, transition: "all 0.18s",
+              padding: "6px 12px", borderRadius: 10, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#3b82f6",
+              fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, transition: "all 0.18s", flexShrink: 0,
+              whiteSpace: "nowrap"
             }}
             onMouseOver={(e) => { e.currentTarget.style.background = "#dbeafe"; e.currentTarget.style.borderColor = "#93c5fd"; }}
             onMouseOut={(e) => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = "#bfdbfe"; }}
           >
-            <Filter size={15} />
+            <Filter size={14} />
             <span>Filter Segment</span>
             {(localFilters.platform.length > 0 || localFilters.category.length > 0 || localFilters.brand.length > 0) && (
-               <div style={{ width: 8, height: 8, background: "#ef4444", borderRadius: "50%", marginLeft: 4 }} />
+               <div style={{ width: 7, height: 7, background: "#ef4444", borderRadius: "50%", marginLeft: 3 }} />
             )}
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 7 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
           {activeView === "keyword" && (
             ["All", "Branded", "Competition", "Generic"].map(f => (
               <button key={f} onClick={() => setActiveFilter(f)} style={{
-                padding: "6px 16px", borderRadius: 20, cursor: "pointer",
+                padding: "5px 12px", borderRadius: 20, cursor: "pointer",
                 fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
                 border: activeFilter === f ? "2px solid #0f172a" : "2px solid #cbd5e1",
                 background: activeFilter === f ? "#0f172a" : "#fff",
                 color: activeFilter === f ? "#fff" : "#475569",
+                whiteSpace: "nowrap"
               }}>{f}</button>
             ))
           )}
           <button 
-            onClick={downloadCSV}
-            title="Download CSV"
+            onClick={() => {
+              setTempVisibleKpis({ ...visibleKpis });
+              setIsKpiModalOpen(true);
+            }}
+            title="Customize KPI Columns"
             style={{
-              padding: "6px 12px", borderRadius: 10, cursor: "pointer",
+              padding: "5px 11px", borderRadius: 10, cursor: "pointer",
               fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-              border: "1.5px solid #cbd5e1", background: "#fff", color: "#475569",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              marginLeft: 8
+              border: "1.5px solid #cbd5e1", background: "#fff", color: "#334155",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              marginLeft: 4,
+              whiteSpace: "nowrap"
             }}
             onMouseOver={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; }}
             onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
           >
-            <Download size={16} />
+            <SlidersHorizontal size={14} />
+            <span>Custom KPI</span>
+            {activeKpis.length < availableKpisForModal.length && (
+              <span style={{
+                background: "#3b82f6", color: "#fff", borderRadius: 10,
+                padding: "1px 5px", fontSize: 10, fontWeight: 700, marginLeft: 2
+              }}>
+                {activeKpis.length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={downloadCSV}
+            title="Download CSV"
+            style={{
+              padding: "5px 11px", borderRadius: 10, cursor: "pointer",
+              fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+              border: "1.5px solid #cbd5e1", background: "#fff", color: "#475569",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              whiteSpace: "nowrap"
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+          >
+            <Download size={14} />
             <span>Export</span>
           </button>
         </div>
       </div>
 
       {/* Table Card */}
-      <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.05)", border: "1px solid #e2e8f0" }}>
+      <div style={{ background: "#fff", borderRadius: 16, overflowX: "auto", overflowY: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.05)", border: "1px solid #e2e8f0" }}>
 
         {/* Header */}
-        <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
           {[
-            { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
-            ...(activeView === "keyword" ? [{ label: "Search Volume", sub: null }] : []),
-            ...(activeView === "keyword" ? (isSugarUser ? [] : [{ label: "Leading Brand", sub: "by Overall SOS" }]) : []),
-            { label: "Overall SOS", sub: null },
-            ...(activeView === "keyword" ? [{ label: "Overall SOV", sub: null }] : []),
-            { label: "Organic SOS", sub: null },
-            { label: "Paid SOS", sub: null },
+            { id: "entity", label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
+            ...activeKpis.map(h => ({
+              id: h.id,
+              label: h.label,
+              sub: h.id === "leadingBrand" ? "by Overall SOS" : null
+            }))
           ].map((h, i) => (
-            <div key={i} style={{ textAlign: i === 0 ? "left" : "center" }}>
+            <div key={h.id || i} style={{ textAlign: i === 0 ? "left" : "center" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em" }}>{h.label}</div>
               {h.sub && <div style={{ fontSize: 10, fontWeight: 500, color: "#94a3b8", marginTop: 1 }}>{h.sub}</div>}
             </div>
@@ -853,7 +1022,7 @@ export default function SearchTermsPerformance() {
                 {/* Main Summary Row */}
                 <div
                   style={{
-                    display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8,
+                    display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "16px 24px", alignItems: "center", gap: 8,
                     background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
                     cursor: "pointer", transition: "background 0.15s",
                   }}
@@ -896,7 +1065,7 @@ export default function SearchTermsPerformance() {
                         const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
                         const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
                         return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0 || summarySearchVolume > 0) ? (
-                          <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 30, marginTop: 4 }}>
                             {summaryData.totalKeywords > 0 && (
                               <span style={{
                                 background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
@@ -912,20 +1081,22 @@ export default function SearchTermsPerformance() {
                   </div>
 
                   {/* Search Volume */}
-                  <div style={{ textAlign: "center" }}>
-                    {(() => {
-                      const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
-                      const totalVol = summarySearchVolume > 0 ? summarySearchVolume : (summaryData.totalSearchVolume || 0);
-                      return (
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "#4f46e5", letterSpacing: "-0.01em", fontFamily: "'Inter', sans-serif" }}>
-                          {totalVol > 0 ? totalVol.toLocaleString() : "—"}
-                        </span>
-                      );
-                    })()}
-                  </div>
+                  {visibleKpis.searchVolume && (
+                    <div style={{ textAlign: "center" }}>
+                      {(() => {
+                        const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
+                        const totalVol = summarySearchVolume > 0 ? summarySearchVolume : (summaryData.totalSearchVolume || 0);
+                        return (
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "#4f46e5", letterSpacing: "-0.01em", fontFamily: "'Inter', sans-serif" }}>
+                            {totalVol > 0 ? totalVol.toLocaleString() : "—"}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* Leading Brand */}
-                  {!isSugarUser && (
+                  {visibleKpis.leadingBrand && !isSugarUser && (
                     <div style={{ textAlign: "center" }}>
                       <span style={{
                         background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
@@ -938,44 +1109,75 @@ export default function SearchTermsPerformance() {
                   )}
 
                   {/* Overall SOS */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
-                      {summaryData.overallSOS != null ? `${Number(summaryData.overallSOS).toFixed(2)}%` : "—"}
-                    </span>
-                  </div>
+                  {visibleKpis.overallSOS && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.overallSOS != null ? `${Number(summaryData.overallSOS).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Overall SOV */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOV), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
-                      {summaryData.overallSOV != null ? `${Number(summaryData.overallSOV).toFixed(2)}%` : "—"}
-                    </span>
-                  </div>
+                  {visibleKpis.overallSOV && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOV), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.overallSOV != null ? `${Number(summaryData.overallSOV).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Organic SOS */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
-                      {summaryData.organicSOS != null ? `${Number(summaryData.organicSOS).toFixed(2)}%` : "—"}
-                    </span>
-                  </div>
+                  {visibleKpis.organicSOS && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.organicSOS != null ? `${Number(summaryData.organicSOS).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Organic SOV */}
+                  {visibleKpis.organicSOV && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOV), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.organicSOV != null ? `${Number(summaryData.organicSOV).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Paid SOS */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.paidSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
-                      {summaryData.paidSOS != null ? `${Number(summaryData.paidSOS).toFixed(2)}%` : "—"}
-                    </span>
-                  </div>
+                  {visibleKpis.paidSOS && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.paidSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.paidSOS != null ? `${Number(summaryData.paidSOS).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Ad SOV */}
+                  {visibleKpis.adSOV && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.adSOV), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                        {summaryData.adSOV != null ? `${Number(summaryData.adSOV).toFixed(2)}%` : "—"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Summary Drilldown — Location Breakdown */}
                 {summaryExpanded && (
                   <div style={{ background: "#f0f0ff", borderTop: "1px solid #c7d2fe", animation: "slideDown 0.18s ease" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#4f46e5", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Search Volume</div>
-                      {!isSugarUser && <div />}
-                      {["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"].map((h) => (
-                        <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
-                      ))}
+                      {visibleKpis.searchVolume && (
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Search Volume</div>
+                      )}
+                      {visibleKpis.leadingBrand && !isSugarUser && <div />}
+                      {visibleKpis.overallSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Overall SOS</div>}
+                      {visibleKpis.overallSOV && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Overall SOV</div>}
+                      {visibleKpis.organicSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Organic SOS</div>}
+                      {visibleKpis.organicSOV && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Organic SOV</div>}
+                      {visibleKpis.paidSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Paid SOS</div>}
+                      {visibleKpis.adSOV && <div style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Ad SOV</div>}
                     </div>
 
                     {(!summaryData.locations || summaryData.locations.length === 0) ? (
@@ -983,7 +1185,7 @@ export default function SearchTermsPerformance() {
                     ) : (
                       summaryData.locations.map((loc, li) => (
                         <div key={li} style={{
-                          display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8,
+                          display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "11px 24px", alignItems: "center", gap: 8,
                           borderBottom: li < summaryData.locations.length - 1 ? "1px solid #ddd6fe" : "none",
                           background: li % 2 === 0 ? "#f5f3ff" : "#ede9fe",
                         }}>
@@ -991,16 +1193,20 @@ export default function SearchTermsPerformance() {
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
                           </div>
-                          <div style={{ textAlign: "center" }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>
-                              {loc.searchVolume != null && loc.searchVolume > 0 ? Number(loc.searchVolume).toLocaleString() : "—"}
-                            </span>
-                          </div>
-                          {!isSugarUser && <div />}
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOV} /></div>
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
+                          {visibleKpis.searchVolume && (
+                            <div style={{ textAlign: "center" }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>
+                                {loc.searchVolume != null && loc.searchVolume > 0 ? Number(loc.searchVolume).toLocaleString() : "—"}
+                              </span>
+                            </div>
+                          )}
+                          {visibleKpis.leadingBrand && !isSugarUser && <div />}
+                          {visibleKpis.overallSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>}
+                          {visibleKpis.overallSOV && <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOV} /></div>}
+                          {visibleKpis.organicSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>}
+                          {visibleKpis.organicSOV && <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOV} /></div>}
+                          {visibleKpis.paidSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>}
+                          {visibleKpis.adSOV && <div style={{ textAlign: "center" }}><SOSValue value={loc.adSOV} /></div>}
                         </div>
                       ))
                     )}
@@ -1012,7 +1218,7 @@ export default function SearchTermsPerformance() {
             {paginatedItems.map((row, rowIdx) => (
               <div key={row.name + rowIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                 {/* Main Row */}
-                <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8, background: expandedRows[row.name] ? "#fafbff" : "#fff", transition: "background 0.15s", cursor: shouldShowDrilldown ? "pointer" : "default" }}
+                <div style={{ display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "16px 24px", alignItems: "center", gap: 8, background: expandedRows[row.name] ? "#fafbff" : "#fff", transition: "background 0.15s", cursor: shouldShowDrilldown ? "pointer" : "default" }}
                   onClick={() => shouldShowDrilldown && toggleRow(row.name)}>
 
                   {/* Name Cell */}
@@ -1074,17 +1280,35 @@ export default function SearchTermsPerformance() {
                           )}
                         </div>
                       ) : (
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
-                          {activeView === "brand"
-                            ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-                            : row.name}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
+                            {activeView === "brand"
+                              ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                              : row.name}
+                          </span>
+                          {activeView === "keyword" && (
+                            <button
+                              onClick={(e) => handleOpenTrend(e, row.name)}
+                              title={`View Trends for "${row.name}"`}
+                              style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                width: 22, height: 22, borderRadius: 6, border: "1px solid #ddd6fe",
+                                background: "#f5f3ff", cursor: "pointer", padding: 0,
+                                transition: "all 0.15s"
+                              }}
+                              onMouseOver={(e) => { e.currentTarget.style.background = "#ede9fe"; e.currentTarget.style.borderColor = "#c4b5fd"; }}
+                              onMouseOut={(e) => { e.currentTarget.style.background = "#f5f3ff"; e.currentTarget.style.borderColor = "#ddd6fe"; }}
+                            >
+                              <TrendingUp size={12} color="#7c3aed" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
                     {/* My SKUs / All SKUs buttons — only in keyword mode */}
                     {activeView === "keyword" && (
-                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 30 }}>
                         <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, true)}
                           style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>My SKUs</button>
                         {!isSugarUser && (
@@ -1096,9 +1320,31 @@ export default function SearchTermsPerformance() {
 
                     {/* My Keywords / All Keywords buttons — only in SKU mode */}
                     {activeView === "sku" && (
-                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl ? 44 : 0) }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 30 + (row.imageUrl ? 44 : 0), marginTop: 2 }}>
                         <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, false)}
                           style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All Keywords</button>
+                        {row.offtakeShare !== undefined && row.offtakeShare !== null && Number(row.offtakeShare) > 0 && (
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              background: "#f0f9ff",
+                              color: "#0284c7",
+                              border: "1px solid #bae6fd",
+                              borderRadius: 6,
+                              padding: "2.5px 8px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              fontFamily: "'Inter', sans-serif",
+                              cursor: "default"
+                            }}
+                            title={row.sales ? `Offtake Share: ${Number(row.offtakeShare).toFixed(2)}% (Sales: ₹${Number(row.sales).toLocaleString()})` : `Offtake Share: ${Number(row.offtakeShare).toFixed(2)}%`}
+                          >
+                            <PieChart size={12} color="#0284c7" strokeWidth={2.2} />
+                            <span>{Number(row.offtakeShare).toFixed(2)}% Share</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1112,7 +1358,7 @@ export default function SearchTermsPerformance() {
                   </div>
 
                   {/* Search Volume — keyword mode only */}
-                  {activeView === "keyword" && (
+                  {visibleKpis.searchVolume && activeView === "keyword" && (
                     <div style={{ textAlign: "center" }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
                         {row.searchVolume > 0 ? row.searchVolume.toLocaleString() : "—"}
@@ -1121,7 +1367,7 @@ export default function SearchTermsPerformance() {
                   )}
 
                   {/* Leading Brand — keyword mode only */}
-                  {activeView === "keyword" && !isSugarUser && (
+                  {visibleKpis.leadingBrand && activeView === "keyword" && !isSugarUser && (
                     <div style={{ textAlign: "center" }}>
                         <div 
                           onMouseEnter={(e) => handleBrandHover(e, row.name)}
@@ -1167,26 +1413,41 @@ export default function SearchTermsPerformance() {
                     </div>
                   )}
 
-                  <div style={{ textAlign: "center" }}><SOSValue value={row.overallSOS} /></div>
-                  {activeView === "keyword" && (
+                  {visibleKpis.overallSOS && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.overallSOS} /></div>
+                  )}
+                  {visibleKpis.overallSOV && activeView === "keyword" && (
                     <div style={{ textAlign: "center" }}><SOSValue value={row.overallSOV} /></div>
                   )}
-                  <div style={{ textAlign: "center" }}><SOSValue value={row.organicSOS} /></div>
-                  <div style={{ textAlign: "center" }}><SOSValue value={row.paidSOS} /></div>
+                  {visibleKpis.organicSOS && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.organicSOS} /></div>
+                  )}
+                  {visibleKpis.organicSOV && activeView === "keyword" && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.organicSOV} /></div>
+                  )}
+                  {visibleKpis.paidSOS && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.paidSOS} /></div>
+                  )}
+                  {visibleKpis.adSOV && activeView === "keyword" && (
+                    <div style={{ textAlign: "center" }}><SOSValue value={row.adSOV} /></div>
+                  )}
                 </div>
 
                 {/* Drilldown Panel — Location Breakdown */}
                 {expandedRows[row.name] && (
                   <div style={{ background: "#f8fafc", borderTop: "1px solid #e2e8f0", animation: "slideDown 0.18s ease" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #e2e8f0" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #e2e8f0" }}>
                       <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#3b82f6", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
-                      {activeView === "keyword" && (
+                      {visibleKpis.searchVolume && activeView === "keyword" && (
                         <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Search Volume</div>
                       )}
-                      {activeView === "keyword" && !isSugarUser && <div />}
-                      {(activeView === "keyword" ? ["Overall SOS", "Overall SOV", "Organic SOS", "Paid SOS"] : ["Overall SOS", "Organic SOS", "Paid SOS"]).map((h) => (
-                        <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
-                      ))}
+                      {visibleKpis.leadingBrand && activeView === "keyword" && !isSugarUser && <div />}
+                      {visibleKpis.overallSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Overall SOS</div>}
+                      {visibleKpis.overallSOV && activeView === "keyword" && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Overall SOV</div>}
+                      {visibleKpis.organicSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Organic SOS</div>}
+                      {visibleKpis.organicSOV && activeView === "keyword" && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Organic SOV</div>}
+                      {visibleKpis.paidSOS && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Paid SOS</div>}
+                      {visibleKpis.adSOV && activeView === "keyword" && <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Ad SOV</div>}
                     </div>
 
                     {locationLoading[row.name] ? (
@@ -1195,27 +1456,33 @@ export default function SearchTermsPerformance() {
                       <div style={{ padding: "16px 24px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No location data available</div>
                     ) : (
                       (locationData[row.name] || []).map((loc, li) => (
-                        <div key={li} style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8, borderBottom: li < (locationData[row.name] || []).length - 1 ? "1px solid #e2e8f0" : "none", background: li % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
+                        <div key={li} style={{ display: "grid", gridTemplateColumns: GRID, minWidth: tableMinWidth, padding: "11px 24px", alignItems: "center", gap: 8, borderBottom: li < (locationData[row.name] || []).length - 1 ? "1px solid #e2e8f0" : "none", background: li % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3b82f6", display: "inline-block", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#334155", fontWeight: 500, textTransform: "capitalize" }}>
                               {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(loc.city?.toLowerCase()) ? "Nation" : loc.city}
                             </span>
                           </div>
-                          {activeView === "keyword" && (
+                          {visibleKpis.searchVolume && activeView === "keyword" && (
                             <div style={{ textAlign: "center" }}>
                               <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", background: "#fff", padding: "2px 8px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                                 {loc.searchVolume != null && loc.searchVolume > 0 ? Number(loc.searchVolume).toLocaleString() : "—"}
                               </span>
                             </div>
                           )}
-                          {activeView === "keyword" && !isSugarUser && <div />}
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
-                          {activeView === "keyword" && (
+                          {visibleKpis.leadingBrand && activeView === "keyword" && !isSugarUser && <div />}
+                          {visibleKpis.overallSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>}
+                          {visibleKpis.overallSOV && activeView === "keyword" && (
                             <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOV} /></div>
                           )}
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
-                          <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
+                          {visibleKpis.organicSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>}
+                          {visibleKpis.organicSOV && activeView === "keyword" && (
+                            <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOV} /></div>
+                          )}
+                          {visibleKpis.paidSOS && <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>}
+                          {visibleKpis.adSOV && activeView === "keyword" && (
+                            <div style={{ textAlign: "center" }}><SOSValue value={loc.adSOV} /></div>
+                          )}
                         </div>
                       ))
                     )}
@@ -1441,6 +1708,213 @@ export default function SearchTermsPerformance() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Custom KPI Columns Modal */}
+      <AnimatePresence>
+        {isKpiModalOpen && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 2000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)"
+          }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              style={{
+                background: "#ffffff", borderRadius: 18, width: "100%", maxWidth: 560,
+                boxShadow: "0 24px 48px -12px rgba(15,23,42,0.25)",
+                display: "flex", flexDirection: "column", overflow: "hidden",
+                border: "1px solid #e2e8f0"
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                padding: "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, background: "#eff6ff",
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>
+                    <SlidersHorizontal size={18} color="#2563eb" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
+                      Custom KPI Columns
+                    </h3>
+                    <p style={{ margin: "2px 0 0", fontSize: 13, color: "#64748b" }}>
+                      Select the KPI columns you want to display in the table
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsKpiModalOpen(false)}
+                  style={{
+                    border: "none", background: "#f1f5f9", borderRadius: "50%",
+                    width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", color: "#64748b"
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Quick Actions Bar */}
+              <div style={{
+                padding: "10px 24px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+                display: "flex", alignItems: "center", justifyContent: "space-between"
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>
+                  {availableKpisForModal.filter(k => tempVisibleKpis[k.id]).length} of {availableKpisForModal.length} selected
+                </span>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allOn = {};
+                      availableKpisForModal.forEach(k => { allOn[k.id] = true; });
+                      setTempVisibleKpis(prev => ({ ...prev, ...allOn }));
+                    }}
+                    style={{ border: "none", background: "none", color: "#2563eb", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 4px" }}
+                  >
+                    Select All
+                  </button>
+                  <span style={{ color: "#cbd5e1" }}>•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const first = availableKpisForModal[0]?.id;
+                      const allOff = {};
+                      availableKpisForModal.forEach(k => { allOff[k.id] = (k.id === first); });
+                      setTempVisibleKpis(prev => ({ ...prev, ...allOff }));
+                    }}
+                    style={{ border: "none", background: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 4px" }}
+                  >
+                    Deselect All
+                  </button>
+                  <span style={{ color: "#cbd5e1" }}>•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempVisibleKpis(DEFAULT_VISIBLE_KPIS);
+                    }}
+                    style={{ border: "none", background: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 4px" }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Checkboxes Grid */}
+              <div style={{ padding: 20, maxHeight: 380, overflowY: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {availableKpisForModal.map(kpi => {
+                    const isChecked = !!tempVisibleKpis[kpi.id];
+                    return (
+                      <div
+                        key={kpi.id}
+                        onClick={() => {
+                          const currentlySelected = availableKpisForModal.filter(k => tempVisibleKpis[k.id]);
+                          if (isChecked && currentlySelected.length <= 1) {
+                            return;
+                          }
+                          setTempVisibleKpis(prev => ({ ...prev, [kpi.id]: !prev[kpi.id] }));
+                        }}
+                        style={{
+                          display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px",
+                          borderRadius: 12, border: `1.5px solid ${isChecked ? "#3b82f6" : "#e2e8f0"}`,
+                          background: isChecked ? "#f0f7ff" : "#ffffff",
+                          cursor: "pointer", transition: "all 0.15s ease",
+                          userSelect: "none"
+                        }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 5, marginTop: 2,
+                          border: `1.5px solid ${isChecked ? "#2563eb" : "#cbd5e1"}`,
+                          background: isChecked ? "#2563eb" : "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, transition: "all 0.15s"
+                        }}>
+                          {isChecked && <Check size={12} color="#fff" strokeWidth={3} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: isChecked ? "#1e3a8a" : "#334155" }}>
+                              {kpi.label}
+                            </span>
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+                              background: kpi.group === "SOV" ? "#dbeafe" : (kpi.group === "SOS" ? "#fef3c7" : (kpi.group === "Volume" ? "#e0e7ff" : (kpi.group === "Sales" ? "#dcfce7" : "#f1f5f9"))),
+                              color: kpi.group === "SOV" ? "#1e40af" : (kpi.group === "SOS" ? "#92400e" : (kpi.group === "Volume" ? "#3730a3" : (kpi.group === "Sales" ? "#166534" : "#475569")))
+                            }}>
+                              {kpi.group}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 11, color: "#64748b", lineHeight: 1.3 }}>
+                            {kpi.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                padding: "14px 24px", borderTop: "1px solid #e2e8f0",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                background: "#f8fafc"
+              }}>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  At least 1 KPI must remain selected
+                </span>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsKpiModalOpen(false)}
+                    style={{
+                      padding: "8px 18px", borderRadius: 8, border: "1px solid #cbd5e1",
+                      background: "#fff", color: "#475569", fontSize: 13, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "'Inter', sans-serif"
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateVisibleKpis(tempVisibleKpis);
+                      setIsKpiModalOpen(false);
+                    }}
+                    style={{
+                      padding: "8px 22px", borderRadius: 8, border: "none",
+                      background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                      boxShadow: "0 2px 8px rgba(37,99,235,0.3)"
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Visibility Trends & Competition Drawer */}
+      {isTrendDrawerOpen && (
+        <VisibilityTrendsCompetitionDrawer
+          open={isTrendDrawerOpen}
+          onClose={() => setIsTrendDrawerOpen(false)}
+          initialFilters={trendDrawerFilters}
+          initialAudience="Keyword"
+        />
+      )}
     </div>
   );
 }

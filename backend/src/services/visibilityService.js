@@ -59,13 +59,24 @@ function buildCHCondition(value, column, options = {}) {
             lower.includes('dr sheth');
     };
 
-    // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
-    if (isBrand && (isAll(value) || isOurBrand(value))) return "flag = 1";
+    // If "All" brands or our main brand is selected, we want our brand's data (flag=1 or own brand names from rb_pdp_olap)
+    if (isBrand && (isAll(value) || isOurBrand(value))) {
+        const targetDb = getCurrentDbName();
+        const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM ${targetDb}.rb_pdp_olap WHERE toInt32(Comp_flag) = 0 AND Brand IS NOT NULL AND Brand != ''`;
+        return `(toInt32(flag) = 1 OR lower(${column}) IN (${ownBrandSubquery}))`;
+    }
     if (isAll(value)) return "1=1";
 
     const list = (Array.isArray(value) ? value : (typeof value === 'string' && value.includes(',') && !noSplit ? value.split(',').map(v => v.trim()) : [value])).filter(v => !isAll(v));
 
-    if (list.length === 0) return isBrand ? "flag = 1" : "1=1";
+    if (list.length === 0) {
+        if (isBrand) {
+            const targetDb = getCurrentDbName();
+            const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM ${targetDb}.rb_pdp_olap WHERE toInt32(Comp_flag) = 0 AND Brand IS NOT NULL AND Brand != ''`;
+            return `(toInt32(flag) = 1 OR lower(${column}) IN (${ownBrandSubquery}))`;
+        }
+        return "1=1";
+    }
 
     if (isCategory || isKeywordType || isPlatform || isDimension ||
         ['platform_name', 'keyword', 'keyword_search_product', 'location_name', 'brand'].includes(column)) {
@@ -232,7 +243,8 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
                 ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
                 ${sovSelect}
                 ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
+                ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos,
+                sum(overall) as total_overall_count
             FROM ${kwTable}
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -245,7 +257,45 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         `;
 
         console.log(`[calculateAllSOS] Final Query:\n${query}`);
-        const result = await queryClickHouse(query);
+        let result = await queryClickHouse(query);
+
+        const totalOverallCount = Number(result[0]?.total_overall_count) || 0;
+        if (kwTable !== 'rb_kw_olap' && totalOverallCount === 0) {
+            console.log(`[calculateAllSOS] ${kwTable} returned 0 rows for ${dateFrom} to ${dateTo}, falling back to rb_kw_olap`);
+            const targetDb = getCurrentDbName();
+            let fallbackHasWeightedImp = false;
+            try {
+                const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                if (checkKwCols && checkKwCols.length > 0) {
+                    fallbackHasWeightedImp = true;
+                }
+            } catch (e) {
+                console.warn('[calculateAllSOS] Error checking rb_kw_olap columns:', e.message);
+            }
+
+            const fallbackSovSelect = fallbackHasWeightedImp
+                ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+                : `null AS overall_sov,`;
+
+            const fallbackQuery = `
+                SELECT 
+                    ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                    ${fallbackSovSelect}
+                    ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
+                    ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos,
+                    sum(overall) as total_overall_count
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${platformCondition}
+                  AND ${channelCondition}
+                  AND ${locationCondition}
+                  AND ${keywordCondition}
+                  AND ${keywordTypeCondition}
+                  AND ${excludeCondition}
+                  AND ${categoryCondition}
+            `;
+            result = await queryClickHouse(fallbackQuery);
+        }
 
         const rawSov = result[0]?.overall_sov;
         const parsedSov = rawSov != null && rawSov !== '' && rawSov !== 'null' && !isNaN(Number(rawSov)) ? Number(rawSov) : null;
@@ -334,7 +384,46 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             ORDER BY crawl_date ASC
         `;
 
-        const results = await queryClickHouse(query);
+        let results = await queryClickHouse(query);
+
+        if (kwTable !== 'rb_kw_olap' && (!results || results.length === 0)) {
+            console.log(`[getAllSOSTrends] ${kwTable} returned 0 rows for ${dateFrom} to ${dateTo}, falling back to rb_kw_olap`);
+            const targetDb = getCurrentDbName();
+            let fallbackHasWeightedImp = false;
+            try {
+                const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                if (checkKwCols && checkKwCols.length > 0) {
+                    fallbackHasWeightedImp = true;
+                }
+            } catch (e) {
+                console.warn('[getAllSOSTrends] Error checking rb_kw_olap columns:', e.message);
+            }
+
+            const fallbackSovSelect = fallbackHasWeightedImp
+                ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+                : `null AS overall_sov,`;
+
+            const fallbackQuery = `
+                SELECT 
+                    DATE as crawl_date,
+                    ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                    ${fallbackSovSelect}
+                    ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
+                    ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${platformCondition}
+                  AND ${channelCondition}
+                  AND ${locationCondition}
+                  AND ${keywordCondition}
+                  AND ${keywordTypeCondition}
+                  AND ${excludeCondition}
+                  AND ${categoryCondition}
+                GROUP BY crawl_date
+                ORDER BY crawl_date ASC
+            `;
+            results = await queryClickHouse(fallbackQuery);
+        }
 
         const overall = { dates: [], values: [] };
         const sov = { dates: [], values: [] };
@@ -478,7 +567,11 @@ async function getVisibilityOverviewData(filters = {}) {
         console.log('[VisibilityService] Calculating SOS with date ranges:', dateRanges);
         console.log('[VisibilityService] Using filters:', { platform: filters.platform, category: filters.category, startDate: filters.startDate, endDate: filters.endDate });
 
-        const sovTableInfo = await resolveKwTableForSov(dateRanges.previous.start, dateRanges.current.end);
+        // Resolve table info for current and previous ranges independently
+        const [currentSovInfo, prevSovInfo] = await Promise.all([
+            resolveKwTableForSov(dateRanges.current.start, dateRanges.current.end),
+            resolveKwTableForSov(dateRanges.previous.start, dateRanges.previous.end)
+        ]);
 
         // OPTIMIZED: Only 3 database queries instead of 9
         // 1. Current period SOS (all 4 types in 1 query)
@@ -486,9 +579,9 @@ async function getVisibilityOverviewData(filters = {}) {
         // 3. Sparkline trends (all 4 types in 1 query)
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, currentSovInfo),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, prevSovInfo),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, currentSovInfo)
         ]);
 
         // Use daily trends directly for the sparkline graphs
@@ -4236,8 +4329,18 @@ class VisibilityService {
                         sum(num_sov_keyword) as num_sov,
                         sum(den_sov_keyword) as den_sov,
                         ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+
+                        sum(num_ad_sov_keyword) as num_ad_sov,
+                        sum(den_ad_sov_keyword) as den_ad_sov,
+                        ROUND(coalesce(num_ad_sov, 0) * 100.0 / nullIf(den_ad_sov, 0), 2) AS ad_sov,
+
+                        sum(num_organic_sov_keyword) as num_organic_sov,
+                        sum(den_organic_sov_keyword) as den_organic_sov,
+                        ROUND(coalesce(num_organic_sov, 0) * 100.0 / nullIf(den_organic_sov, 0), 2) AS organic_sov,
                         ` : `
                         null as overall_sov,
+                        null as ad_sov,
+                        null as organic_sov,
                         `}
 
                         sum(num_organic_keyword) as num_organic,
@@ -4271,6 +4374,12 @@ class VisibilityService {
                             ${hasWeightedImp ? `
                             COALESCE(SUMIf(toFloat64OrZero(toString(t1.weighted_impressions)), ${numeratorCondition}), 0) as num_sov_keyword,
                             any(t2.total_sov) as den_sov_keyword,
+
+                            COALESCE(SUMIf(toFloat64OrZero(toString(t1.weighted_impressions)), (${numeratorCondition}) AND toInt32(t1.spons) = 1), 0) as num_ad_sov_keyword,
+                            any(t2.total_ad_sov) as den_ad_sov_keyword,
+
+                            COALESCE(SUMIf(toFloat64OrZero(toString(t1.weighted_impressions)), (${numeratorCondition}) AND toInt32(t1.spons) = 0), 0) as num_organic_sov_keyword,
+                            any(t2.total_organic_sov) as den_organic_sov_keyword,
                             ` : ''}
 
                             count(*) as impressions_keyword,
@@ -4283,7 +4392,11 @@ class VisibilityService {
                                    COUNT(*) as total_overall,
                                    COUNTIf(toInt32(spons) = 0) as total_organic,
                                    COUNTIf(toInt32(spons) = 1) as total_spons
-                                   ${hasWeightedImp ? `, SUM(toFloat64OrZero(toString(weighted_impressions))) as total_sov` : ''}
+                                   ${hasWeightedImp ? `
+                                   , SUM(toFloat64OrZero(toString(weighted_impressions))) as total_sov
+                                   , SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 1) as total_ad_sov
+                                   , SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 0) as total_organic_sov
+                                   ` : ''}
                             FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
@@ -4328,6 +4441,8 @@ class VisibilityService {
                     web_pid: row.web_pid,
                     overallSOS: Number(row.overall_sos) || 0,
                     overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
+                    adSOV: row.ad_sov != null ? Number(row.ad_sov) : null,
+                    organicSOV: row.organic_sov != null ? Number(row.organic_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     volShare: Number(row.max_vol_share) || 0,
@@ -4335,11 +4450,13 @@ class VisibilityService {
                     impressions: Number(row.impressions),
                     adPosition: Number(row.ad_position) || null,
                     organicPosition: Number(row.organic_position) || null,
-                    imageUrl: null
+                    imageUrl: null,
+                    offtakeShare: null,
+                    sales: 0
                 };
             });
 
-            // Fetch SKU images and page_url from rb_sku_platform only when in SKU view mode
+            // Fetch SKU images, page_url from rb_sku_platform and calculate Offtake Share from rb_pdp_olap
             if (viewMode === 'sku') {
                 const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
                 if (webPids.length > 0) {
@@ -4391,6 +4508,66 @@ class VisibilityService {
                     } catch (imgError) {
                         console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
                     }
+                }
+
+                // Calculate Offtake Share based on Sales in rb_pdp_olap (matching OSA % detail view logic)
+                try {
+                    const pdpPlatformCondition = buildCHCondition(platform, 'Platform');
+                    const pdpLocationCondition = buildCHCondition(location, 'Location');
+                    const pdpCategoryCondition = buildCHCondition(category, 'Category', { isCategory: true });
+                    const pdpBrandCondition = buildCHCondition(brand, 'Brand');
+
+                    const salesQuery = `
+                        SELECT 
+                            lower(Web_Pid) as w_pid,
+                            lowerUTF8(Product) as prod_name,
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sku_sales
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${pdpPlatformCondition}
+                          AND ${pdpLocationCondition}
+                          AND ${pdpCategoryCondition}
+                          AND ${pdpBrandCondition}
+                          AND toInt32(Comp_flag) = 0
+                        GROUP BY w_pid, prod_name
+                    `;
+                    const salesData = await queryClickHouse(salesQuery);
+
+                    // Total sales across all own SKUs under current filters (matching OSA % detail view calculation)
+                    const totalBrandSales = salesData.reduce((sum, row) => sum + (Number(row.sku_sales) || 0), 0);
+
+                    const salesByWebPid = new Map();
+                    const salesByProdName = new Map();
+
+                    salesData.forEach(row => {
+                        const s = Number(row.sku_sales) || 0;
+                        if (row.w_pid) {
+                            const pKey = String(row.w_pid).trim().toLowerCase();
+                            salesByWebPid.set(pKey, (salesByWebPid.get(pKey) || 0) + s);
+                        }
+                        if (row.prod_name) {
+                            const nKey = String(row.prod_name).trim().toLowerCase();
+                            salesByProdName.set(nKey, (salesByProdName.get(nKey) || 0) + s);
+                        }
+                    });
+
+                    Object.values(itemsMap).forEach(item => {
+                        const pidKey = item.web_pid ? String(item.web_pid).trim().toLowerCase() : null;
+                        const nameKey = item.name ? String(item.name).trim().toLowerCase() : null;
+
+                        const skuSales = (pidKey && salesByWebPid.has(pidKey))
+                            ? salesByWebPid.get(pidKey)
+                            : (nameKey && salesByProdName.has(nameKey) ? salesByProdName.get(nameKey) : 0);
+
+                        item.sales = skuSales;
+                        // Offtake share: (skuSales / totalBrandSales) * 100, exactly as in OSA % detail view
+                        item.offtakeShare = (skuSales > 0 && totalBrandSales > 0)
+                            ? Number(((skuSales / totalBrandSales) * 100).toFixed(2))
+                            : null;
+                    });
+                    console.log(`[VisibilityService] Computed offtake share for ${Object.keys(itemsMap).length} SKUs, totalBrandSales: ${totalBrandSales}`);
+                } catch (pdpErr) {
+                    console.error('[VisibilityService] Failed to calculate offtake share from rb_pdp_olap:', pdpErr);
                 }
             }
 
@@ -4450,8 +4627,18 @@ class VisibilityService {
                                 COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
                                 SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
                                 ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1), 0) as num_ad_sov,
+                                SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 1) as den_ad_sov,
+                                ROUND(coalesce(num_ad_sov, 0) * 100.0 / nullIf(den_ad_sov, 0), 2) AS ad_sov,
+
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0), 0) as num_organic_sov,
+                                SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 0) as den_organic_sov,
+                                ROUND(coalesce(num_organic_sov, 0) * 100.0 / nullIf(den_organic_sov, 0), 2) AS organic_sov,
                                 ` : `
                                 null as overall_sov,
+                                null as ad_sov,
+                                null as organic_sov,
                                 `}
 
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
@@ -4490,8 +4677,18 @@ class VisibilityService {
                                 COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
                                 SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
                                 ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1), 0) as num_ad_sov,
+                                SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 1) as den_ad_sov,
+                                ROUND(coalesce(num_ad_sov, 0) * 100.0 / nullIf(den_ad_sov, 0), 2) AS ad_sov,
+
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0), 0) as num_organic_sov,
+                                SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 0) as den_organic_sov,
+                                ROUND(coalesce(num_organic_sov, 0) * 100.0 / nullIf(den_organic_sov, 0), 2) AS organic_sov,
                                 ` : `
                                 null as overall_sov,
+                                null as ad_sov,
+                                null as organic_sov,
                                 `}
 
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
@@ -4534,6 +4731,8 @@ class VisibilityService {
                                 searchVolume: l.search_volume != null ? Number(l.search_volume) : null,
                                 overallSOS: Number(l.overall_sos) || 0,
                                 overallSOV: l.overall_sov != null ? Number(l.overall_sov) : null,
+                                adSOV: l.ad_sov != null ? Number(l.ad_sov) : null,
+                                organicSOV: l.organic_sov != null ? Number(l.organic_sov) : null,
                                 organicSOS: Number(l.organic_sos) || 0,
                                 paidSOS: Number(l.paid_sos) || 0
                             }));
@@ -4542,6 +4741,8 @@ class VisibilityService {
                             leadingBrand: sRow.leading_brand || 'Other',
                             overallSOS: Number(sRow.overall_sos) || 0,
                             overallSOV: sRow.overall_sov != null ? Number(sRow.overall_sov) : null,
+                            adSOV: sRow.ad_sov != null ? Number(sRow.ad_sov) : null,
+                            organicSOV: sRow.organic_sov != null ? Number(sRow.organic_sov) : null,
                             organicSOS: Number(sRow.organic_sos) || 0,
                             paidSOS: Number(sRow.paid_sos) || 0,
                             totalKeywords: Number(sRow.total_keywords) || 0,
@@ -4698,8 +4899,18 @@ class VisibilityService {
                     COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), ${numCondition}), 0) AS num_sov,
                     SUM(toFloat64OrZero(toString(weighted_impressions))) AS den_sov,
                     ROUND(coalesce(num_sov, 0) * 100.0 / NULLIF(den_sov, 0), 2) AS overall_sov,
+
+                    COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), ${numCondition} AND toInt32(spons) = 1), 0) AS num_ad_sov,
+                    SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 1) AS den_ad_sov,
+                    ROUND(coalesce(num_ad_sov, 0) * 100.0 / NULLIF(den_ad_sov, 0), 2) AS ad_sov,
+
+                    COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), ${numCondition} AND toInt32(spons) = 0), 0) AS num_organic_sov,
+                    SUMIf(toFloat64OrZero(toString(weighted_impressions)), toInt32(spons) = 0) AS den_organic_sov,
+                    ROUND(coalesce(num_organic_sov, 0) * 100.0 / NULLIF(den_organic_sov, 0), 2) AS organic_sov,
                     ` : `
                     null AS overall_sov,
+                    null AS ad_sov,
+                    null AS organic_sov,
                     `}
                     ROUND(num_organic * 100.0 / NULLIF(den_organic, 0), 2) AS organic_sos,
                     ROUND(num_spons * 100.0 / NULLIF(den_spons, 0), 2) AS paid_sos,
@@ -4724,17 +4935,59 @@ class VisibilityService {
 
             const results = await queryClickHouse(query);
 
+            if (viewMode === 'sku' && sku && sku !== 'All') {
+                try {
+                    const pdpPlatformCondition = buildCHCondition(platform, 'Platform');
+                    const pdpCategoryCondition = buildCHCondition(category, 'Category', { isCategory: true });
+                    const pdpBrandCondition = buildCHCondition(brand, 'Brand');
+                    const pdpSkuCondition = `(lowerUTF8(Product) = lowerUTF8('${escapeCH(sku)}') OR lower(Web_Pid) = lower('${escapeCH(sku)}'))`;
+
+                    const citySalesQuery = `
+                        SELECT 
+                            lower(Location) as city,
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as city_sales
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${pdpPlatformCondition}
+                          AND ${pdpCategoryCondition}
+                          AND ${pdpBrandCondition}
+                          AND ${pdpSkuCondition}
+                          AND toInt32(Comp_flag) = 0
+                        GROUP BY city
+                    `;
+                    const citySalesData = await queryClickHouse(citySalesQuery);
+                    const totalSkuSales = citySalesData.reduce((acc, r) => acc + (Number(r.city_sales) || 0), 0);
+                    const citySalesMap = new Map();
+                    citySalesData.forEach(r => {
+                        citySalesMap.set(String(r.city).toLowerCase(), Number(r.city_sales) || 0);
+                    });
+
+                    results.forEach(loc => {
+                        const cKey = String(loc.city).toLowerCase();
+                        const cSales = citySalesMap.get(cKey) || 0;
+                        loc.offtake_share = (cSales > 0 && totalSkuSales > 0)
+                            ? Number(((cSales / totalSkuSales) * 100).toFixed(2))
+                            : null;
+                    });
+                } catch (e) {
+                    console.warn('[VisibilityService] Error computing city offtake share:', e.message);
+                }
+            }
+
             return {
                 locations: results.map(row => ({
                     city: row.city,
                     searchVolume: row.search_volume != null ? Number(row.search_volume) : null,
                     overallSOS: Number(row.overall_sos) || 0,
                     overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
+                    adSOV: row.ad_sov != null ? Number(row.ad_sov) : null,
+                    organicSOV: row.organic_sov != null ? Number(row.organic_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     overallRank: Number(row.overallRank) || 0,
                     paidRank: Number(row.paidRank) || 0,
-                    organicRank: Number(row.organicRank) || 0
+                    organicRank: Number(row.organicRank) || 0,
+                    offtakeShare: row.offtake_share != null ? Number(row.offtake_share) : null
                 }))
             };
         } catch (error) {

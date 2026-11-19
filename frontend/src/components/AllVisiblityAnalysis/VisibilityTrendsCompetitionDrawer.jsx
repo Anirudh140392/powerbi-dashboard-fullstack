@@ -735,6 +735,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
   initialAudience,
+  initialFilters,
 }) {
   const { user } = useAuth();
   const isSugarUser = user?.dbName === 'sugar';
@@ -800,20 +801,30 @@ export default function VisibilityTrendsCompetitionDrawer({
     rank: selectedRank || "All"
   });
 
-  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  // Sync selectedPlatform and drawerFilters with selectedColumn / initialFilters ONLY ONCE when drawer opens
   useEffect(() => {
-    if (selectedColumn && open) {
-      setSelectedPlatform(selectedColumn);
+    if (open) {
+      if (initialFilters) {
+        setDrawerFilters(prev => ({
+          ...prev,
+          ...initialFilters
+        }));
+        if (initialFilters.Platform && initialFilters.Platform !== 'All') {
+          setSelectedPlatform(initialFilters.Platform);
+        }
+      } else if (selectedColumn) {
+        setSelectedPlatform(selectedColumn);
 
-      // Initialize ONLY the current audience type filter
-      const currentAudience = initialAudience || allTrendMeta.context.audience;
-      setDrawerFilters(prev => ({
-        ...prev,
-        [currentAudience]: selectedColumn
-      }));
+        // Initialize ONLY the current audience type filter
+        const currentAudience = initialAudience || allTrendMeta.context.audience;
+        setDrawerFilters(prev => ({
+          ...prev,
+          [currentAudience]: selectedColumn
+        }));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
+  }, [selectedColumn, open, initialFilters]); // Removed allTrendMeta.context.audience
 
   // Sync selectedPlatform with drawerFilters.Platform for Competition tab
   useEffect(() => {
