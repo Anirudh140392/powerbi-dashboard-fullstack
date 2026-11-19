@@ -7,7 +7,7 @@ export default (app) => {
      * /api/pricing-analysis/kpis:
      *   get:
      *     summary: Get Pricing KPIs
-     *     description: Retrieve metrics for Pricing Analysis (Discount, Weighted Discount, Price Per Unit, RPI)
+     *     description: Retrieve metrics for Pricing Analysis (Discount, Weighted Discount, Price Per Unit, RPI, ASP, MRP)
      *     responses:
      *       200:
      *         description: Successful response

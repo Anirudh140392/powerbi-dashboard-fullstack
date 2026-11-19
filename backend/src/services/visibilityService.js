@@ -4210,6 +4210,9 @@ class VisibilityService {
                             COUNTIf(toInt32(spons) = 0) AS organic_rows,
                             count(*) as impressions,
                             ${searchVolumeSelect} as search_volume,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
                             max(toInt32(flag)) as is_own_sku
@@ -4244,6 +4247,9 @@ class VisibilityService {
                         
                         sum(impressions) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(product_rows) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position), 1) as ad_position,
                         arrayElement(topK(1)(organic_position), 1) as organic_position
@@ -4268,6 +4274,9 @@ class VisibilityService {
                             SUM(organic) AS brand_organic,
                             count(*) as impressions,
                             ${searchVolumeSelect} as search_volume,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position
                         FROM rb_kw_olap
@@ -4303,6 +4312,9 @@ class VisibilityService {
                         
                         sum(impressions) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(brand_overall) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position), 1) as ad_position,
                         arrayElement(topK(1)(organic_position), 1) as organic_position
@@ -4353,6 +4365,9 @@ class VisibilityService {
                         
                         sum(impressions_keyword) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(num_keyword) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position_keyword), 1) as ad_position,
                         arrayElement(topK(1)(organic_position_keyword), 1) as organic_position
@@ -4384,6 +4399,9 @@ class VisibilityService {
 
                             count(*) as impressions_keyword,
                             ${searchVolumeSelect.replace(/volume_search_distribution/g, 't1.volume_search_distribution').replace(/volume_search/g, 't1.volume_search').replace(/search_volume_percentage/g, 't1.search_volume_percentage')} as search_volume,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 5, t1.DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 10, t1.DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 20, t1.DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND ${numeratorCondition}), 1) AS ad_position_keyword,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND ${numeratorCondition}), 1) AS organic_position_keyword
                         FROM ${kwTable} t1
@@ -4447,6 +4465,9 @@ class VisibilityService {
                     paidSOS: Number(row.paid_sos) || 0,
                     volShare: Number(row.max_vol_share) || 0,
                     searchVolume: Number(row.search_volume) || 0,
+                    top5Days: Number(row.top_5_days) || 0,
+                    top10Days: Number(row.top_10_days) || 0,
+                    top20Days: Number(row.top_20_days) || 0,
                     impressions: Number(row.impressions),
                     adPosition: Number(row.ad_position) || null,
                     organicPosition: Number(row.organic_position) || null,
@@ -4916,7 +4937,10 @@ class VisibilityService {
                     ROUND(num_spons * 100.0 / NULLIF(den_spons, 0), 2) AS paid_sos,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(POSITION) > 0), 1) AS overallRank,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 1 AND toInt32(POSITION) > 0), 1) AS paidRank,
-                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank
+                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) AS top_5_days,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) AS top_10_days,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) AS top_20_days
                 FROM ${kwTable}
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -4987,6 +5011,9 @@ class VisibilityService {
                     overallRank: Number(row.overallRank) || 0,
                     paidRank: Number(row.paidRank) || 0,
                     organicRank: Number(row.organicRank) || 0,
+                    top5Days: Number(row.top_5_days) || 0,
+                    top10Days: Number(row.top_10_days) || 0,
+                    top20Days: Number(row.top_20_days) || 0,
                     offtakeShare: row.offtake_share != null ? Number(row.offtake_share) : null
                 }))
             };

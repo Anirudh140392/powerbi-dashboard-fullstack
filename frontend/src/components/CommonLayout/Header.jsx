@@ -4724,7 +4724,8 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
         borderBottom: "1px solid",
         borderColor: "#e5e7eb",
         px: { xs: 2, sm: 3 },
-        py: 0.8,
+        pt: { xs: 1, sm: 1.2 },
+        pb: { xs: 1, sm: 1 },
         position: "sticky",
         top: 0,
         zIndex: 1200,
@@ -4736,10 +4737,10 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: { xs: "wrap", md: "nowrap" },
+          flexWrap: { xs: "wrap", lg: "nowrap" },
           gap: 1.5,
           alignItems: { xs: "flex-start", md: "center" },
-          pb: 0.5,
+          pb: 0.2,
         }}
       >
         {/* LEFT SIDE */}
@@ -4907,7 +4908,8 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
               sx={{
                 display: "flex",
                 gap: 1.5,
-                flexWrap: { xs: "wrap", md: "nowrap" },
+                flexWrap: { xs: "wrap", lg: "nowrap" },
+                alignItems: "flex-end",
                 width: { xs: "100%", md: "auto" },
                 overflow: "visible",
               }}
@@ -5420,7 +5422,8 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                     textTransform: "uppercase",
                     letterSpacing: '0.05em',
                     fontFamily: 'Roboto, sans-serif',
-                    color: '#64748b'
+                    color: '#64748b',
+                    lineHeight: 1.2,
                   }}
                 >
                   TIME PERIOD
@@ -5437,6 +5440,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                   />
                 ) : (
                   <DateRangeComparePicker
+                    popoverAlign="right"
                     timeStart={timeStart}
                     timeEnd={timeEnd}
                     compareStart={compareStart}

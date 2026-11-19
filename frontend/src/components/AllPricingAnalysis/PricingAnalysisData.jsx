@@ -90,7 +90,7 @@ import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
-import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
+import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide, Tag } from "lucide-react";
 import { getLogicalKpiTrend, getLogicalKpiValue } from "../AllAvailablityAnalysis/availablityDataCenter";
 import { FilterContext } from "@/utils/FilterContext";
 import InsightsPricingView from "./InsightsPricingView";
@@ -2471,11 +2471,12 @@ export default function PricingAnalysisData() {
 
 
   const pricingKpis = useMemo(() => {
-    const icons = [Discount, PieChart, Target];
+    const icons = [Discount, PieChart, Target, Tag];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
       ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899']
+      ['#f43f5e', '#ec4899'],
+      ['#f59e0b', '#fbbf24']
     ];
 
     if (!pricingKpiData) {

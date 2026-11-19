@@ -38,6 +38,7 @@ export const PRICING_KPI_COLUMNS = [
   { id: "discount", altId: "promo", label: "Discount %", format: "percent" },
   { id: "pricePerUnit", altId: "price", label: "Price per Unit", format: "currency" },
   { id: "asp", altId: "price", label: "Average Selling Price", format: "currency" },
+  { id: "mrp", altId: "mrp", label: "MRP", format: "currency" },
 ];
 
 export const ALL_KPI_COLUMNS = [

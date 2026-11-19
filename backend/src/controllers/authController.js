@@ -1,4 +1,5 @@
 // src/controllers/authController.js
+import fs from 'fs';
 import crypto from 'crypto';
 import { loginUser, verifySession } from '../services/authService.js';
 import { getDeviceCookieOptions, updateDeviceTokenMap } from '../services/deviceService.js';
@@ -75,6 +76,15 @@ export const login = async (req, res) => {
         });
     } catch (error) {
         console.error('[Auth] Login failed:', error.message);
+        try {
+            fs.appendFileSync('verify_requests.log', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                type: 'LOGIN_FAILURE',
+                email: email || req.body?.email,
+                error: error.message,
+                stack: error.stack
+            }, null, 2) + "\n---\n");
+        } catch (_) {}
         if (error.deviceToken) {
             const updatedCookie = updateDeviceTokenMap(
                 deviceTokenFromCookie,
@@ -83,6 +93,14 @@ export const login = async (req, res) => {
                 error.deviceToken
             );
             res.cookie('device_token', updatedCookie, getDeviceCookieOptions());
+        }
+        const msg = error.message || '';
+        const isDbNetworkError = msg.includes('ECONNRESET') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('socket hang up');
+        if (isDbNetworkError) {
+            return res.status(503).json({
+                success: false,
+                error: 'Database connection failed. Please retry: ' + msg,
+            });
         }
         return res.status(401).json({
             success: false,
@@ -121,6 +139,14 @@ export const verify = async (req, res) => {
         });
     } catch (error) {
         console.error('[Auth] Verify failed:', error.message);
+        const msg = error.message || '';
+        const isDbNetworkError = msg.includes('ECONNRESET') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('socket hang up');
+        if (isDbNetworkError) {
+            return res.status(503).json({
+                success: false,
+                error: 'Database temporarily unavailable: ' + msg,
+            });
+        }
         return res.status(401).json({
             success: false,
             error: error.message || 'Session invalid',
