@@ -1120,6 +1120,16 @@ const PRICING_KPI_KEYS = [
       return sym === '₹' ? `₹${Number(v).toFixed(2)}` : `AED ${Number(v).toFixed(2)}`;
     },
   },
+  {
+    key: "MRP",
+    label: "MRP",
+    color: "#F59E0B",
+    get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
+    fmt: (v) => {
+      const sym = getCurrencySymbol();
+      return sym === '₹' ? `₹${Number(v).toFixed(2)}` : `AED ${Number(v).toFixed(2)}`;
+    },
+  },
 ];
 
 const MARKET_SHARE_KPI_KEYS = [
@@ -1916,6 +1926,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
         RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
         ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
+        MRP: typeof b.MRP === 'number' ? b.MRP : (b.MRP?.value ?? parseFloat(b.mrp ?? b.MRP) ?? 0),
         Offtake: typeof b.Offtake === 'number' ? b.Offtake : (b.Offtake?.value ?? parseFloat(b.offtake ?? b.Offtake) ?? 0),
       };
     });
@@ -1984,6 +1995,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
         RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
         ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
+        MRP: typeof s.MRP === 'number' ? s.MRP : (s.MRP?.value ?? parseFloat(s.mrp ?? s.MRP) ?? 0),
         Offtake: typeof s.Offtake === 'number' ? s.Offtake : (s.Offtake?.value ?? parseFloat(s.offtake ?? s.Offtake) ?? 0),
         total_sales: s.total_sales || s.Sales?.value || s.Sales || 0,
       };

@@ -1502,6 +1502,7 @@ const getDimensionTrends = async (filters = {}) => {
             ) AS rpi,
             
             AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${brandCondition} AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             any(po.platform_offtake) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
@@ -1529,6 +1530,7 @@ const getDimensionTrends = async (filters = {}) => {
                 countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_discount_data,
                 countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_ppu_data,
                 countIf(${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0) AS has_asp_data,
+                countIf(${brandCondition} AND ${f.wMrp} > 0) AS has_mrp_data,
                 sum(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS has_offtake_data
             FROM ${src.table} p
             WHERE ${whereClause}
@@ -1539,6 +1541,7 @@ const getDimensionTrends = async (filters = {}) => {
         const hasDiscountData = parseInt(pr.has_discount_data || 0) > 0;
         const hasPpuData = parseInt(pr.has_ppu_data || 0) > 0;
         const hasAspData = parseInt(pr.has_asp_data || 0) > 0;
+        const hasMrpData = parseInt(pr.has_mrp_data || 0) > 0;
         const hasOfftakeData = parseFloat(pr.has_offtake_data || 0) > 0;
 
         const kpiAvailability = {
@@ -1547,6 +1550,7 @@ const getDimensionTrends = async (filters = {}) => {
             Discount: hasDiscountData,
             PricePerUnit: hasPpuData,
             ASP: hasAspData,
+            MRP: hasMrpData,
             Offtake: hasOfftakeData,
         };
 
@@ -1596,6 +1600,7 @@ const getDimensionTrends = async (filters = {}) => {
             Discount: hasDiscountData ? (parseFloat(r.discount) || 0) : null,
             PricePerUnit: hasPpuData ? (parseFloat(r.price_per_unit) || 0) : null,
             ASP: hasAspData ? (parseFloat(r.asp) || 0) : null,
+            MRP: hasMrpData ? (parseFloat(r.mrp) || 0) : null,
             Offtake: hasOfftakeData ? (parseFloat(r.offtake) || 0) : null,
         }));
 
@@ -1695,6 +1700,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
             AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
@@ -1734,6 +1740,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 Discount: parseFloat(r.discount) || 0,
                 PricePerUnit: parseFloat(r.price_per_unit) || 0,
                 ASP: parseFloat(r.asp) || 0,
+                MRP: parseFloat(r.mrp) || 0,
                 Offtake: parseFloat(r.offtake) || 0,
             };
         });
@@ -1845,6 +1852,7 @@ const getPricingCompetition = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1866,6 +1874,7 @@ const getPricingCompetition = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1888,6 +1897,7 @@ const getPricingCompetition = async (filters) => {
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
+            MRP: parseFloat(r.mrp) || 0,
         }));
 
         const skuRows = (skuResults || []).map(r => ({
@@ -1896,6 +1906,7 @@ const getPricingCompetition = async (filters) => {
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
+            MRP: parseFloat(r.mrp) || 0,
         }));
 
         return { success: true, brands: brandRows, skus: skuRows };
