@@ -311,32 +311,38 @@ export const FilterProvider = ({ children }) => {
                 setSelectedChannel(prev => {
                     const validChannels = res.data.filter(c => c !== 'All');
                     if (validChannels.length === 0) return 'All';
-                    if (prev === "All") return validChannels[0];
 
-                    const lowerPrev = prev.toLowerCase();
+                    const isWatchTower = (currentPath + (typeof window !== 'undefined' ? window.location.hash : '')).includes('/watch-tower');
+                    if (prev === "All" && isWatchTower) return "All";
+
+                    const lowerPrev = (prev || '').toLowerCase();
                     const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch?.toLowerCase()) || ch?.toLowerCase().includes('quick');
                     const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch?.toLowerCase());
                     const isModernTradeFamily = (ch) => ['modern trades', 'moderntrade', 'modern_trade'].includes(ch?.toLowerCase());
 
-                    // 1. Exact match
-                    const exact = validChannels.find(c => c.toLowerCase() === lowerPrev);
-                    if (exact) return exact;
+                    if (prev && prev !== "All") {
+                        // 1. Exact match
+                        const exact = validChannels.find(c => c.toLowerCase() === lowerPrev);
+                        if (exact) return exact;
 
-                    // 2. Family match
-                    if (isQcommFamily(lowerPrev)) {
-                        const qm = validChannels.find(c => isQcommFamily(c));
-                        if (qm) return qm;
-                    }
-                    if (isEcommFamily(lowerPrev)) {
-                        const em = validChannels.find(c => isEcommFamily(c));
-                        if (em) return em;
-                    }
-                    if (isModernTradeFamily(lowerPrev)) {
-                        const mm = validChannels.find(c => isModernTradeFamily(c));
-                        if (mm) return mm;
+                        // 2. Family match
+                        if (isQcommFamily(lowerPrev)) {
+                            const qm = validChannels.find(c => isQcommFamily(c));
+                            if (qm) return qm;
+                        }
+                        if (isEcommFamily(lowerPrev)) {
+                            const em = validChannels.find(c => isEcommFamily(c));
+                            if (em) return em;
+                        }
+                        if (isModernTradeFamily(lowerPrev)) {
+                            const mm = validChannels.find(c => isModernTradeFamily(c));
+                            if (mm) return mm;
+                        }
                     }
 
-                    return validChannels[0];
+                    // Default to Ecommerce if available, otherwise first valid channel
+                    const defaultEcom = validChannels.find(c => isEcommFamily(c));
+                    return defaultEcom || validChannels[0];
                 });
             } else {
                 setChannels(FALLBACK_CHANNELS);
@@ -345,7 +351,7 @@ export const FilterProvider = ({ children }) => {
             console.warn("[FilterContext] Failed to fetch channels, using fallback:", err.message);
             setChannels(FALLBACK_CHANNELS);
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, currentPath]);
 
     useEffect(() => {
         fetchChannels();
@@ -499,35 +505,48 @@ export const FilterProvider = ({ children }) => {
                         // Use channel-family equivalence to avoid re-fetch loops
                         // (e.g. quickcomm vs Quick Commerce are the same family — no need to change).
                         setSelectedChannel(prev => {
-                            if (prev === "All") return "All";
-                            const lowerPrev = prev.toLowerCase();
+                            const isWatchTower = (currentPath + (typeof window !== 'undefined' ? window.location.hash : '')).includes('/watch-tower');
+                            if (prev === "All" && isWatchTower) return "All";
+                            const lowerPrev = (prev || '').toLowerCase();
 
                             // Helper: check if a channel belongs to a known family
                             const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch) || ch.includes('quick');
                             const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch);
                             const isModernTradeFamily = (ch) => ['modern trades', 'moderntrade', 'modern_trade'].includes(ch);
 
-                            // 1. Exact match — no change needed
-                            if (newChannels.some(c => c.toLowerCase() === lowerPrev)) return prev;
+                            if (prev && prev !== "All") {
+                                // 1. Exact match — no change needed
+                                if (newChannels.some(c => c.toLowerCase() === lowerPrev)) return prev;
 
-                            // 2. Same channel family — keep prev to avoid triggering a re-fetch
-                            if (isEcommFamily(lowerPrev) && newChannels.some(c => isEcommFamily(c.toLowerCase()))) return prev;
-                            if (isQcommFamily(lowerPrev) && newChannels.some(c => isQcommFamily(c.toLowerCase()))) return prev;
-                            if (isModernTradeFamily(lowerPrev) && newChannels.some(c => isModernTradeFamily(c.toLowerCase()))) return prev;
+                                // 2. Same channel family — keep prev to avoid triggering a re-fetch
+                                if (isEcommFamily(lowerPrev) && newChannels.some(c => isEcommFamily(c.toLowerCase()))) return prev;
+                                if (isQcommFamily(lowerPrev) && newChannels.some(c => isQcommFamily(c.toLowerCase()))) return prev;
+                                if (isModernTradeFamily(lowerPrev) && newChannels.some(c => isModernTradeFamily(c.toLowerCase()))) return prev;
+                            }
 
-                            // 3. No match at all — pick first valid channel
+                            // 3. No match or unselected — pick first valid channel (preferring ecommerce)
                             const validChannels = newChannels.filter(c => c !== 'All');
-                            return validChannels.length > 0 ? validChannels[0] : 'All';
+                            const defaultEcom = validChannels.find(c => isEcommFamily(c.toLowerCase()));
+                            return defaultEcom || (validChannels.length > 0 ? validChannels[0] : 'All');
                         });
                     }
                 }
             } else if ((currentPath + window.location.hash).includes('/content-analysis') || (currentPath + window.location.hash).includes('/content-score')) {
                 const reqId = ++activePlatformReq.current;
+                const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch?.toLowerCase());
+                const effectiveChannel = (selectedChannel && selectedChannel !== "All")
+                    ? selectedChannel
+                    : (channels.find(c => isEcommFamily(c)) || channels.find(c => c !== "All") || "ecommerce");
+
+                if (selectedChannel === "All" && effectiveChannel !== "All") {
+                    setSelectedChannel(effectiveChannel);
+                }
+
                 const res = await axiosInstance.get("/content-analysis/platforms", {
-                    params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
+                    params: { channel: effectiveChannel }
                 });
                 if (reqId !== activePlatformReq.current) {
-                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    console.log("[FilterContext] Ignoring stale platforms response for", effectiveChannel);
                     return;
                 }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -535,7 +554,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
-                        if (channelChanged) return res.data[0];
+                        if (channelChanged || !prevPlatform || prevPlatform === "All") return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
@@ -545,28 +564,36 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms([]);
                     setPlatform("");
                 }
-            } else if ((currentPath + window.location.hash).includes('/cross-platform-pricing')) {
+            } else if ((currentPath + window.location.hash).includes('/cross-platform-pricing') || (currentPath + window.location.hash).includes('/pricing-analysis')) {
                 // Refresh channels from rb_pdp_olap to ensure sidebar channels match rb_pdp_olap
                 fetchChannels();
 
                 const reqId = ++activePlatformReq.current;
+                const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch?.toLowerCase());
                 const effectiveChannel = (selectedChannel && selectedChannel !== "All")
                     ? selectedChannel
-                    : (channels.find(c => c !== "All") || "ecommerce");
+                    : (channels.find(c => isEcommFamily(c)) || channels.find(c => c !== "All") || "ecommerce");
 
                 if (selectedChannel === "All" && effectiveChannel !== "All") {
                     setSelectedChannel(effectiveChannel);
                 }
 
-                const res = await axiosInstance.get("/watchtower/pdp-platforms", {
+                let res = await axiosInstance.get("/watchtower/pdp-platforms", {
                     params: { channel: effectiveChannel }
                 });
                 if (reqId !== activePlatformReq.current) return;
+                // If pdp-platforms returned empty, fall back to /watchtower/platforms
+                if (!res.data || !Array.isArray(res.data) || res.data.length === 0) {
+                    res = await axiosInstance.get("/watchtower/platforms", {
+                        params: { channel: effectiveChannel }
+                    });
+                    if (reqId !== activePlatformReq.current) return;
+                }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic PDP platforms from rb_pdp_olap for channel:", effectiveChannel, res.data);
                     setPlatforms(res.data);
                     setPlatform(prevPlatform => {
-                        if (channelChanged || !prevPlatform) return res.data[0];
+                        if (channelChanged || !prevPlatform || prevPlatform === "All") return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const valid = currentList.filter(p => res.data.includes(p));
                         if (valid.length === 0) return res.data[0];
@@ -581,11 +608,21 @@ export const FilterProvider = ({ children }) => {
                 fetchChannels();
                 
                 const reqId = ++activePlatformReq.current;
+                const isWatchTower = (currentPath + window.location.hash).includes('/watch-tower');
+                const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch?.toLowerCase());
+                const effectiveChannel = (selectedChannel && selectedChannel !== "All")
+                    ? selectedChannel
+                    : (!isWatchTower ? (channels.find(c => isEcommFamily(c)) || channels.find(c => c !== "All") || "ecommerce") : undefined);
+
+                if (selectedChannel === "All" && effectiveChannel && !isWatchTower) {
+                    setSelectedChannel(effectiveChannel);
+                }
+
                 const res = await axiosInstance.get("/watchtower/platforms", {
-                    params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
+                    params: { channel: effectiveChannel }
                 });
                 if (reqId !== activePlatformReq.current) {
-                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    console.log("[FilterContext] Ignoring stale platforms response for", effectiveChannel || selectedChannel);
                     return;
                 }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -593,8 +630,8 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
-                        if (prevPlatform === "All") return "All"; // Preserve "All" on reset
-                        if (channelChanged) return res.data[0];
+                        if (prevPlatform === "All" && isWatchTower) return "All"; // Preserve "All" on reset for WatchTower
+                        if (channelChanged || !prevPlatform || prevPlatform === "All") return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
@@ -1024,6 +1061,7 @@ export const FilterProvider = ({ children }) => {
             setChannels,
             selectedChannel,
             setSelectedChannel,
+            channel: selectedChannel,
             brands,
             setBrands,
             selectedBrand,

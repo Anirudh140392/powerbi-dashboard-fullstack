@@ -164,7 +164,37 @@ async function buildChannelCondition(channel, columnName = 'platform_name', plat
 
 
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null, channel = null, rank = null) {
+/**
+ * Shared helper to resolve whether to use rb_kw_olap_sow or rb_kw_olap
+ * and whether weighted_impressions is available for Share of Voice (SOV)
+ */
+async function resolveKwTableForSov(dateFrom, dateTo) {
+    const targetDb = getCurrentDbName();
+    let kwTable = 'rb_kw_olap';
+    let hasWeightedImp = false;
+    try {
+        const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+        if (checkTblRes && checkTblRes.length > 0) {
+            const dateClause = (dateFrom && dateTo) ? `WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'` : '';
+            const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow ${dateClause}`);
+            if (Number(sowCountRes[0]?.cnt) > 0) {
+                kwTable = 'rb_kw_olap_sow';
+                hasWeightedImp = true;
+            }
+        }
+        if (!hasWeightedImp) {
+            const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+            if (checkKwCols && checkKwCols.length > 0) {
+                hasWeightedImp = true;
+            }
+        }
+    } catch (e) {
+        console.warn('[VisibilityService] Error checking sow table:', e.message);
+    }
+    return { kwTable, hasWeightedImp };
+}
+
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null, channel = null, rank = null, sovTableInfo = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
         // Skip channel condition when a specific platform is selected (platform takes precedence)
@@ -191,12 +221,19 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
 
         console.log(`[calculateAllSOS] Rank: ${rank}, RankCondition: ${rankCondition}, Platform: ${platform}, IsSpecific: ${isSpecificPlatform}`);
 
+        const { kwTable, hasWeightedImp } = sovTableInfo || await resolveKwTableForSov(dateFrom, dateTo);
+
+        const sovSelect = hasWeightedImp
+            ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+            : `null AS overall_sov,`;
+
         const query = `
             SELECT 
                 ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                ${sovSelect}
                 ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
-            FROM rb_kw_olap
+            FROM ${kwTable}
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${channelCondition}
@@ -210,25 +247,29 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         console.log(`[calculateAllSOS] Final Query:\n${query}`);
         const result = await queryClickHouse(query);
 
+        const rawSov = result[0]?.overall_sov;
+        const parsedSov = rawSov != null && rawSov !== '' && rawSov !== 'null' && !isNaN(Number(rawSov)) ? Number(rawSov) : null;
+
         return {
             overall: Number(result[0]?.overall_sos) || 0,
+            sov: parsedSov,
             sponsored: Number(result[0]?.sponsored_sos) || 0,
             organic: Number(result[0]?.organic_sos) || 0
         };
     } catch (error) {
         console.error('Error calculating all SOS (ClickHouse):', error);
-        return { overall: 0, sponsored: 0, organic: 0 };
+        return { overall: 0, sov: null, sponsored: 0, organic: 0 };
     }
 }
 
 /**
  * OPTIMIZED: Get ALL SOS trends in a SINGLE query
- * Returns daily trends for overall, sponsored, and organic SOS
+ * Returns daily trends for overall, SOV, sponsored, and organic SOS
  * @param {number} days - Number of days to include
  * @param {string|null} platform - Platform filter
- * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
+ * @returns {Promise<{overall: {dates: string[], values: number[]}, sov: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null, channel = null, rank = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null, channel = null, rank = null, sovTableInfo = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -267,13 +308,20 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const excludeCondition = isSpecificPlatform ? '1=1' : `platform_name NOT IN (${excludedList})`;
         console.log(`[getAllSOSTrends] Rank: ${rank}, RankCondition: ${rankCondition}, Platform: ${platform}, IsSpecific: ${isSpecificPlatform}`);
 
+        const { kwTable, hasWeightedImp } = sovTableInfo || await resolveKwTableForSov(dateFrom, dateTo);
+
+        const sovSelect = hasWeightedImp
+            ? `ROUND(sumIf(toFloat64OrZero(toString(weighted_impressions)), ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(weighted_impressions)), 1=1${rankCondition}), 0), 2) AS overall_sov,`
+            : `null AS overall_sov,`;
+
         const query = `
             SELECT 
                 DATE as crawl_date,
                 ROUND(sumIf(overall, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(overall, 1=1${rankCondition}), 0), 2) AS overall_sos,
+                ${sovSelect}
                 ROUND(sumIf(spons, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(spons, 1=1${rankCondition}), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(organic, ${brandSOSCondition}${rankCondition}) * 100.0 / nullIf(sumIf(organic, 1=1${rankCondition}), 0), 2) AS organic_sos
-            FROM rb_kw_olap
+            FROM ${kwTable}
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${channelCondition}
@@ -289,6 +337,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const results = await queryClickHouse(query);
 
         const overall = { dates: [], values: [] };
+        const sov = { dates: [], values: [] };
         const sponsored = { dates: [], values: [] };
         const organic = { dates: [], values: [] };
 
@@ -299,6 +348,11 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             overall.dates.push(dateStr);
             overall.values.push(Number(row.overall_sos) || 0);
 
+            sov.dates.push(dateStr);
+            const rawSov = row.overall_sov;
+            const parsedSov = rawSov != null && rawSov !== '' && rawSov !== 'null' && !isNaN(Number(rawSov)) ? Number(rawSov) : 0;
+            sov.values.push(parsedSov);
+
             sponsored.dates.push(dateStr);
             sponsored.values.push(Number(row.sponsored_sos) || 0);
 
@@ -306,11 +360,12 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             organic.values.push(Number(row.organic_sos) || 0);
         });
 
-        return { overall, sponsored, organic };
+        return { overall, sov, sponsored, organic };
     } catch (error) {
         console.error('Error getting all SOS trends (ClickHouse):', error);
         return {
             overall: { dates: [], values: [] },
+            sov: { dates: [], values: [] },
             sponsored: { dates: [], values: [] },
             organic: { dates: [], values: [] }
         };
@@ -355,6 +410,9 @@ function getDateRanges() {
  * Format PP change string
  */
 function formatPPChange(currentValue, previousValue) {
+    if (currentValue == null || previousValue == null) {
+        return { text: "—", color: "gray" };
+    }
     // Ensure we have valid numbers
     const current = Number(currentValue) || 0;
     const previous = Number(previousValue) || 0;
@@ -420,28 +478,34 @@ async function getVisibilityOverviewData(filters = {}) {
         console.log('[VisibilityService] Calculating SOS with date ranges:', dateRanges);
         console.log('[VisibilityService] Using filters:', { platform: filters.platform, category: filters.category, startDate: filters.startDate, endDate: filters.endDate });
 
+        const sovTableInfo = await resolveKwTableForSov(dateRanges.previous.start, dateRanges.current.end);
+
         // OPTIMIZED: Only 3 database queries instead of 9
-        // 1. Current period SOS (all 3 types in 1 query)
-        // 2. Previous period SOS (all 3 types in 1 query)
-        // 3. Sparkline trends (all 3 types in 1 query)
+        // 1. Current period SOS (all 4 types in 1 query)
+        // 2. Previous period SOS (all 4 types in 1 query)
+        // 3. Sparkline trends (all 4 types in 1 query)
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank, sovTableInfo)
         ]);
 
         // Use daily trends directly for the sparkline graphs
         const dailyTrends = {
             overall: trends.overall || { dates: [], values: [] },
+            sov: trends.sov || { dates: [], values: [] },
             sponsored: trends.sponsored || { dates: [], values: [] },
             organic: trends.organic || { dates: [], values: [] }
         };
 
-        console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
+        console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, SOV=${currentSOS.sov != null ? currentSOS.sov.toFixed(1) : 'null'}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
         console.log('[VisibilityService] Trends Received:', !!trends);
 
         const overallChange = formatPPChange(currentSOS.overall, prevSOS.overall);
+        const sovChange = (currentSOS.sov != null && prevSOS.sov != null)
+            ? formatPPChange(currentSOS.sov, prevSOS.sov)
+            : { text: "—", color: "gray" };
         const sponsoredChange = formatPPChange(currentSOS.sponsored, prevSOS.sponsored);
         const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
 
@@ -464,6 +528,22 @@ async function getVisibilityOverviewData(filters = {}) {
                     startDate: dateRanges.current.start,
                     endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.overall.values
+                },
+                {
+                    title: "Overall SOV",
+                    value: currentSOS.sov != null ? `${currentSOS.sov.toFixed(1)}%` : "—",
+                    sub: "Share of voice weighted by search position",
+                    change: sovChange.text,
+                    changeColor: sovChange.color,
+                    prevText: "vs Previous Period",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "green",
+                    months: dailyTrends.sov.dates,
+                    dates: dailyTrends.sov.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
+                    sparklineData: currentSOS.sov != null ? dailyTrends.sov.values : []
                 },
                 {
                     title: "Sponsored SOS",
@@ -517,6 +597,17 @@ const getVisibilityOverviewMockData = () => ({
             prevText: "vs Previous Period",
             extra: "New launches contributing: 7 SKUs",
             extraChange: "▲12.5%",
+            extraChangeColor: "green",
+        },
+        {
+            title: "Overall SOV",
+            value: "18.4%",
+            sub: "Share of voice weighted by search position",
+            change: "▲3.1 pts (from 15.3%)",
+            changeColor: "green",
+            prevText: "vs Previous Period",
+            extra: "",
+            extraChange: "",
             extraChangeColor: "green",
         },
         {
@@ -3944,16 +4035,50 @@ class VisibilityService {
                 : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : `lower(t1.brand) IN (${ownBrandSubquery})`;
 
             const targetDb = filters.dbName || getCurrentDbName();
-            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap'`);
-            const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
-            const searchVolumeSelect = hasSearchVolPct
-                ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
-                : `0`;
+            let kwTable = 'rb_kw_olap';
+            let hasWeightedImp = false;
+            if (viewMode === 'keyword') {
+                try {
+                    const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+                    if (checkTblRes.length > 0) {
+                        const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'`);
+                        if (Number(sowCountRes[0]?.cnt) > 0) {
+                            kwTable = 'rb_kw_olap_sow';
+                            hasWeightedImp = true;
+                        }
+                    }
+                    if (!hasWeightedImp) {
+                        const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                        if (checkKwCols.length > 0) {
+                            hasWeightedImp = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[VisibilityService] Error checking sow table:', e.message);
+                }
+            }
+
+            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = '${kwTable}'`);
+            const colNames = colsRes.map((c) => c.name);
+            const hasVolSearch = colNames.includes('volume_search');
+            const hasVolDist = colNames.includes('volume_search_distribution');
+            const hasSearchVolPct = colNames.includes('search_volume_percentage');
+
+            let searchVolumeSelect = '0';
+            if (hasVolSearch) {
+                if (location && location !== 'All' && hasVolDist) {
+                    searchVolumeSelect = `ROUND(coalesce(nullIf(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0), nullIf(AVG(toFloat64OrZero(toString(volume_search))), 0), 0), 0)`;
+                } else {
+                    searchVolumeSelect = `ROUND(any(toFloat64OrZero(toString(volume_search))), 0)`;
+                }
+            } else if (hasSearchVolPct) {
+                searchVolumeSelect = `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`;
+            }
 
             // Calculate total landscape volume for relative share (ignoring local segment filters)
             const landscapeVolQuery = `
                     SELECT sum(toInt32(overall)) as total_vol
-                    FROM rb_kw_olap
+                    FROM ${kwTable}
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
                       AND ${channelCondition}
@@ -3992,6 +4117,9 @@ class VisibilityService {
                             COUNTIf(toInt32(spons) = 0) AS organic_rows,
                             count(*) as impressions,
                             ${searchVolumeSelect} as search_volume,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
                             max(toInt32(flag)) as is_own_sku
@@ -4026,6 +4154,9 @@ class VisibilityService {
                         
                         sum(impressions) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(product_rows) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position), 1) as ad_position,
                         arrayElement(topK(1)(organic_position), 1) as organic_position
@@ -4050,6 +4181,9 @@ class VisibilityService {
                             SUM(organic) AS brand_organic,
                             count(*) as impressions,
                             ${searchVolumeSelect} as search_volume,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF(toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position
                         FROM rb_kw_olap
@@ -4085,6 +4219,9 @@ class VisibilityService {
                         
                         sum(impressions) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(brand_overall) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position), 1) as ad_position,
                         arrayElement(topK(1)(organic_position), 1) as organic_position
@@ -4107,6 +4244,14 @@ class VisibilityService {
                         sum(den_keyword) as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                         
+                        ${hasWeightedImp ? `
+                        sum(num_sov_keyword) as num_sov,
+                        sum(den_sov_keyword) as den_sov,
+                        ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                        ` : `
+                        null as overall_sov,
+                        `}
+
                         sum(num_organic_keyword) as num_organic,
                         sum(den_organic_keyword) as den_organic,
                         ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
@@ -4117,6 +4262,9 @@ class VisibilityService {
                         
                         sum(impressions_keyword) as impressions,
                         any(search_volume) as search_volume,
+                        max(top_5_days) as top_5_days,
+                        max(top_10_days) as top_10_days,
+                        max(top_20_days) as top_20_days,
                         ROUND(sum(num_keyword) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topK(1)(ad_position_keyword), 1) as ad_position,
                         arrayElement(topK(1)(organic_position_keyword), 1) as organic_position
@@ -4135,17 +4283,26 @@ class VisibilityService {
                             COUNTIf((${numeratorCondition}) AND toInt32(t1.spons) = 1) as num_spons_keyword,
                             any(t2.total_spons) as den_spons_keyword,
                             
+                            ${hasWeightedImp ? `
+                            COALESCE(SUMIf(toFloat64OrZero(toString(t1.weighted_impressions)), ${numeratorCondition}), 0) as num_sov_keyword,
+                            any(t2.total_sov) as den_sov_keyword,
+                            ` : ''}
+
                             count(*) as impressions_keyword,
-                            ${searchVolumeSelect.replace(/search_volume/g, 't1.search_volume')} as search_volume,
+                            ${searchVolumeSelect.replace(/volume_search_distribution/g, 't1.volume_search_distribution').replace(/volume_search/g, 't1.volume_search').replace(/search_volume_percentage/g, 't1.search_volume_percentage')} as search_volume,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 5, t1.DATE, NULL)) as top_5_days,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 10, t1.DATE, NULL)) as top_10_days,
+                            COUNT(DISTINCT IF((${numeratorCondition}) AND toInt32(t1.POSITION) > 0 AND toInt32(t1.POSITION) <= 20, t1.DATE, NULL)) as top_20_days,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND ${numeratorCondition}), 1) AS ad_position_keyword,
                             arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND ${numeratorCondition}), 1) AS organic_position_keyword
-                        FROM rb_kw_olap t1
+                        FROM ${kwTable} t1
                         LEFT JOIN (
                             SELECT keyword, 
                                    COUNT(*) as total_overall,
                                    COUNTIf(toInt32(spons) = 0) as total_organic,
                                    COUNTIf(toInt32(spons) = 1) as total_spons
-                            FROM rb_kw_olap
+                                   ${hasWeightedImp ? `, SUM(toFloat64OrZero(toString(weighted_impressions))) as total_sov` : ''}
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4188,10 +4345,14 @@ class VisibilityService {
                     leadingBrand: row.brand_name || 'Other',
                     web_pid: row.web_pid,
                     overallSOS: Number(row.overall_sos) || 0,
+                    overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     volShare: Number(row.max_vol_share) || 0,
                     searchVolume: Number(row.search_volume) || 0,
+                    top5Days: Number(row.top_5_days) || 0,
+                    top10Days: Number(row.top_10_days) || 0,
+                    top20Days: Number(row.top_20_days) || 0,
                     impressions: Number(row.impressions),
                     adPosition: Number(row.ad_position) || null,
                     organicPosition: Number(row.organic_position) || null,
@@ -4306,6 +4467,14 @@ class VisibilityService {
                                 COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
+                                ${hasWeightedImp ? `
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
+                                SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
+                                ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                                ` : `
+                                null as overall_sov,
+                                `}
+
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
                                 COUNTIf(toInt32(spons) = 0) as den_organic,
                                 ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
@@ -4313,7 +4482,7 @@ class VisibilityService {
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
                                 COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
-                            FROM rb_kw_olap
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4333,9 +4502,18 @@ class VisibilityService {
                     const summaryLocQuery = `
                             SELECT
                                 location_name as city,
+                                ${hasVolDist ? `ROUND(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0) AS search_volume,` : (hasVolSearch ? `ROUND(AVG(toFloat64OrZero(toString(volume_search))), 0) AS search_volume,` : `null AS search_volume,`)}
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery})) as num_overall,
                                 COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                                ${hasWeightedImp ? `
+                                COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), lower(brand) IN (${ownBrandSubquery})), 0) as num_sov,
+                                SUM(toFloat64OrZero(toString(weighted_impressions))) as den_sov,
+                                ROUND(coalesce(num_sov, 0) * 100.0 / nullIf(den_sov, 0), 2) AS overall_sov,
+                                ` : `
+                                null as overall_sov,
+                                `}
 
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
                                 COUNTIf(toInt32(spons) = 0) as den_organic,
@@ -4344,7 +4522,7 @@ class VisibilityService {
                                 COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
                                 COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
-                            FROM rb_kw_olap
+                            FROM ${kwTable}
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
                               AND ${channelCondition}
@@ -4374,7 +4552,9 @@ class VisibilityService {
                             .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
                             .map(l => ({
                                 city: l.city,
+                                searchVolume: l.search_volume != null ? Number(l.search_volume) : null,
                                 overallSOS: Number(l.overall_sos) || 0,
+                                overallSOV: l.overall_sov != null ? Number(l.overall_sov) : null,
                                 organicSOS: Number(l.organic_sos) || 0,
                                 paidSOS: Number(l.paid_sos) || 0
                             }));
@@ -4382,6 +4562,7 @@ class VisibilityService {
                         summary = {
                             leadingBrand: sRow.leading_brand || 'Other',
                             overallSOS: Number(sRow.overall_sos) || 0,
+                            overallSOV: sRow.overall_sov != null ? Number(sRow.overall_sov) : null,
                             organicSOS: Number(sRow.organic_sos) || 0,
                             paidSOS: Number(sRow.paid_sos) || 0,
                             totalKeywords: Number(sRow.total_keywords) || 0,
@@ -4390,7 +4571,7 @@ class VisibilityService {
                             locations
                         };
                     }
-                    console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
+                    console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Overall SOV: ${summary.overallSOV}%, Keywords: ${summary.totalKeywords}` : 'null');
                 } catch (sumErr) {
                     console.error('[VisibilityService] Error computing summary row:', sumErr);
                     // Non-critical — continue without summary
@@ -4484,9 +4665,49 @@ class VisibilityService {
                 numCondition = `lower(brand) IN (${ownBrandSubquery})`;
             }
 
+            const targetDb = filters.dbName || getCurrentDbName();
+            let kwTable = 'rb_kw_olap';
+            let hasWeightedImp = false;
+            if (viewMode === 'keyword' || keyword) {
+                try {
+                    const checkTblRes = await queryClickHouse(`SELECT name FROM system.tables WHERE database = '${targetDb}' AND name = 'rb_kw_olap_sow'`);
+                    if (checkTblRes.length > 0) {
+                        const sowCountRes = await queryClickHouse(`SELECT count(*) as cnt FROM ${targetDb}.rb_kw_olap_sow WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'`);
+                        if (Number(sowCountRes[0]?.cnt) > 0) {
+                            kwTable = 'rb_kw_olap_sow';
+                            hasWeightedImp = true;
+                        }
+                    }
+                    if (!hasWeightedImp) {
+                        const checkKwCols = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap' AND name = 'weighted_impressions'`);
+                        if (checkKwCols.length > 0) {
+                            hasWeightedImp = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[VisibilityService] Error checking sow table:', e.message);
+                }
+            }
+
+            let volColSelect = 'null AS search_volume';
+            try {
+                const volColsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = '${kwTable}' AND name IN ('volume_search_distribution', 'volume_search', 'search_volume_percentage')`);
+                const colNames = volColsRes.map(c => c.name);
+                if (colNames.includes('volume_search_distribution')) {
+                    volColSelect = `ROUND(coalesce(nullIf(AVG(toFloat64OrZero(toString(volume_search_distribution))), 0), nullIf(AVG(toFloat64OrZero(toString(volume_search))), 0), 0), 0) AS search_volume`;
+                } else if (colNames.includes('volume_search')) {
+                    volColSelect = `ROUND(AVG(toFloat64OrZero(toString(volume_search))), 0) AS search_volume`;
+                } else if (colNames.includes('search_volume_percentage')) {
+                    volColSelect = `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2) AS search_volume`;
+                }
+            } catch (e) {
+                console.warn('[VisibilityService] Error checking volume columns in drilldown:', e.message);
+            }
+
             const query = `
                 SELECT
                     location_name AS city,
+                    ${volColSelect},
                     COUNTIf(${numCondition}) AS num_overall,
                     COUNTIf(${numCondition} AND toInt32(spons) = 0) AS num_organic,
                     COUNTIf(${numCondition} AND toInt32(spons) = 1) AS num_spons,
@@ -4494,12 +4715,22 @@ class VisibilityService {
                     COUNTIf(toInt32(spons) = 0) AS den_organic,
                     COUNTIf(toInt32(spons) = 1) AS den_spons,
                     ROUND(num_overall * 100.0 / NULLIF(den_overall, 0), 2) AS overall_sos,
+                    ${hasWeightedImp ? `
+                    COALESCE(SUMIf(toFloat64OrZero(toString(weighted_impressions)), ${numCondition}), 0) AS num_sov,
+                    SUM(toFloat64OrZero(toString(weighted_impressions))) AS den_sov,
+                    ROUND(coalesce(num_sov, 0) * 100.0 / NULLIF(den_sov, 0), 2) AS overall_sov,
+                    ` : `
+                    null AS overall_sov,
+                    `}
                     ROUND(num_organic * 100.0 / NULLIF(den_organic, 0), 2) AS organic_sos,
                     ROUND(num_spons * 100.0 / NULLIF(den_spons, 0), 2) AS paid_sos,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(POSITION) > 0), 1) AS overallRank,
                     ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 1 AND toInt32(POSITION) > 0), 1) AS paidRank,
-                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank
-                FROM rb_kw_olap
+                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 5, DATE, NULL)) AS top_5_days,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 10, DATE, NULL)) AS top_10_days,
+                    COUNT(DISTINCT IF((${numCondition}) AND toInt32(POSITION) > 0 AND toInt32(POSITION) <= 20, DATE, NULL)) AS top_20_days
+                FROM ${kwTable}
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${channelCondition}
@@ -4520,12 +4751,17 @@ class VisibilityService {
             return {
                 locations: results.map(row => ({
                     city: row.city,
+                    searchVolume: row.search_volume != null ? Number(row.search_volume) : null,
                     overallSOS: Number(row.overall_sos) || 0,
+                    overallSOV: row.overall_sov != null ? Number(row.overall_sov) : null,
                     organicSOS: Number(row.organic_sos) || 0,
                     paidSOS: Number(row.paid_sos) || 0,
                     overallRank: Number(row.overallRank) || 0,
                     paidRank: Number(row.paidRank) || 0,
-                    organicRank: Number(row.organicRank) || 0
+                    organicRank: Number(row.organicRank) || 0,
+                    top5Days: Number(row.top_5_days) || 0,
+                    top10Days: Number(row.top_10_days) || 0,
+                    top20Days: Number(row.top_20_days) || 0
                 }))
             };
         } catch (error) {

@@ -204,9 +204,10 @@ const Dashboard: React.FC = () => {
         if (filters.dateRange?.endDate) {
             params.date_to = filters.dateRange.endDate.toISOString().split('T')[0];
         }
-        // web_pid is uppercase-canonical and the server filter is case-sensitive,
-        // so normalize user-typed SKU input or it silently returns zero rows.
-        if (filters.sku) params.web_pid = String(filters.sku).trim().toUpperCase();
+        // Pass SKU as-is (trimmed). Marico databases store lowercase web_pids,
+        // while Amazon-origin databases use uppercase. The backend uses case-insensitive
+        // matching so both work regardless of user input casing.
+        if (filters.sku) params.web_pid = String(filters.sku).trim();
         if (filters.trendPeriodMonths) params.period_months = filters.trendPeriodMonths;
         if (filters.priceRange) {
             params.price_mode = filters.priceMode;

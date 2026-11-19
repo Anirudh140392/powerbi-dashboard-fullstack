@@ -5,7 +5,7 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-import { getOlapTableName } from '../../utils/olapResolver.js';
+import { getOlapTableName, buildWebPidCondition } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
@@ -42,7 +42,10 @@ export const getReviews = async (req, res) => {
             const pm = Math.max(1, Math.min(parseInt(req.query.period_months, 10) || 6, 24));
             where.push(`o.review_date >= addMonths(today(), -${pm})`);
         }
-        if (web_pid) { where.push(`o.web_pid = {webPid:String}`); params.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', params, 'webPid');
+            if (cond) where.push(cond);
+        }
         if (price_min !== undefined && price_min !== '') {
             const pe = price_mode === 'rp' ? 'o.price_rp' : 'o.price_sp';
             where.push(`${pe} >= {priceMin:Float64}`); params.priceMin = Number(price_min);

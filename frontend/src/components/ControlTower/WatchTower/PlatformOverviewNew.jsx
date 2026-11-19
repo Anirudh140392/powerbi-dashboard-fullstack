@@ -113,6 +113,8 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
+    spOfftake: 'SP Offtake',
+    mrpOfftake: 'MRP Offtake',
     quantitySold: 'Qty Sold',
     spend: 'Spend',
     tacos: 'TACoS',
@@ -124,6 +126,7 @@ const kpiLabels = {
     marketShare: 'Mkt Share',
     conversion: 'Conversion',
     shareOfVolume: 'SOS',
+    overall_sov: 'Overall SOV',
     ad_sov: 'Ad SOS',
     organic_sov: 'Organic SOS',
     inorgSales: 'Inorganic Sales',
@@ -137,6 +140,10 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'SP Offtake': 'spOfftake',
+    'MRP Offtake': 'mrpOfftake',
+    'sp_offtake': 'spOfftake',
+    'mrp_offtake': 'mrpOfftake',
     'Qty Sold': 'quantitySold',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
@@ -157,6 +164,10 @@ const BACKEND_TITLE_TO_KEY = {
     'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
+    'Overall SOV': 'overall_sov',
+    'Overall Sov': 'overall_sov',
+    'overall_sov': 'overall_sov',
+    'SOV': 'overall_sov',
     'Ad SOS': 'ad_sov',
     'Ad SOV': 'ad_sov',
     'Organic SOS': 'organic_sov',
@@ -203,7 +214,7 @@ const mapApiEntityToFrontend = (apiEntity) => {
 
 const getFullDisplayValue = (kpiKey, cell) => {
     if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
-    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes' || kpiKey === 'spOfftake' || kpiKey === 'mrpOfftake') {
         if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
             return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
         }
@@ -290,6 +301,8 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        // { key: 'spOfftake', label: 'SP Offtake' }, // Hidden on UI as per request
+        // { key: 'mrpOfftake', label: 'MRP Offtake' }, // Hidden on UI as per request
         { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
@@ -302,6 +315,7 @@ const PlatformOverviewNew = ({
         { key: 'wtDiscount', label: 'Wt Discount' },
         { key: 'asp', label: 'ASP' },
         { key: 'listingPercent', label: 'Listing %' },
+        { key: 'overall_sov', label: 'Overall SOV' },
         { key: 'ad_sov', label: 'Ad SOS' },
         { key: 'organic_sov', label: 'Organic SOS' },
         { key: 'shareOfVolume', label: 'SOS' },
@@ -367,45 +381,53 @@ const PlatformOverviewNew = ({
     const handleExportToExcel = () => {
         if (!entities || entities.length === 0) return;
 
-        const excelRows = entities.map(e => {
-            const rowObj = {};
-            const dimLabel = currentDimension?.label || 'Entity';
-            rowObj[dimLabel] = e.name || e.key || '';
+        try {
+            const excelRows = entities.map(e => {
+                const rowObj = {};
+                const dimLabel = currentDimension?.label || 'Entity';
+                rowObj[dimLabel] = e.name || e.key || '';
 
-            selectedKpis.forEach(kpi => {
-                const label = kpiLabels[kpi.key] || kpi.label;
-                const cell = e.data?.[kpi.key];
-                const val = getFullDisplayValue(kpi.key, cell);
-                rowObj[label] = val;
+                selectedKpis.forEach(kpi => {
+                    const label = kpiLabels[kpi.key] || kpi.label;
+                    const cell = e.data?.[kpi.key];
+                    const val = getFullDisplayValue(kpi.key, cell);
+                    rowObj[label] = val;
 
-                if (cell?.delta?.value) {
-                    const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
-                    rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
-                } else {
-                    rowObj[`${label} (Change)`] = '-';
-                }
+                    if (cell?.delta?.value) {
+                        const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
+                        rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
+                    } else {
+                        rowObj[`${label} (Change)`] = '-';
+                    }
+                });
+
+                return rowObj;
             });
 
-            return rowObj;
-        });
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            const sheetName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview`.slice(0, 31);
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
-        const worksheet = XLSX.utils.json_to_sheet(excelRows);
-        const sheetName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview`.slice(0, 31);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-        const colWidths = {};
-        excelRows.forEach(row => {
-            Object.keys(row).forEach(key => {
-                const len = String(row[key] || '').length;
-                colWidths[key] = Math.max(colWidths[key] || key.length, len);
+            const colWidths = {};
+            excelRows.forEach(row => {
+                Object.keys(row).forEach(key => {
+                    const len = String(row[key] || '').length;
+                    colWidths[key] = Math.max(colWidths[key] || key.length, len);
+                });
             });
-        });
-        worksheet['!cols'] = Object.keys(colWidths).map(key => ({
-            wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
-        }));
+            worksheet['!cols'] = Object.keys(colWidths).map(key => ({
+                wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
+            }));
 
-        const fileName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
+            const fileName = `${(currentDimension?.label || 'Platform').replace(/[\s\\/?*[\]:]+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+
+            setToastMessage('Exported to Excel successfully!');
+            setTimeout(() => setToastMessage(''), 2500);
+        } catch (err) {
+            console.error('[PlatformOverviewNew] Excel export error:', err);
+        }
     };
 
     // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
@@ -473,11 +495,11 @@ const PlatformOverviewNew = ({
         }
 
         if (dimension === 'location') {
-            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov');
+            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov' && k.key !== 'overall_sov');
         }
         if (dimension === 'sku') {
             return baseKpis.filter(k => {
-                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
+                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov' || k.key === 'overall_sov') return false;
                 // CPM is never shown at SKU level
                 if (k.key === 'cpm') return false;
                 // Spend/Conversion/CPC are ecom-only at SKU level
@@ -502,6 +524,7 @@ const PlatformOverviewNew = ({
             'wtOsa',
             'asp',
             'listingPercent',
+            'overall_sov',
             'ad_sov',
             'organic_sov',
             'shareOfVolume',
@@ -514,7 +537,7 @@ const PlatformOverviewNew = ({
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
         if (dimension === 'location') {
-            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov');
+            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov' && k !== 'overall_sov');
         }
 
         if (dimension === 'platform') {
@@ -534,7 +557,7 @@ const PlatformOverviewNew = ({
         }
 
         if (dimension === 'sku') {
-            let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+            let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'overall_sov' && k !== 'cpm');
             if (!allowBuyBox) skuBase = skuBase.filter(k => k !== 'buyBoxPct');
             if (isSkuQcom) {
                 skuBase = skuBase.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
@@ -559,6 +582,7 @@ const PlatformOverviewNew = ({
         'wtOsa',
         'asp',
         'listingPercent',
+        'overall_sov',
         'ad_sov',
         'organic_sov',
         'shareOfVolume',
@@ -628,10 +652,10 @@ const PlatformOverviewNew = ({
     // Keep glanceKpis in sync with dimension switch & platform changes
     useEffect(() => {
         if (dimension === 'location') {
-            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov'));
+            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov' && k !== 'overall_sov'));
         } else if (dimension === 'sku') {
             setGlanceKpis(prev => {
-                let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'overall_sov' && k !== 'cpm');
                 if (isSkuQcom) {
                     next = next.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
                 }
@@ -865,8 +889,8 @@ const PlatformOverviewNew = ({
     ].filter(Boolean).length
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
-    // Get selected KPIs in order
-    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
+    // Get selected KPIs in order (excluding spOfftake & mrpOfftake)
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key) && k.key !== 'spOfftake' && k.key !== 'mrpOfftake')
     const kpiCount = selectedKpis.length
 
     // Build entities from API data only — NO hardcoded fallback

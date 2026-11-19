@@ -365,10 +365,45 @@ export default function SalesTrendsDrawer({
     const CITY_OPTIONS = ["All", ...(options.locations || [])];
     const BRAND_OPTIONS = ["All", ...(options.brands || [])];
 
+    const isBackdropMouseDownRef = useRef(false);
+
+    const handleBackdropMouseDown = (e) => {
+        if (e.target === e.currentTarget) {
+            isBackdropMouseDownRef.current = true;
+        } else {
+            isBackdropMouseDownRef.current = false;
+        }
+    };
+
+    const handleBackdropClick = (e) => {
+        if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+            const isScrollbar =
+                e.clientX >= e.currentTarget.clientWidth ||
+                e.clientY >= e.currentTarget.clientHeight;
+            if (!isScrollbar) {
+                onClose?.();
+            }
+        }
+        isBackdropMouseDownRef.current = false;
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") {
+                onClose?.();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [open, onClose]);
+
     if (!open) return null;
 
     return (
         <Box
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             sx={{
                 position: "fixed",
                 inset: 0,
@@ -382,6 +417,8 @@ export default function SalesTrendsDrawer({
             }}
         >
             <Box
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 sx={{
                     mt: { xs: 2, md: 4 },
                     width: "min(1200px, 100%)",

@@ -28,7 +28,8 @@ import {
   Target,
   TrendingUp,
   Monitor,
-  Inbox
+  Inbox,
+  Volume2
 } from "lucide-react";
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
 
@@ -783,6 +784,17 @@ const VisiblityAnalysisData = ({
       extraChangeColor: "green",
     },
     {
+      title: "Overall SOV",
+      value: "18.4%",
+      sub: "Share of voice weighted by search position",
+      change: "▲3.1% (from 15.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "",
+      extraChange: "",
+      extraChangeColor: "green",
+    },
+    {
       title: "Sponsored Weighted SOS",
       value: "17.6%",
       sub: "Share of shelf for sponsored placements",
@@ -867,7 +879,7 @@ const VisiblityAnalysisData = ({
   }, [isEcommerceChannel, isHayatna]);
 
   const visibilityKpis = useMemo(() => {
-    const icons = [PieChart, Target, TrendingUp, Monitor];
+    const icons = [PieChart, Volume2, Target, TrendingUp, Monitor];
     const gradients = [
       ['#2563Eb', '#2563Eb'],
       ['#2563Eb', '#2563Eb'],
@@ -875,9 +887,17 @@ const VisiblityAnalysisData = ({
       ['#2563Eb', '#2563Eb']
     ];
 
+    const ICON_MAP = {
+      'Overall SOS': PieChart,
+      'Overall SOV': Volume2,
+      'Sponsored SOS': Target,
+      'Organic SOS': TrendingUp,
+    };
+
     const KPI_INFO_TOOLTIPS = {
       'Overall SOS': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.",
       'Overall SOS (Share of Search)': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.",
+      'Overall SOV': "The proportion of a brand’s search visibility weighted by position and search volume (Share of Voice).",
       'Sponsored SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
       'Ad SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
       'Ad SOs': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
@@ -913,12 +933,13 @@ const VisiblityAnalysisData = ({
           subtitle: card.sub,
           delta: deltaVal,
           deltaLabel: card.change || '',
-          icon: icons[idx] || PieChart,
+          icon: ICON_MAP[card.title] || icons[idx] || PieChart,
           gradient: gradients[idx % gradients.length],
           trend: trendData,
           dates: datesList,
           endDate: cardEndDate,
           isComingSoon: card.isComingSoon || false,
+          isNA: card.value === '—' || card.value === 'N/A' || card.value == null,
           extra: card.extra,
           extraChange: card.extraChange,
           extraChangeColor: card.extraChangeColor,

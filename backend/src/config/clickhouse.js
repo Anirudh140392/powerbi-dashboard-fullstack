@@ -33,11 +33,11 @@ function getClientForDb(dbName) {
         : (defaultNonMaricoUrl || 'http://13.200.55.131:8123');
 
     const username = isMarico
-        ? (process.env.MARICO_CLICKHOUSE_USER || process.env.CLICKHOUSE_USER || 'main_user')
+        ? (process.env.MARICO_CLICKHOUSE_USER || 'main_user')
         : (process.env.CLICKHOUSE_USER || 'kenil_user');
 
     const password = isMarico
-        ? (process.env.MARICO_CLICKHOUSE_PASSWORD || process.env.CLICKHOUSE_PASSWORD || 'prod_dev@1215')
+        ? (process.env.MARICO_CLICKHOUSE_PASSWORD || 'prod_dev@1215')
         : (process.env.CLICKHOUSE_PASSWORD || 'Kenil@Kavar0604');
 
     const client = createClient({

@@ -22,6 +22,8 @@ import { cn } from '../../../lib/utils'
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
+    // { key: 'spOfftake', label: 'SP Offtake' }, // Hidden on UI as per request
+    // { key: 'mrpOfftake', label: 'MRP Offtake' }, // Hidden on UI as per request
     { key: 'quantitySold', label: 'Qty Sold' },
     { key: 'spend', label: 'Spend' },
     { key: 'inorgSales', label: 'Inorg Sales' },
@@ -34,6 +36,7 @@ const kpiOptions = [
     { key: 'wtDiscount', label: 'Wt Discount' },
     { key: 'asp', label: 'ASP' },
     { key: 'listingPercent', label: 'Listing %' },
+    { key: 'overall_sov', label: 'Overall SOV' },
     { key: 'ad_sov', label: 'Ad SOS' },
     { key: 'organic_sov', label: 'Organic SOS' },
     { key: 'shareOfVolume', label: 'SOS' },
@@ -311,7 +314,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 
 // MAIN ADVANCED FILTER MODAL
 // ========================================
-export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
+export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, grammages = null, kpiOptions: propKpiOptions = null }) {
     const isDrlUser = useMemo(() => {
         try {
             const u = JSON.parse(sessionStorage.getItem('user') || '{}');
@@ -355,7 +358,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
             if (currentDimension === 'sku') {
-                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                 if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             }
@@ -399,6 +402,12 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     useEffect(() => {
         setDynamicSkus(skus && skus.length ? skus : [])
     }, [skus])
+
+    useEffect(() => {
+        if (grammages && grammages.length) {
+            setDynamicGrammages(grammages)
+        }
+    }, [grammages])
 
 
     // Cascaded dynamic fetching effect
@@ -511,6 +520,15 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                         const mappedSubBrands = data.subBrands.map(s => ({ id: String(s).toLowerCase(), name: String(s) }))
                         setDynamicSubBrands(mappedSubBrands)
                     }
+
+                    if (data.grammages && Array.isArray(data.grammages)) {
+                        const mappedGrammages = data.grammages
+                            .filter(g => g !== null && g !== undefined && String(g).trim() !== '')
+                            .map(g => ({ id: String(g), name: String(g) }));
+                        if (mappedGrammages.length > 0) {
+                            setDynamicGrammages(mappedGrammages);
+                        }
+                    }
                 }
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
@@ -613,7 +631,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
     // Fetch grammage dropdown values from dimension-overview API on every brand/category/platform/date change
     useEffect(() => {
-        if (!isOpen || currentDimension !== 'sku') return;
+        if (!isOpen) return;
 
         let active = true;
 
@@ -750,7 +768,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
                 if (currentDimension === 'sku') {
-                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                     if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                     return true;
                 }
@@ -796,6 +814,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
         isDrlUser && localFilters.sapCodes && localFilters.sapCodes.length > 0,
+        localFilters.grammages && localFilters.grammages.length > 0,
         localFilters.msl === '1',
     ].filter(Boolean).length
 
@@ -926,16 +945,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 placeholder="All SAP Codes"
                                             />
                                         )}
-                                        {(currentDimension === 'sku' && dynamicGrammages.length > 0) && (
-                                            <MultiSelectDropdown
-                                                label="Grammage"
-                                                icon={Filter}
-                                                options={dynamicGrammages}
-                                                selected={localFilters.grammages || []}
-                                                onChange={(val) => updateFilter('grammages', val)}
-                                                placeholder="All Grammages"
-                                            />
-                                        )}
+                                        <MultiSelectDropdown
+                                            label="Grammage"
+                                            icon={Filter}
+                                            options={dynamicGrammages}
+                                            selected={localFilters.grammages || []}
+                                            onChange={(val) => updateFilter('grammages', val)}
+                                            placeholder="All Grammages"
+                                        />
                                         <SingleSelectDropdown
                                             label="Top SKU"
                                             icon={Filter}

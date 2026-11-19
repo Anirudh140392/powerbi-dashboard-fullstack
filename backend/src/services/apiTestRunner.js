@@ -34,7 +34,24 @@ let isSuiteRunning = false;
 
 export function setSuiteRunning(val) {
     isSuiteRunning = Boolean(val);
+    runProgress.isRunning = isSuiteRunning || isRunInProgress;
 }
+
+let runProgress = {
+    isRunning: false,
+    currentDb: null,
+    completedDbs: [],
+    totalDbs: 0,
+    startTime: null,
+};
+
+export function getRunProgress() {
+    return {
+        ...runProgress,
+        isRunning: isTestRunActive(),
+    };
+}
+
 
 let cachedDefaultClientDb = null;
 /**
@@ -345,7 +362,7 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
         response_status: responseStatus,
         response_time_ms: responseTimeMs,
         empty_response: emptyResponse,
-        client_db: String(targetDb || context.targetDb || 'demo'),
+        client_db: String(targetDb || context.targetDb || process.env.CLICKHOUSE_DB || ''),
         error_message: errorMessage,
         run_id: runId,
         created_at: dayjs().tz(TIMEZONE).format('YYYY-MM-DD HH:mm:ss'),
@@ -388,6 +405,10 @@ const PAGE_REQUIRED_TABLES = {
 };
 
         let targetDb = clientDb || process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb;
+        // Guard against empty array being truthy (would otherwise skip fallback)
+        if (Array.isArray(targetDb) && targetDb.length === 0) {
+            targetDb = process.env.API_LOGGER_TARGET_DB || pageConfig.targetDb || '';
+        }
         if (!targetDb) {
             targetDb = await resolveDefaultClientDb();
         }
@@ -519,3 +540,120 @@ const PAGE_REQUIRED_TABLES = {
 export function isTestRunActive() {
     return isRunInProgress || isSuiteRunning;
 }
+
+/**
+ * Execute a complete automated health check suite across multiple databases and pages.
+ * Used by both the 09:00 AM automated scheduler and the manual UI run trigger.
+ */
+export async function executeFullApiHealthCheck({ targetPage = 'All', requestedClientDb = 'All' } = {}) {
+    if (isTestRunActive()) {
+        console.warn('[ApiTestRunner] A test run is already currently in progress. Skipping duplicate execution.');
+        return { success: false, inProgress: true, message: 'Test run is already in progress' };
+    }
+
+    setSuiteRunning(true);
+
+    let targetDbs = [];
+    try {
+        // Normalize requestedClientDb: empty array => 'All' (no specific client)
+        const clientDbVal = Array.isArray(requestedClientDb)
+            ? (requestedClientDb.length > 0 ? requestedClientDb : 'All')
+            : requestedClientDb;
+
+        if (clientDbVal && clientDbVal !== 'All') {
+            targetDbs = Array.isArray(clientDbVal) ? clientDbVal : [String(clientDbVal)];
+        } else {
+            targetDbs = await getAllActiveDatabases();
+        }
+    } catch (e) {
+        console.warn('[ApiTestRunner] Error resolving target databases, falling back to default:', e.message);
+        targetDbs = [process.env.CLICKHOUSE_DB || 'marico'];
+    }
+
+    const registeredPages = getRegisteredPages();
+    const pagesToTest = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
+        ? registeredPages
+        : [targetPage];
+
+    runProgress = {
+        isRunning: true,
+        currentDb: null,
+        completedDbs: [],
+        totalDbs: targetDbs.length,
+        startTime: new Date().toISOString(),
+    };
+
+    console.log(`[ApiTestRunner] 🚀 Starting full API health check across ${targetDbs.length} database(s) (${targetDbs.join(', ')}) at ${new Date().toISOString()}...`);
+
+    const summary = {
+        totalDbs: targetDbs.length,
+        databasesTested: [],
+        totalTested: 0,
+        successCount: 0,
+        slowCount: 0,
+        failedCount: 0,
+    };
+
+    try {
+        // Run cleanup of old/expired logs before executing health checks
+        try {
+            await cleanupOldLogs();
+        } catch (cleanErr) {
+            console.warn('[ApiTestRunner] Pre-run cleanup notice:', cleanErr.message);
+        }
+
+        for (const currentDb of targetDbs) {
+            runProgress.currentDb = currentDb;
+            let permittedPages = [];
+            try {
+                permittedPages = await getPermittedPagesForDb(currentDb);
+            } catch (permErr) {
+                console.warn(`[ApiTestRunner] Could not fetch permissions for "${currentDb}", testing all registered pages:`, permErr.message);
+                permittedPages = registeredPages;
+            }
+
+            const pagesForDb = (!targetPage || targetPage === 'All' || targetPage === 'All Pages')
+                ? permittedPages
+                : (permittedPages.includes(targetPage) ? [targetPage] : []);
+
+            if (pagesForDb.length === 0) {
+                console.log(`[ApiTestRunner] No permitted pages to test for DB "${currentDb}" based on tab_permissions.`);
+                continue;
+            }
+
+            console.log(`[ApiTestRunner] >>> Testing DB: "${currentDb}" (${pagesForDb.length} active pages: ${pagesForDb.join(', ')})...\n`);
+            for (const p of pagesForDb) {
+                try {
+                    const pageResult = await runPageTests(p, currentDb);
+                    if (pageResult && pageResult.success) {
+                        summary.totalTested += pageResult.totalTested || 0;
+                        summary.successCount += pageResult.successCount || 0;
+                        summary.slowCount += pageResult.slowCount || 0;
+                        summary.failedCount += pageResult.failedCount || 0;
+                    }
+                } catch (pageErr) {
+                    console.error(`[ApiTestRunner] Error testing page "${p}" for DB "${currentDb}":`, pageErr.message);
+                }
+            }
+            summary.databasesTested.push(currentDb);
+            runProgress.completedDbs.push(currentDb);
+            console.log(`[ApiTestRunner] <<< Finished testing DB: "${currentDb}"`);
+        }
+
+        console.log(`[ApiTestRunner] ✅ Full API health check completed. Tested ${summary.totalTested} endpoints across ${summary.databasesTested.length} databases.`);
+        return { success: true, ...summary };
+    } catch (err) {
+        console.error('[ApiTestRunner] Error executing full API health check:', err.message);
+        return { success: false, error: err.message };
+    } finally {
+        runProgress = {
+            isRunning: false,
+            currentDb: null,
+            completedDbs: [],
+            totalDbs: 0,
+            startTime: null,
+        };
+        setSuiteRunning(false);
+    }
+}
+

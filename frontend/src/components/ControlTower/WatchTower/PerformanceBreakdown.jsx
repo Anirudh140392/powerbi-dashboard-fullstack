@@ -455,7 +455,7 @@ export function AggregatedViewTable() {
                 const validPlatforms = res.data.filter(p => p !== "All");
                 setPmPlatforms(validPlatforms);
                 // Set default to first valid platform
-                setLocalPlatformFilter([validPlatforms[0]]);
+                setLocalPlatformFilter([...validPlatforms]);
             }
         };
         fetchPmPlatforms();

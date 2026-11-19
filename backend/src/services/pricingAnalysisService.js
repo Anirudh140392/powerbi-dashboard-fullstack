@@ -466,7 +466,7 @@ async function getEcpComparison(filters = {}) {
                                 2
                             ) AS discount_curr
                         FROM ${src.table} p
-                        WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+                        WHERE p.${f.date} BETWEEN '${scanMinDate}' AND '${scanMaxDate}'
                           AND p.${f.product} IN (${productEscaped})
                           ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
                           ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
@@ -629,6 +629,8 @@ async function getPricingKpis(filters = {}) {
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
+            const scanMinDate = (compareStartDate && compareStartDate < startDate) ? compareStartDate : startDate;
+            const scanMaxDate = (compareEndDate && compareEndDate > endDate) ? compareEndDate : endDate;
 
             const query = `
             SELECT
@@ -1198,8 +1200,8 @@ const getDimensionOverview = async (filters = {}) => {
 
             const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
-            // ✅ Grammage filter ONLY applies to SKU dimension
-            const grammages = isSku ? parseMultiSelectFilter(filters.grammage) : null;
+            // ✅ Grammage filter applies across dimensions
+            const grammages = parseMultiSelectFilter(filters.grammage);
             if (grammages) {
                 const pdpCols = await getTableColumns(src.table);
                 if (columnExists(pdpCols, 'weight')) {

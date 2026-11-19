@@ -13,6 +13,7 @@ import {
   FilterAlt as FilterAltIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   CheckBox as CheckBoxIcon,
+  InfoOutlined as InfoOutlinedIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
@@ -112,6 +113,7 @@ export default function DownloadReport() {
   const [showPromoPreview, setShowPromoPreview] = useState(false);
   const [isDownloadingPromo, setIsDownloadingPromo] = useState(false);
   const [promoKamName, setPromoKamName] = useState("Girish");
+  const [promoPincodeDayDiscounts, setPromoPincodeDayDiscounts] = useState({});
 
   // ── PRICE VIOLATION TAB STATE ──
   const [pvSelectedPlatforms, setPvSelectedPlatforms] = useState([]);
@@ -386,6 +388,7 @@ export default function DownloadReport() {
     setPromoSelectedPlatforms([]); setPromoSelectedSkus([]);
     setPromoStartDate(null); setPromoEndDate(null);
     setShowPromoPreview(false); setPromoRows([]); setPromoTotal(0); setPromoPage(0);
+    setPromoPincodeDayDiscounts({});
     if (initialPromoFiltersRef.current) {
       setPromoFilterOptions(initialPromoFiltersRef.current);
     }
@@ -420,6 +423,7 @@ export default function DownloadReport() {
       setPromoTotal(data.totalCount || 0);
       setPromoPage(page);
       setPromoKamName(data.kamName || (promoSelectedKams.length > 0 ? promoSelectedKams[0] : "All KAMs"));
+      setPromoPincodeDayDiscounts(data.pincodeDayDiscounts || {});
       setShowPromoPreview(true);
     } catch (err) {
       console.error("[DownloadReport] Promo preview failed:", err);
@@ -1115,6 +1119,16 @@ export default function DownloadReport() {
                             {promoLocationsList.map((loc) => {
                               const pinStr = row.pincodeStrings?.[loc] || "";
                               const pinList = pinStr ? pinStr.split(", ").filter(Boolean) : [];
+
+                              // Get daily discounts for this row+location (per-row data takes priority, fallback to global)
+                              const rowDiscounts = (row.pincodeDayDiscounts?.[loc] || promoPincodeDayDiscounts?.[loc] || {});
+
+                              // Helper to extract pincode from item like "12345 - 2024/01/15" or "12345 - 2024/01/15 to 2024/01/20"
+                              const extractPincode = (item) => {
+                                const match = item.match(/^(\d+)\s*[-–]/);
+                                return match ? match[1] : null;
+                              };
+
                               return (
                                 <React.Fragment key={`city-vals-${loc}`}>
                                   <TableCell align="center" sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #f1f5f9", borderRight: "1px solid #f1f5f9", py: 1 }}>
@@ -1125,25 +1139,80 @@ export default function DownloadReport() {
                                       "—"
                                     ) : (
                                       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, alignItems: "center", justifyContent: "center" }}>
-                                        {pinList.map((item, pIdx) => (
-                                          <Chip
-                                            key={pIdx}
-                                            label={item}
-                                            size="small"
-                                            sx={{
-                                              fontSize: "0.73rem",
-                                              height: "22px",
-                                              backgroundColor: "#eff6ff",
-                                              color: "#1d4ed8",
-                                              fontWeight: 600,
-                                              border: "1px solid #bfdbfe",
-                                              borderRadius: "6px",
-                                              whiteSpace: "nowrap",
-                                              fontFamily: "'Inter', sans-serif",
-                                              "& .MuiChip-label": { px: 1, py: 0.2 }
-                                            }}
-                                          />
-                                        ))}
+                                        {pinList.map((item, pIdx) => {
+                                          const pincode = extractPincode(item);
+                                          const dateDiscounts = pincode ? (rowDiscounts[pincode] || {}) : {};
+                                          const hasDiscountData = Object.keys(dateDiscounts).length > 0;
+
+                                          // Sort dates for display
+                                          const sortedDates = Object.keys(dateDiscounts).sort();
+
+                                          return (
+                                            <Box key={pIdx} sx={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                                              <Chip
+                                                label={item}
+                                                size="small"
+                                                sx={{
+                                                  fontSize: "0.73rem",
+                                                  height: "22px",
+                                                  backgroundColor: "#eff6ff",
+                                                  color: "#1d4ed8",
+                                                  fontWeight: 600,
+                                                  border: "1px solid #bfdbfe",
+                                                  borderRadius: "6px",
+                                                  whiteSpace: "nowrap",
+                                                  fontFamily: "'Inter', sans-serif",
+                                                  "& .MuiChip-label": { px: 1, py: 0.2 }
+                                                }}
+                                              />
+                                              {hasDiscountData && (
+                                                <Tooltip
+                                                  title={
+                                                    <Box sx={{ p: 1.5, minWidth: 220, fontFamily: "'Inter', sans-serif", backgroundColor: "#ffffff", borderRadius: 1 }}>
+                                                      <Typography variant="caption" sx={{ fontWeight: 700, color: "#1e293b", mb: 1, display: "block" }}>
+                                                        Pincode: {pincode} | Location: {loc.charAt(0).toUpperCase() + loc.slice(1)}
+                                                      </Typography>
+                                                      <Table size="small" sx={{ fontSize: "0.7rem", backgroundColor: "#ffffff" }}>
+                                                        <TableHead>
+                                                          <TableRow>
+                                                            <TableCell sx={{ fontWeight: 700, color: "#475569", py: 0.5, px: 1, backgroundColor: "#ffffff" }}>Date</TableCell>
+                                                            <TableCell sx={{ fontWeight: 700, color: "#475569", py: 0.5, px: 1, textAlign: "right", backgroundColor: "#ffffff" }}>Discount Operated (%)</TableCell>
+                                                          </TableRow>
+                                                        </TableHead>
+                                                        <TableBody>
+                                                          {sortedDates.map((date, dIdx) => (
+                                                            <TableRow key={dIdx} sx={{ "&:nth-of-type(even)": { backgroundColor: "#f8fafc" } }}>
+                                                              <TableCell sx={{ py: 0.4, px: 1, color: "#334155", fontFamily: "monospace", fontSize: "0.7rem", backgroundColor: "#ffffff" }}>{date}</TableCell>
+                                                              <TableCell sx={{ py: 0.4, px: 1, color: "#c2410c", fontWeight: 600, textAlign: "right", fontSize: "0.7rem", backgroundColor: "#ffffff" }}>{dateDiscounts[date]}%</TableCell>
+                                                            </TableRow>
+                                                          ))}
+                                                        </TableBody>
+                                                      </Table>
+                                                    </Box>
+                                                  }
+                                                  arrow
+                                                  placement="top"
+                                                  leaveDelay={100}
+                                                  enterDelay={100}
+                                                >
+                                                  <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                      p: 0,
+                                                      minWidth: 18,
+                                                      minHeight: 18,
+                                                      color: "#1d4ed8",
+                                                      "&:hover": { backgroundColor: "rgba(29, 78, 216, 0.1)", borderRadius: "50%" }
+                                                    }}
+                                                    aria-label={`View daily discount for pincode ${pincode}`}
+                                                  >
+                                                    <InfoOutlinedIcon fontSize="small" />
+                                                  </IconButton>
+                                                </Tooltip>
+                                              )}
+                                            </Box>
+                                          );
+                                        })}
                                       </Box>
                                     )}
                                   </TableCell>
