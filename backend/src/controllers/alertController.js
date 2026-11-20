@@ -2,6 +2,7 @@ import { createAlert, getAlertsByDbId, deleteAlertById, updateAlertById } from '
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { sendWhatsappMessage } from '../services/whatsappService.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
+import { runEmailAlertsJob } from '../services/alertCronService.js';
 
 /**
  * Helper to resolve the exact db_id from tb_database matching the user's current dbName.

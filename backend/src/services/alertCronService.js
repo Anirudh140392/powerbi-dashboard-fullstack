@@ -339,9 +339,9 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
  * 4. Sends alert email via Outlook SMTP if trigger conditions match and recipient email is entered.
  * 5. Saves current IST timestamp to last_email_sent column in ClickHouse.
  */
-export const runEmailAlertsJob = async () => {
+export const runEmailAlertsJob = async (targetAlertId = null) => {
     const istNow = getISTDateTimeString();
-    console.log(`[AlertCron ${istNow} IST] Running scheduled email alerts job...`);
+    console.log(`[AlertCron ${istNow} IST] Running ${targetAlertId ? `targeted alert check for id "${targetAlertId}"` : 'scheduled email alerts job'}...`);
     
     const transporter = getTransporter();
     if (!transporter) {
@@ -363,8 +363,8 @@ export const runEmailAlertsJob = async () => {
             logoMap.set(row.db_id, row.logo_url || '');
         }
 
-        // 2. Fetch all configured alerts with last_email_sent, alert_frequency, and scheduled_day
-        const alerts = await queryAdminDB(`
+        // 2. Fetch configured alert(s) with last_email_sent, alert_frequency, and scheduled_day
+        let alertQuery = `
             SELECT 
                 toString(id) as id,
                 toString(db_id) as db_id,
@@ -383,7 +383,11 @@ export const runEmailAlertsJob = async () => {
                 toString(last_email_sent) as last_email_sent,
                 toString(last_whatsapp_msg_sent) as last_whatsapp_msg_sent
             FROM tb_alert
-        `);
+        `;
+        if (targetAlertId) {
+            alertQuery += ` WHERE toString(id) = '${targetAlertId}'`;
+        }
+        const alerts = await queryAdminDB(alertQuery);
 
         if (alerts.length === 0) {
             console.log('[AlertCron] No active alert configurations found.');
