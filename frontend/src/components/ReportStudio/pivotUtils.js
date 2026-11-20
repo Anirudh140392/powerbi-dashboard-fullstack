@@ -181,6 +181,15 @@ const mergeAcc = (into, from) => {
     into.max = Math.max(into.max, from.max);
 };
 
+const mergeCell = (cells, key, incoming) => {
+    let accs = cells.get(key);
+    if (!accs) {
+        accs = incoming.map(newAcc);
+        cells.set(key, accs);
+    }
+    incoming.forEach((acc, index) => mergeAcc(accs[index], acc));
+};
+
 const finalize = (acc, agg) => {
     if (!acc?.count) return null;
     if (agg === "sum") return acc.sum;
@@ -309,6 +318,7 @@ export const buildPivot = (report, fields, config) => {
     const grain = config.dateGrain;
     const rowCount = layout.rows.length;
     const colCount = layout.columns.length;
+    const dateColumnIndex = layout.columns.findIndex((field) => field.type === "date");
     const dateSpans = new Map();
     const dims = [...layout.rows, ...layout.columns, ...layout.filters].map((field) => ({
         field,
@@ -319,11 +329,21 @@ export const buildPivot = (report, fields, config) => {
 
     const { currStart, currEnd, prevStart, prevEnd } = report.periods || {};
     const hasPeriods = Boolean(currStart && currEnd && prevStart && prevEnd);
+    const showComparisonDates = config.compare && hasPeriods && dateColumnIndex >= 0;
+    // A bucket shared by both ranges shows the selected range's value.
+    // Totals without a date bucket also keep the selected range's value.
+    const isComparisonBucket = (bucket) => {
+        if (!showComparisonDates) return false;
+        const span = dateSpans.get(bucket);
+        return Boolean(span && (span[1] < currStart || span[0] > currEnd));
+    };
 
     // Pass 1: one accumulator per distinct Row × Column path for current and previous period.
     const leaves = new Map();
     let matchedRows = 0;
     let currMatchedRows = 0;
+    let displayedRows = 0;
+    let displayedMatchedRows = 0;
 
     for (let i = 0; i < sourceRows; i += 1) {
         const row = report.getRow(i);
@@ -337,8 +357,12 @@ export const buildPivot = (report, fields, config) => {
 
         if (!isCurrent && !isPrevious) continue;
 
+        const isDisplayed = isCurrent || isComparisonBucket(dimValues[rowCount + dateColumnIndex]);
         // Filter options are collected before exclusions, so hidden values stay listed and can be re-selected.
-        if (isCurrent) dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
+        if (isDisplayed) {
+            displayedRows += 1;
+            dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
+        }
 
         let included = true;
         dims.forEach((dim, d) => {
@@ -347,6 +371,7 @@ export const buildPivot = (report, fields, config) => {
         if (!included) continue;
 
         if (isCurrent) currMatchedRows += 1;
+        if (isDisplayed) displayedMatchedRows += 1;
         matchedRows += 1;
 
         const rowPath = dimValues.slice(0, rowCount);
@@ -392,48 +417,39 @@ export const buildPivot = (report, fields, config) => {
     const dateRowIndexes = layout.rows
         .map((field, index) => (field.type === "date" ? index : -1))
         .filter((index) => index >= 0);
+    const columnGroup = (path) => path.filter((_, index) => index !== dateColumnIndex).join(SEP);
     const prevComparisonCells = new Map();
     const rowPaths = new Map();
     const colPaths = new Map();
     for (const leaf of leaves.values()) {
-        if (!hasPeriods || leaf.hasCurrent) {
+        const colKey = leaf.colPath.join(SEP);
+        const showLeaf = leaf.hasCurrent || isComparisonBucket(leaf.colPath[dateColumnIndex]);
+        if (showLeaf) {
             rowPaths.set(leaf.rowPath.join(SEP), leaf.rowPath);
         }
-        // Keep previous-only column members visible so the report can show
-        // that they have no current value instead of silently dropping them.
-        colPaths.set(leaf.colPath.join(SEP), leaf.colPath);
+        if (showLeaf || dateColumnIndex < 0) colPaths.set(colKey, leaf.colPath);
+        const hasPreviousValues = leaf.prevAccs.some((acc) => acc.count);
         for (let r = 0; r <= rowCount; r += 1) {
             const rowKey = leaf.rowPath.slice(0, r).join(SEP);
             for (let c = 0; c <= colCount; c += 1) {
-                const key = rowKey + AXIS_SEP + leaf.colPath.slice(0, c).join(SEP);
-                let accs = cells.get(key);
-                if (!accs) {
-                    accs = layout.values.map(newAcc);
-                    cells.set(key, accs);
+                const colPath = leaf.colPath.slice(0, c);
+                const key = rowKey + AXIS_SEP + colPath.join(SEP);
+                mergeCell(cells, key, leaf.accs);
+                if (hasPreviousValues) {
+                    mergeCell(prevCells, key, leaf.prevAccs);
                 }
-                leaf.accs.forEach((acc, vi) => mergeAcc(accs[vi], acc));
-
-                let prevAccs = prevCells.get(key);
-                if (!prevAccs) {
-                    prevAccs = layout.values.map(newAcc);
-                    prevCells.set(key, prevAccs);
-                }
-                leaf.prevAccs.forEach((acc, vi) => mergeAcc(prevAccs[vi], acc));
             }
         }
-        if (dateRowIndexes.length && leaf.prevAccs.some((acc) => acc.count)) {
+        if (dateRowIndexes.length && hasPreviousValues) {
             const comparisonRowPath = leaf.rowPath.filter((_, index) => !dateRowIndexes.includes(index));
             const key = comparisonRowPath.join(SEP) + AXIS_SEP + leaf.colPath.join(SEP);
-            let accs = prevComparisonCells.get(key);
-            if (!accs) {
-                accs = layout.values.map(newAcc);
-                prevComparisonCells.set(key, accs);
-            }
-            leaf.prevAccs.forEach((acc, vi) => mergeAcc(accs[vi], acc));
+            mergeCell(prevComparisonCells, key, leaf.prevAccs);
         }
     }
-    const valueAt = (rowPath, colPath, vi) =>
-        finalize(cells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
+    const valueAt = (rowPath, colPath, vi) => {
+        const grid = isComparisonBucket(colPath[dateColumnIndex]) ? prevCells : cells;
+        return finalize(grid.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
+    };
 
     const prevValueAt = (rowPath, colPath, vi) =>
         finalize(prevCells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
@@ -447,11 +463,14 @@ export const buildPivot = (report, fields, config) => {
     };
 
     // A week, period or month the report only partly covers says so, so its totals aren't misread.
-    const { startDate: rangeStart, endDate: rangeEnd } = report;
     const labelOf = (field, value) => {
         const label = formatDimensionValue(field, value, grain);
         const span = field.type === "date" && dateSpans.get(value);
-        if (!span || !rangeStart || !rangeEnd) return label;
+        if (!span) return label;
+        const isComparison = isComparisonBucket(value);
+        const rangeStart = isComparison ? prevStart : report.startDate;
+        const rangeEnd = isComparison ? prevEnd : report.endDate;
+        if (!rangeStart || !rangeEnd) return label;
         if (span[1] > rangeEnd) return `${label} (to ${dayjs(rangeEnd).format("DD MMM")})`;
         if (span[0] < rangeStart) return `${label} (from ${dayjs(rangeStart).format("DD MMM")})`;
         return label;
@@ -462,17 +481,16 @@ export const buildPivot = (report, fields, config) => {
     const columns = colCount ? flattenColumns(colTree, config.subtotals) : [];
     if (!colCount || config.grandTotals) columns.push({ type: "grand", path: [] });
 
-    // Track sequential previous column for when Date is in Columns
+    // Track the preceding displayed date for each set of other column dimensions.
     const lastInGroup = new Map();
     columns.forEach((col) => {
-        col.key = `${col.type}${AXIS_SEP}${col.path.join(SEP)}`;
-        if (col.type !== "data") return;
-        const group = col.path.slice(0, -1).join(SEP);
+        const pathKey = col.path.join(SEP);
+        col.key = `${col.type}${AXIS_SEP}${pathKey}`;
+        if (dateColumnIndex < 0 || col.path.length <= dateColumnIndex) return;
+        const group = columnGroup(col.path);
         col.prevPath = lastInGroup.get(group) || null;
         lastInGroup.set(group, col.path);
     });
-
-    const hasDateInColumns = layout.columns.some((f) => f.type === "date");
 
     const changeAt = (rowPath, col, vi) => {
         const current = valueAt(rowPath, col.path, vi);
@@ -481,19 +499,10 @@ export const buildPivot = (report, fields, config) => {
         let previous = null;
         if (dateRowIndexes.length) {
             previous = prevComparisonValueAt(rowPath, col.path, vi);
-        } else if (!hasDateInColumns) {
-            // When Date is NOT in columns (e.g. Platform is in columns),
-            // compare each column (Blinkit, Instamart, Zepto, Grand Total)
-            // to ITS OWN value in the previous period!
+        } else if (col.prevPath) {
+            previous = valueAt(rowPath, col.prevPath, vi);
+        } else if (!isComparisonBucket(col.path[dateColumnIndex])) {
             previous = prevValueAt(rowPath, col.path, vi);
-        } else {
-            // When Date IS in columns, compare to the preceding column in the group;
-            // for the very first column in the group, compare to prevValueAt if available.
-            if (col.prevPath) {
-                previous = valueAt(rowPath, col.prevPath, vi);
-            } else {
-                previous = prevValueAt(rowPath, col.path, vi);
-            }
         }
 
         if (previous === null || previous === undefined) return null;
@@ -505,8 +514,9 @@ export const buildPivot = (report, fields, config) => {
     // The span of each value over leaf cells, for the heatmap.
     const valueRanges = layout.values.map(() => ({ min: Infinity, max: -Infinity }));
     for (const leaf of leaves.values()) {
+        const accs = isComparisonBucket(leaf.colPath[dateColumnIndex]) ? leaf.prevAccs : leaf.accs;
         layout.values.forEach((v, vi) => {
-            const value = finalize(leaf.accs[vi], v.agg);
+            const value = finalize(accs[vi], v.agg);
             if (value === null) return;
             const range = valueRanges[vi];
             if (value < range.min) range.min = value;
@@ -540,7 +550,7 @@ export const buildPivot = (report, fields, config) => {
 
     let status = "ready";
     if (!layout.values.length) status = "no-values";
-    else if (!matchedRows) status = "filtered-out";
+    else if (!(dateColumnIndex >= 0 ? displayedMatchedRows : matchedRows)) status = "filtered-out";
 
     return {
         status,
@@ -550,8 +560,8 @@ export const buildPivot = (report, fields, config) => {
         heatmap: config.heatmap,
         compare: config.compare,
         canCompare: Boolean(layout.values.length > 0 && (hasPeriods || columns.some((col) => col.prevPath))),
-        sourceRows: hasPeriods ? currMatchedRows : sourceRows,
-        matchedRows: hasPeriods ? currMatchedRows : matchedRows,
+        sourceRows: showComparisonDates ? displayedRows : hasPeriods ? currMatchedRows : sourceRows,
+        matchedRows: showComparisonDates ? displayedMatchedRows : hasPeriods ? currMatchedRows : matchedRows,
         activeFilters: dims.filter((dim) => [...dim.excluded].some((v) => dim.seen.has(v))).length,
         options,
         rowTree,
