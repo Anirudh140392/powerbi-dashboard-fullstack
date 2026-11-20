@@ -59,6 +59,8 @@ export const createAlertHandler = async (req, res) => {
             severityLevel,
             scheduledDay,
             scheduled_day,
+            skuScope,
+            sku_scope,
         } = req.body;
 
         if (!alertName || !alertName.trim()) {
@@ -82,7 +84,15 @@ export const createAlertHandler = async (req, res) => {
             alertFrequency: alertFrequency || '',
             severityLevel: severityLevel || '',
             scheduledDay: scheduledDay || scheduled_day || '',
+            skuScope: skuScope || sku_scope || '',
         });
+
+        // Trigger initial alert evaluation and email dispatch immediately in background
+        if (result && result.id && (sendEmail || whatsappNo)) {
+            runEmailAlertsJob(result.id).catch(err => {
+                console.error(`[AlertController] Initial alert trigger error for ${result.id}:`, err.message);
+            });
+        }
 
         return res.status(201).json({
             success: true,
@@ -202,6 +212,8 @@ export const updateAlertHandler = async (req, res) => {
             severityLevel,
             scheduledDay,
             scheduled_day,
+            skuScope,
+            sku_scope,
         } = req.body;
 
         const result = await updateAlertById(alertId, dbId, {
@@ -217,6 +229,7 @@ export const updateAlertHandler = async (req, res) => {
             alertFrequency: alertFrequency || '',
             severityLevel: severityLevel || '',
             scheduledDay: scheduledDay || scheduled_day || '',
+            skuScope: skuScope || sku_scope || '',
         });
 
         return res.status(200).json({

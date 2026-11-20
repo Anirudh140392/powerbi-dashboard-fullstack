@@ -18,6 +18,7 @@ import {
     Calendar
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 import axiosInstance from "../../api/axiosInstance";
 import { createAlert, updateAlert } from "../../api/insightsService";
 
@@ -226,6 +227,31 @@ const getPlatformLogo = (platName, platformMetadata = []) => {
 
 export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert, initialPlatforms, initialBrands, editingAlert = null }) {
     const filterCtx = useContext(FilterContext) || {};
+    const { user } = useAuth();
+    const activeDbName = (
+        user?.dbName || 
+        user?.db_name || 
+        user?.database ||
+        user?.db ||
+        user?.client_db ||
+        user?.clientDb ||
+        sessionStorage.getItem("activeWorkspaceDb") || 
+        sessionStorage.getItem("database") ||
+        sessionStorage.getItem("client_db") ||
+        (() => {
+            try {
+                const u = JSON.parse(sessionStorage.getItem("user") || "{}");
+                return u?.dbName || u?.db_name || u?.database || u?.db || u?.client_db;
+            } catch {
+                return "";
+            }
+        })() ||
+        ""
+    ).toLowerCase().trim();
+    const isEmami = activeDbName === "emami" || activeDbName.includes("emami") ||
+        String(user?.dbId || "") === "12283785410905213397" ||
+        String(sessionStorage.getItem("activeWorkspaceDbId") || "") === "12283785410905213397" ||
+        String(editingAlert?.db_id || "") === "12283785410905213397";
 
     // Multi-Select Preset Rules State
     const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_bottom_city"]);
@@ -240,12 +266,16 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [thresholdValue, setThresholdValue] = useState("20");
     const [comparisonPeriod, setComparisonPeriod] = useState("vs L4W Avg");
 
+    // SKU Scope State (Emami feature for Low OSA Alert - Bottom % Product Level)
+    const [skuScope, setSkuScope] = useState("top_sku"); // "top_sku" | "all_sku"
+    const [showSkuScopeDropdown, setShowSkuScopeDropdown] = useState(false);
+    const skuScopeDropdownRef = useRef(null);
+
     // Multi-Select Scope Selection State (Platforms & Brands)
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
 
     const [selectedBrands, setSelectedBrands] = useState([]);
-    // eslint-disable-next-line no-unused-vars
     const [showBrandDropdown, setShowBrandDropdown] = useState(false);
 
     // Dynamic Lists (from Global FilterContext + Backend API)
@@ -288,6 +318,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(base => id.includes(base)));
     const isSellingPriceSelected = selectedPresetIds.some(id => id.includes("selling_price") || id.includes("price"));
+    const isLowOsaProductSelected = selectedPresetIds.some(id => id.includes("low_osa_bottom_product") || id === "low_osa_product");
 
     // Force email off when alert type is WhatsApp-only (e.g. low_osa_product)
     useEffect(() => {
@@ -298,7 +329,6 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     useEffect(() => {
         if (open && editingAlert) {
-            const isPerfSummary = editingAlert.alert_type?.includes("category_perf_summary") || editingAlert.alert_type?.includes("ptd_perf_summary");
             const isWhatsappTest = editingAlert.alert_type && editingAlert.alert_type.startsWith("whatsapp_test");
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
@@ -317,6 +347,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setTriggerOperator(editingAlert.conditional_operator || editingAlert.operator || "lt");
             setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "20"));
             setComparisonPeriod(editingAlert.benchmark_period || "vs L4W Avg");
+            if (editingAlert.sku_scope) {
+                setSkuScope(editingAlert.sku_scope);
+            } else if (editingAlert.skuScope) {
+                setSkuScope(editingAlert.skuScope);
+            } else {
+                setSkuScope("top_sku");
+            }
             if (["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(id => editingAlert.alert_type?.includes(id))) {
                 setFrequency("Weekly Summary");
             } else {
@@ -347,6 +384,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setScheduledDay("Monday");
             setEmailAddresses([]);
             setEmailInput("");
+            setSkuScope("top_sku");
         }
     }, [open, editingAlert]);
 
@@ -362,7 +400,6 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     };
 
     // Toggle Multi-Select Brands
-    // eslint-disable-next-line no-unused-vars
     const handleToggleBrand = (brand) => {
         if (brand === "All Brands") {
             if (selectedBrands.includes("All Brands") || selectedBrands.length === availableBrands.length) {
@@ -446,6 +483,9 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target)) {
                 setShowBrandDropdown(false);
             }
+            if (skuScopeDropdownRef.current && !skuScopeDropdownRef.current.contains(e.target)) {
+                setShowSkuScopeDropdown(false);
+            }
             if (frequencyDropdownRef.current && !frequencyDropdownRef.current.contains(e.target)) {
                 setShowFrequencyDropdown(false);
             }
@@ -463,7 +503,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
         const loadDynamicPlatforms = async () => {
             let platList = [];
-            
+
             if (Array.isArray(initialPlatforms) && initialPlatforms.length > 0) {
                 platList = initialPlatforms;
             } else {
@@ -558,6 +598,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 severityLevel: isPerfSummary ? "Medium" : severity,
                 scheduledDay: isPerfSummary ? scheduledDay : "",
                 scheduled_day: isPerfSummary ? scheduledDay : "",
+                skuScope: (isEmami && isLowOsaProductSelected) ? skuScope : "",
+                sku_scope: (isEmami && isLowOsaProductSelected) ? skuScope : "",
             };
 
 
@@ -736,7 +778,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </span>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: isSellingPriceSelected ? "1fr 1fr" : "1fr", gap: "16px" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: (isSellingPriceSelected || (isEmami && isLowOsaProductSelected)) ? "1fr 1fr" : "1fr", gap: "16px" }}>
                                 {/* MULTI-SELECT PLATFORM */}
                                 <div>
                                     <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -1207,6 +1249,150 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </div>
                             </div>
 
+                            {/* SKU SCOPE BOX (Visible ONLY for Emami database AND ONLY for Low OSA Alert (Bottom % Product Level)) */}
+                            {isEmami && isLowOsaProductSelected && (
+                                <div style={{ marginBottom: "16px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                            SELECT SKU SCOPE
+                                        </label>
+                                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#0047FF", background: "#eff6ff", padding: "1px 6px", borderRadius: "6px", border: "1px solid #bfdbfe" }}>
+                                            EMAMI FEATURE
+                                        </span>
+                                    </div>
+
+                                    <div style={{ position: "relative" }} ref={skuScopeDropdownRef}>
+                                        {/* Trigger Box */}
+                                        <div
+                                            onClick={() => setShowSkuScopeDropdown((prev) => !prev)}
+                                            className="form-input-focus"
+                                            style={{
+                                                width: "100%",
+                                                minHeight: "44px",
+                                                padding: "6px 14px",
+                                                borderRadius: "10px",
+                                                border: showSkuScopeDropdown ? "1.5px solid #0047FF" : "1px solid #cbd5e1",
+                                                boxShadow: showSkuScopeDropdown ? "0 0 0 3px rgba(0, 71, 255, 0.12)" : "none",
+                                                background: "#ffffff",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                cursor: "pointer",
+                                                boxSizing: "border-box",
+                                                gap: "8px",
+                                                transition: "all 0.15s ease",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span
+                                                    style={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "5px",
+                                                        padding: "2px 8px",
+                                                        borderRadius: "16px",
+                                                        background: "#eff6ff",
+                                                        border: "1px solid #bfdbfe",
+                                                        color: "#0047FF",
+                                                        fontSize: "12px",
+                                                        fontWeight: 700,
+                                                    }}
+                                                >
+                                                    {skuScope === "top_sku" ? "Top SKU" : "All SKU"}
+                                                </span>
+                                                <span style={{ fontSize: "11px", color: "#64748b" }}>
+                                                    {skuScope === "top_sku" ? "(rb_sku_platform: emsl_flag = 1)" : "(rb_sku_platform: all SKUs)"}
+                                                </span>
+                                            </div>
+
+                                            <ChevronDown size={16} style={{ color: "#64748b", transform: showSkuScopeDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
+                                        </div>
+
+                                        {/* Dropdown Options List */}
+                                        {showSkuScopeDropdown && (
+                                            <div
+                                                style={{
+                                                    position: "absolute",
+                                                    top: "100%",
+                                                    left: 0,
+                                                    right: 0,
+                                                    marginTop: "6px",
+                                                    background: "#ffffff",
+                                                    border: "1px solid #e2e8f0",
+                                                    borderRadius: "12px",
+                                                    boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
+                                                    padding: "6px",
+                                                    zIndex: 35,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: "2px",
+                                                }}
+                                            >
+                                                {/* Option 1: Top SKU */}
+                                                <div
+                                                    onClick={() => {
+                                                        setSkuScope("top_sku");
+                                                        setShowSkuScopeDropdown(false);
+                                                    }}
+                                                    style={{
+                                                        padding: "8px 12px",
+                                                        borderRadius: "8px",
+                                                        background: skuScope === "top_sku" ? "#eff6ff" : "transparent",
+                                                        color: skuScope === "top_sku" ? "#0047FF" : "#1e293b",
+                                                        fontSize: "12.5px",
+                                                        fontWeight: skuScope === "top_sku" ? 700 : 500,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "space-between",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                        <div style={{ width: 18, height: 18, borderRadius: 4, border: skuScope === "top_sku" ? "none" : "1.5px solid #cbd5e1", background: skuScope === "top_sku" ? "#0047FF" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                            {skuScope === "top_sku" && <Check size={13} color="#fff" strokeWidth={3} />}
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ fontWeight: 700, display: "block" }}>Top SKU</span>
+                                                            <span style={{ fontSize: "11px", color: "#64748b" }}>Core priority SKUs from rb_sku_platform (emsl_flag = 1)</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Option 2: All SKU */}
+                                                <div
+                                                    onClick={() => {
+                                                        setSkuScope("all_sku");
+                                                        setShowSkuScopeDropdown(false);
+                                                    }}
+                                                    style={{
+                                                        padding: "8px 12px",
+                                                        borderRadius: "8px",
+                                                        background: skuScope === "all_sku" ? "#eff6ff" : "transparent",
+                                                        color: skuScope === "all_sku" ? "#0047FF" : "#1e293b",
+                                                        fontSize: "12.5px",
+                                                        fontWeight: skuScope === "all_sku" ? 700 : 500,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "space-between",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                        <div style={{ width: 18, height: 18, borderRadius: 4, border: skuScope === "all_sku" ? "none" : "1.5px solid #cbd5e1", background: skuScope === "all_sku" ? "#0047FF" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                            {skuScope === "all_sku" && <Check size={13} color="#fff" strokeWidth={3} />}
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ fontWeight: 700, display: "block" }}>All SKU</span>
+                                                            <span style={{ fontSize: "11px", color: "#64748b" }}>All catalog SKUs from rb_sku_platform</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* 2. ALERT NAME (CUSTOMIZABLE) (Below Select Alert Condition) */}
                             <div>
                                 <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -1487,7 +1673,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             </div>
                                         </div>
                                     )}
-                                    
+
                                     {whatsappNotify && (
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -1733,34 +1919,34 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
                                         {/* Comparison Period — hidden for low_osa_product (hardcoded vs Previous Day) */}
                                         {!isWhatsAppTestSelected && (
-                                        <div style={{ position: "relative" }}>
-                                            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
-                                                BENCHMARK PERIOD
-                                            </label>
-                                            <select
-                                                value={comparisonPeriod}
-                                                onChange={(e) => setComparisonPeriod(e.target.value)}
-                                                className="form-input-focus"
-                                                style={{
-                                                    width: "100%",
-                                                    height: "38px",
-                                                    padding: "0 28px 0 10px",
-                                                    borderRadius: "8px",
-                                                    border: "1px solid #cbd5e1",
-                                                    fontSize: "12.5px",
-                                                    color: "#0f172a",
-                                                    background: "#fff",
-                                                    outline: "none",
-                                                    cursor: "pointer",
-                                                    appearance: "none",
-                                                    boxSizing: "border-box",
-                                                }}
-                                            >
-                                                <option value="vs L4W Avg">vs L4W Avg</option>
-                                                <option value="vs Yesterday">vs Yesterday</option>
-                                            </select>
-                                            <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
-                                        </div>
+                                            <div style={{ position: "relative" }}>
+                                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                                                    BENCHMARK PERIOD
+                                                </label>
+                                                <select
+                                                    value={comparisonPeriod}
+                                                    onChange={(e) => setComparisonPeriod(e.target.value)}
+                                                    className="form-input-focus"
+                                                    style={{
+                                                        width: "100%",
+                                                        height: "38px",
+                                                        padding: "0 28px 0 10px",
+                                                        borderRadius: "8px",
+                                                        border: "1px solid #cbd5e1",
+                                                        fontSize: "12.5px",
+                                                        color: "#0f172a",
+                                                        background: "#fff",
+                                                        outline: "none",
+                                                        cursor: "pointer",
+                                                        appearance: "none",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                >
+                                                    <option value="vs L4W Avg">vs L4W Avg</option>
+                                                    <option value="vs Yesterday">vs Yesterday</option>
+                                                </select>
+                                                <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
+                                            </div>
                                         )}
                                     </div>
                                 </div>

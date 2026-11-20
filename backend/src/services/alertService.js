@@ -51,6 +51,8 @@ export const createAlert = async (data) => {
         alertFrequency = '',
         severityLevel = '',
         scheduledDay = '',
+        skuScope = '',
+        sku_scope = '',
     } = data;
 
     if (!dbId) {
@@ -67,6 +69,7 @@ export const createAlert = async (data) => {
     const encryptedEmail = encrypt(sendEmail);
     const encryptedWhatsapp = encrypt(whatsappNo);
     const istNow = getISTDateTimeString();
+    const resolvedSkuScope = (skuScope || sku_scope || '').trim();
 
     const alertId = crypto.randomUUID();
     const row = {
@@ -84,11 +87,12 @@ export const createAlert = async (data) => {
         alert_frequency: alertFrequency,
         severity_level: severityLevel,
         scheduled_day: scheduledDay,
+        sku_scope: resolvedSkuScope,
         created_on: istNow,
         edited_on: istNow,
     };
 
-    console.log('[AlertService] Creating alert:', alertName, '| db_id:', rawDbId, '| created_on (IST):', istNow);
+    console.log('[AlertService] Creating alert:', alertName, '| db_id:', rawDbId, '| sku_scope:', resolvedSkuScope, '| created_on (IST):', istNow);
 
     await insertAdminDB('tb_alert', [row]);
 
@@ -109,6 +113,7 @@ export const createAlert = async (data) => {
             alert_frequency,
             severity_level,
             scheduled_day,
+            sku_scope,
             created_on,
             edited_on
         FROM tb_alert
@@ -158,6 +163,7 @@ export const getAlertsByDbId = async (dbId) => {
             alert_frequency,
             severity_level,
             scheduled_day,
+            sku_scope,
             created_on,
             edited_on
         FROM tb_alert
@@ -214,11 +220,14 @@ export const updateAlertById = async (alertId, dbId, data) => {
         alertFrequency = '',
         severityLevel = '',
         scheduledDay = '',
+        skuScope = '',
+        sku_scope = '',
     } = data;
 
     const encryptedEmail = encrypt(sendEmail);
     const encryptedWhatsapp = encrypt(whatsappNo);
     const istNow = getISTDateTimeString();
+    const resolvedSkuScope = (skuScope || sku_scope || '').trim();
 
     const platList = (Array.isArray(platforms) ? platforms : [platforms].filter(Boolean));
     const brandList = (Array.isArray(brands) ? brands : [brands].filter(Boolean));
@@ -241,11 +250,12 @@ export const updateAlertById = async (alertId, dbId, data) => {
             alert_frequency = '${alertFrequency.replace(/'/g, "\\'")}',
             severity_level = '${severityLevel.replace(/'/g, "\\'")}',
             scheduled_day = '${scheduledDay.replace(/'/g, "\\'")}',
+            sku_scope = '${resolvedSkuScope.replace(/'/g, "\\'")}',
             edited_on = parseDateTimeBestEffort('${istNow}')
         WHERE id = toUUID('${alertId}')
     `;
 
-    console.log('[AlertService] Updating alert ID:', alertId, '| alert_name:', alertName);
+    console.log('[AlertService] Updating alert ID:', alertId, '| alert_name:', alertName, '| sku_scope:', resolvedSkuScope);
     await queryAdminDB(updateQuery);
 
     // Fetch the updated row to return
@@ -265,6 +275,7 @@ export const updateAlertById = async (alertId, dbId, data) => {
             alert_frequency,
             severity_level,
             scheduled_day,
+            sku_scope,
             created_on,
             edited_on
         FROM tb_alert
