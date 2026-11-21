@@ -4,9 +4,11 @@ let _olapEnabledDbs = null;
 let _lastFetchTime = 0;
 const CACHE_TTL_MS = 60 * 1000; // 60s cache TTL
 let _fetchPromise = null;
+const _tableCache = new Map();
 
 /**
- * Refreshes the set of enabled databases from admin_master.tb_database.
+ * Refreshes the set of enabled databases from admin_master.tb_database
+ * and checks existing OLAP tables (rb_reviews_olap vs rb_review_olap).
  */
 export async function refreshOlapEnabledDbs() {
     if (_fetchPromise) return _fetchPromise;
@@ -27,6 +29,23 @@ export async function refreshOlapEnabledDbs() {
                 _olapEnabledDbs = dbs;
                 _lastFetchTime = Date.now();
             }
+
+            // Discover whether each DB has rb_reviews_olap or rb_review_olap
+            try {
+                const tblRes = await clickhouse.query({
+                    query: "SELECT database, name FROM system.tables WHERE name IN ('rb_reviews_olap', 'rb_review_olap')",
+                    format: 'JSONEachRow'
+                });
+                const tblRows = await tblRes.json();
+                for (const row of tblRows) {
+                    const db = (row.database || '').trim().toLowerCase();
+                    if (db) {
+                        if (!_tableCache.has(db) || row.name === 'rb_reviews_olap') {
+                            _tableCache.set(db, row.name);
+                        }
+                    }
+                }
+            } catch (_) {}
         } catch (err) {
             console.error('[olapResolver] Error fetching db_names from admin_master.tb_database:', err?.message || err);
             if (!_olapEnabledDbs) {
@@ -74,7 +93,7 @@ function getOlapEnabledDbs() {
 export function useOlapTable(dbName) {
     if (!dbName) return false;
     const norm = dbName.trim().toLowerCase();
-    if (norm === 'prestige') return false;
+    if (norm === 'prestige' || norm.includes('prestige')) return true;
     if (norm === 'marico_4700bc' || norm === 'marico_true_element' || norm.includes('marico')) {
         return true;
     }
@@ -83,13 +102,17 @@ export function useOlapTable(dbName) {
 
 /**
  * Returns the exact OLAP table name for a given database.
- * Default is 'rb_review_olap', but databases like marico_4700bc and marico_true_element use 'rb_reviews_olap'.
+ * Databases like 'prestige', 'marico_4700bc' and 'marico_true_element' use 'rb_reviews_olap'.
+ * Others like 'drl', 'danone' use 'rb_review_olap'.
  * @param {string} dbName
  */
 export function getOlapTableName(dbName) {
     if (!dbName) return process.env.OLAP_TABLE_NAME || 'rb_review_olap';
     const norm = dbName.trim().toLowerCase();
-    if (norm === 'marico_4700bc' || norm === 'marico_true_element' || norm.includes('marico')) {
+    if (_tableCache.has(norm)) {
+        return _tableCache.get(norm);
+    }
+    if (norm === 'prestige' || norm.includes('prestige') || norm === 'marico_4700bc' || norm === 'marico_true_element' || norm.includes('marico')) {
         return 'rb_reviews_olap';
     }
     return process.env.OLAP_TABLE_NAME || 'rb_review_olap';
