@@ -764,7 +764,7 @@ export const runEmailAlertsJob = async (targetAlertId = null) => {
                         FROM city_metrics m
                         INNER JOIN bottom_threshold t ON m.Platform = t.Platform
                         WHERE m.osa <= t.threshold AND (m.osa > 0 OR t.threshold = 0)
-                        ORDER BY m.Platform, m.osa ASC
+                        ORDER BY m.Platform, m.delta ASC, m.osa ASC
                         LIMIT 10 BY m.Platform
                     `;
                     const aggQuery = `
@@ -916,7 +916,7 @@ export const runEmailAlertsJob = async (targetAlertId = null) => {
                         FROM product_metrics m
                         INNER JOIN bottom_threshold t ON m.Platform = t.Platform
                         WHERE m.osa <= t.threshold AND (m.osa > 0 OR t.threshold = 0)
-                        ORDER BY m.Platform, m.osa ASC
+                        ORDER BY m.Platform, m.delta ASC, m.osa ASC
                         LIMIT 10 BY m.Platform
                     `;
                     const aggQuery = `
@@ -2233,10 +2233,10 @@ export const runEmailAlertsJob = async (targetAlertId = null) => {
                                             ? pd.rows.map(r => String(r[0] || 'Unknown')).slice(0, 5)
                                             : (Array.isArray(pd.rawDrops) ? pd.rawDrops.map(d => String(d.sku || 'Unknown')).slice(0, 5) : []);
                                         return {
-                                            title:     alert.alert_name || metricDetails.ruleType || 'Alert',
-                                            platform:  pd.platformName || pd.platform || null,
+                                            title: alert.alert_name || metricDetails.ruleType || 'Alert',
+                                            platform: pd.platformName || pd.platform || null,
                                             threshold: thresholdStr || null,
-                                            skus:      skuNames,
+                                            skus: skuNames,
                                         };
                                     });
                                 } else if (platformData.length > 0) {
