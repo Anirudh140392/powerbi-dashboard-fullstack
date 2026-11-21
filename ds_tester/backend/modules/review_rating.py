@@ -289,14 +289,15 @@ class ReviewRatingModule:
 
         plat_filter = f"AND ilike(platform, '{platform}')" if platform and platform != "all" else ""
 
-        if norm_client in ("danone", "drl"):
-            # OLAP Controller logic on {client}.rb_review_olap
+        if norm_client in ("danone", "drl", "prestige"):
+            tbl_name = "rb_reviews_olap" if (norm_client == "prestige" or "marico" in norm_client) else "rb_review_olap"
+            # OLAP Controller logic on {client}.{tbl_name}
             rev_sql = f"""
                 SELECT
                     count() AS total_reviews,
                     round(avg(rating), 2) AS avg_review_rating,
                     round(avg(ml_inferred_rating), 2) AS avg_ml_rating
-                FROM {norm_client}.rb_review_olap
+                FROM {norm_client}.{tbl_name}
                 WHERE company_id = '{cid}'
                   AND is_competitor = 0
                   AND review_date >= '{date_from}'
@@ -311,7 +312,7 @@ class ReviewRatingModule:
             pdp_sql = f"""
                 WITH latest_by_product AS (
                     SELECT web_pid, platform, pdp_rating, pdp_rating_count
-                    FROM {norm_client}.rb_review_olap
+                    FROM {norm_client}.{tbl_name}
                     WHERE company_id = '{cid}'
                       AND is_competitor = 0
                       AND review_date >= '{date_from}'

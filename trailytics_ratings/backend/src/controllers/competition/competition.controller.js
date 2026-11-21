@@ -1,6 +1,6 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
-import { getOlapTableName } from '../../utils/olapResolver.js';
+import { useOlapTable, getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -124,7 +124,6 @@ export const getCompetitorMatrix = async (req, res) => {
         let where = ['company_id = {companyId:String}'];
 
         if (platform && platform !== 'all') { where.push(`ilike(platform, {platform:String})`); queryParams.platform = platform; }
-        if (category) { where.push(`ilike(category, {category:String})`); queryParams.category = category; }
         if (date_from) { where.push(`review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
         if (date_to) { where.push(`review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
         
@@ -135,38 +134,28 @@ export const getCompetitorMatrix = async (req, res) => {
 
         const targetDb = getTargetDb(req);
         const olapTable = getOlapTableName(targetDb);
-        const whereClause = where.join(' AND ');
 
-        const olapSql = `
-            SELECT
-                initcap(lower(brand)) AS brand,
-                is_competitor,
-                count() as total_reviews,
-                round(avg(rating), 2) as avg_rating,
-                round(avg(quality_score), 2) as avg_quality,
-                category as primary_category
-            FROM ${olapTable}
-            WHERE ${whereClause}
-            GROUP BY brand, is_competitor, category
-            ORDER BY total_reviews DESC
-            LIMIT 50
-        `;
+        const buildSql = (tbl, catField) => {
+            const w = [...where];
+            if (category) { w.push(`ilike(${catField}, {category:String})`); queryParams.category = category; }
+            return `
+                SELECT
+                    initcap(lower(brand)) AS brand,
+                    is_competitor,
+                    count() as total_reviews,
+                    round(avg(rating), 2) as avg_rating,
+                    round(avg(quality_score), 2) as avg_quality,
+                    ${catField} as primary_category
+                FROM ${tbl}
+                WHERE ${w.join(' AND ')}
+                GROUP BY brand, is_competitor, primary_category
+                ORDER BY total_reviews DESC
+                LIMIT 50
+            `;
+        };
 
-        const mlSql = `
-            SELECT
-                initcap(lower(brand)) AS brand,
-                is_competitor,
-                count() as total_reviews,
-                round(avg(rating), 2) as avg_rating,
-                round(avg(quality_score), 2) as avg_quality,
-                category as primary_category
-            FROM ml_reviews
-            WHERE ${whereClause}
-            GROUP BY brand, is_competitor, category
-            ORDER BY total_reviews DESC
-            LIMIT 50
-        `;
-        
+        const olapSql = buildSql(olapTable, 'product_category');
+        const mlSql = buildSql('ml_reviews', 'category');
         const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
 
         res.json({ success: true, matrix: rows });
@@ -520,13 +509,13 @@ export const exportCompetitorMappingPairs = async (req, res) => {
 
 export const getCompetitorBrands = async (req, res) => {
     try {
-        const queryParams = { companyId: String(req.companyId) };
         const targetDb = getTargetDb(req);
         const olapTable = getOlapTableName(targetDb);
+        const queryParams = { companyId: String(req.companyId) };
 
-        const olapSql = `
+        const buildBrandSql = (tbl) => `
             SELECT brand FROM (
-                SELECT initcap(lower(brand)) AS brand, count() AS n FROM ${olapTable}
+                SELECT initcap(lower(brand)) AS brand, count() AS n FROM ${tbl}
                 WHERE company_id = {companyId:String} AND coalesce(is_competitor, 0) = 1
                   AND isNotNull(brand) AND brand != ''
                   AND length(brand) >= 3
@@ -536,20 +525,10 @@ export const getCompetitorBrands = async (req, res) => {
             ) ORDER BY brand ASC
         `;
 
-        const mlSql = `
-            SELECT brand FROM (
-                SELECT initcap(lower(brand)) AS brand, count() AS n FROM ml_reviews
-                WHERE company_id = {companyId:String} AND coalesce(is_competitor, 0) = 1
-                  AND isNotNull(brand) AND brand != ''
-                  AND length(brand) >= 3
-                  AND lower(brand) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')
-                GROUP BY brand
-                HAVING count() >= 3
-            ) ORDER BY brand ASC
-        `;
-
+        const olapSql = buildBrandSql(olapTable);
+        const mlSql = buildBrandSql('ml_reviews');
         const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
-        
+
         res.json({ brands: rows.map(r => r.brand) });
     } catch (err) {
         console.error('Competitor-brands error:', err);
