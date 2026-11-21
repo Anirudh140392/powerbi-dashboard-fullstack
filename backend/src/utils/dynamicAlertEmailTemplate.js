@@ -18,8 +18,8 @@ const escapeHtml = (str) => {
 const toPascalCase = (str) => {
     if (str === null || str === undefined) return '';
     const s = String(str);
-    // If it's a number with an optional % sign, return as is
-    if (/^[0-9.-]+%?$/.test(s.trim())) {
+    // If it's a number, currency or percentage string, return as is
+    if (/^[+–\-₹$€£\s]*[0-9,.-]+%?$/.test(s.trim())) {
         return s;
     }
     return s.split(/\s+/).map(word => {

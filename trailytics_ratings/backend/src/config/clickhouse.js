@@ -46,6 +46,10 @@ clickhouse.query = function (options) {
         };
         console.log(`[CH Query] Intercepted. Database: ${targetDb}, Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
     } else {
+        options.clickhouse_settings = {
+            ...options.clickhouse_settings,
+            database: 'default'
+        };
         console.log(`[CH Query] Querying admin_master or default. Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
     }
 

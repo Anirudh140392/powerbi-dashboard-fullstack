@@ -9,7 +9,7 @@ import { fetchAllPlatformCategoryKPIs, getCWDateRange } from './categoryPerfSumm
 import { generateCategoryPerfSummaryEmailHtml } from '../utils/categoryPerfSummaryEmailTemplate.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
-import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
+import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa, getSellingPriceCompData } from './alertDataService.js';
 import { fetchPTDPlatformKPIs } from './ptdPerfSummaryDataService.js';
 import { generatePtdPerfSummaryEmailHtml } from '../utils/ptdPerfSummaryEmailTemplate.js';
 
@@ -19,8 +19,8 @@ let cronIntervalId = null;
  * Initialize nodemailer transport with Outlook credentials from .env
  */
 const getTransporter = () => {
-    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || process.env.SMTP_USER || 'business@trailytics.com';
-    const password = process.env.Alert_email_password || process.env.ALERT_EMAIL_PASSWORD || process.env.SMTP_PASS;
+    const fromEmail = process.env.SMTP_USER || process.env.Alert_email || process.env.ALERT_EMAIL || 'no-reply@trailytics.com';
+    const password = process.env.SMTP_PASS || process.env.Alert_email_password || process.env.ALERT_EMAIL_PASSWORD;
     const host = process.env.SMTP_HOST || 'smtp.office365.com';
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
 
@@ -256,7 +256,7 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
     // Parse lastSentDateStr into Date object
     const normalizedStr = String(lastSentDateStr).replace(' ', 'T');
     const lastSentDate = new Date(normalizedStr);
-    
+
     if (isNaN(lastSentDate.getTime())) {
         return { allowed: true, reason: 'Invalid last dispatch date, allowing dispatch' };
     }
@@ -294,9 +294,9 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
             return { allowed: true, reason: `Hourly frequency met (${diffHours} hrs passed)` };
         } else {
             const minsRemaining = Math.ceil((oneHourMs - diffMs) / (60 * 1000));
-            return { 
-                allowed: false, 
-                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.` 
+            return {
+                allowed: false,
+                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.`
             };
         }
     }
@@ -307,9 +307,9 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
             return { allowed: true, reason: `Daily frequency met (${diffHours} hrs passed)` };
         } else {
             const hoursRemaining = ((oneDayMs - diffMs) / (60 * 60 * 1000)).toFixed(1);
-            return { 
-                allowed: false, 
-                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${hoursRemaining} more hours.` 
+            return {
+                allowed: false,
+                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${hoursRemaining} more hours.`
             };
         }
     }
@@ -320,9 +320,9 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
             return { allowed: true, reason: `Weekly frequency met` };
         } else {
             const daysRemaining = ((oneWeekMs - diffMs) / (24 * 60 * 60 * 1000)).toFixed(1);
-            return { 
-                allowed: false, 
-                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${daysRemaining} more days.` 
+            return {
+                allowed: false,
+                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${daysRemaining} more days.`
             };
         }
     }
@@ -339,10 +339,10 @@ const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
  * 4. Sends alert email via Outlook SMTP if trigger conditions match and recipient email is entered.
  * 5. Saves current IST timestamp to last_email_sent column in ClickHouse.
  */
-export const runEmailAlertsJob = async () => {
+export const runEmailAlertsJob = async (targetAlertId = null) => {
     const istNow = getISTDateTimeString();
-    console.log(`[AlertCron ${istNow} IST] Running scheduled email alerts job...`);
-    
+    console.log(`[AlertCron ${istNow} IST] Running ${targetAlertId ? `targeted alert check for id "${targetAlertId}"` : 'scheduled email alerts job'}...`);
+
     const transporter = getTransporter();
     if (!transporter) {
         console.error('[AlertCron] Aborting job: Nodemailer transporter is not configured');
@@ -363,8 +363,8 @@ export const runEmailAlertsJob = async () => {
             logoMap.set(row.db_id, row.logo_url || '');
         }
 
-        // 2. Fetch all configured alerts with last_email_sent, alert_frequency, and scheduled_day
-        const alerts = await queryAdminDB(`
+        // 2. Fetch configured alert(s) with last_email_sent, alert_frequency, and scheduled_day
+        let alertQuery = `
             SELECT 
                 toString(id) as id,
                 toString(db_id) as db_id,
@@ -380,10 +380,15 @@ export const runEmailAlertsJob = async () => {
                 alert_frequency,
                 severity_level,
                 scheduled_day,
+                sku_scope,
                 toString(last_email_sent) as last_email_sent,
                 toString(last_whatsapp_msg_sent) as last_whatsapp_msg_sent
             FROM tb_alert
-        `);
+        `;
+        if (targetAlertId) {
+            alertQuery += ` WHERE toString(id) = '${targetAlertId}'`;
+        }
+        const alerts = await queryAdminDB(alertQuery);
 
         if (alerts.length === 0) {
             console.log('[AlertCron] No active alert configurations found.');
@@ -436,7 +441,7 @@ export const runEmailAlertsJob = async () => {
                         console.log(`[AlertCron] Performance Summary "${alert.alert_name}" has no email. Skipping.`);
                         continue;
                     }
-                    
+
                     const fmtDate = (d) => {
                         const y = d.getFullYear();
                         const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -444,7 +449,7 @@ export const runEmailAlertsJob = async () => {
                         return `${y}-${m}-${dd}`;
                     };
                     const todayStr = fmtDate(istNow);
-                    
+
                     let alreadySentToday = false;
                     if (alert.last_email_sent && !String(alert.last_email_sent).includes('\\N')) {
                         const normalizedStr = String(alert.last_email_sent).replace(' ', 'T');
@@ -682,7 +687,7 @@ export const runEmailAlertsJob = async () => {
                     const neno = parseFloat(pdpStats[0]?.neno) || 0;
                     const deno = parseFloat(pdpStats[0]?.deno) || 0;
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
-                    
+
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
                     const platLabel = getPlatformLabel(alert.platforms);
                     const platPrefix = platLabel ? `${platLabel} ` : '';
@@ -758,8 +763,8 @@ export const runEmailAlertsJob = async () => {
                             m.Platform, m.City, m.osa, m.pw_avg, m.delta
                         FROM city_metrics m
                         INNER JOIN bottom_threshold t ON m.Platform = t.Platform
-                        WHERE m.osa <= t.threshold AND m.osa > 0
-                        ORDER BY m.Platform, m.osa ASC
+                        WHERE m.osa <= t.threshold AND (m.osa > 0 OR t.threshold = 0)
+                        ORDER BY m.Platform, m.delta ASC, m.osa ASC
                         LIMIT 10 BY m.Platform
                     `;
                     const aggQuery = `
@@ -797,11 +802,11 @@ export const runEmailAlertsJob = async () => {
                     ]);
                     const bottomCities = pdpStats;
                     isTriggered = bottomCities.length > 0;
-                    
+
                     const cwOsa = parseFloat(aggStats[0]?.cw_osa) || 0;
                     const pwOsa = parseFloat(aggStats[0]?.pw_osa) || 0;
                     const aggDelta = cwOsa - pwOsa;
-                    
+
                     const platLabel = getPlatformLabel(alert.platforms);
                     const platPrefix = platLabel ? `${platLabel} ` : '';
 
@@ -820,9 +825,9 @@ export const runEmailAlertsJob = async () => {
                                 platformName: plat,
                                 headers: ['City Name', 'CW OSA %', 'PW OSA %', 'Delta'],
                                 rows: platCities.map(c => [
-                                    c.City || 'Unknown', 
-                                    parseFloat(c.osa).toFixed(2) + '%', 
-                                    parseFloat(c.pw_avg || 0).toFixed(2) + '%', 
+                                    c.City || 'Unknown',
+                                    parseFloat(c.osa).toFixed(2) + '%',
+                                    parseFloat(c.pw_avg || 0).toFixed(2) + '%',
                                     parseFloat(c.delta || 0).toFixed(2) + '%'
                                 ])
                             };
@@ -834,6 +839,19 @@ export const runEmailAlertsJob = async () => {
                     isDynamicAlert = true;
                     const isRolling = alertType.endsWith('_weekly');
                     const pct = (threshold / 100).toFixed(2);
+                    const isEmami = dbName && dbName.toLowerCase().includes('emami');
+                    const skuScope = (alert.sku_scope || '').toLowerCase().trim(); // 'top_sku' | 'all_sku'
+
+                    let emamiSkuFilter = '';
+                    if (isEmami) {
+                        if (skuScope === 'all_sku') {
+                            emamiSkuFilter = `AND lower(Web_Pid) IN (SELECT lower(web_pid) FROM \`${dbName}\`.rb_sku_platform WHERE is_competitor = 0)`;
+                        } else {
+                            // Default to Top SKU for Emami (emsl_flag = '1')
+                            emamiSkuFilter = `AND lower(Web_Pid) IN (SELECT lower(web_pid) FROM \`${dbName}\`.rb_sku_platform WHERE emsl_flag = '1')`;
+                        }
+                    }
+
                     const pdpQuery = `
                         WITH
                             latest_date AS (
@@ -849,13 +867,17 @@ export const runEmailAlertsJob = async () => {
                             ),
                             weekly_product_stats AS (
                                 SELECT
-                                    Platform, Web_Pid, any(Product) AS sku_name, any(msl) AS is_msl,
+                                    Platform, Web_Pid, any(Product) AS sku_name,
+                                    ${isEmami
+                            ? `if(lower(Web_Pid) IN (SELECT lower(web_pid) FROM \`${dbName}\`.rb_sku_platform WHERE emsl_flag = '1'), 1, 0) AS is_msl`
+                            : `any(msl) AS is_msl`},
                                     ${isRolling ? 'if(DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1), \'cw\', \'pw\')' : 'subtractDays(DATE, toDayOfWeek(DATE) % 7)'} AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                   AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                  ${emamiSkuFilter}
                                   ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 14 DAY' : ''}
                                 GROUP BY Platform, Web_Pid, week_start
                             ),
@@ -893,8 +915,8 @@ export const runEmailAlertsJob = async () => {
                             m.Platform, m.Web_Pid, m.Product, m.msl, m.osa, m.pw_avg, m.delta
                         FROM product_metrics m
                         INNER JOIN bottom_threshold t ON m.Platform = t.Platform
-                        WHERE m.osa <= t.threshold AND m.osa > 0
-                        ORDER BY m.Platform, m.osa ASC
+                        WHERE m.osa <= t.threshold AND (m.osa > 0 OR t.threshold = 0)
+                        ORDER BY m.Platform, m.delta ASC, m.osa ASC
                         LIMIT 10 BY m.Platform
                     `;
                     const aggQuery = `
@@ -915,6 +937,8 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                  AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                  ${emamiSkuFilter}
                                   ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 14 DAY' : ''}
                                 GROUP BY week_start
                             ),
@@ -932,19 +956,20 @@ export const runEmailAlertsJob = async () => {
                     ]);
                     const bottomProducts = pdpStats;
                     isTriggered = bottomProducts.length > 0;
-                    
+
                     const cwOsa = parseFloat(aggStats[0]?.cw_osa) || 0;
                     const pwOsa = parseFloat(aggStats[0]?.pw_osa) || 0;
                     const aggDelta = cwOsa - pwOsa;
-                    
+
                     const platLabel = getPlatformLabel(alert.platforms);
                     const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const scopeLabel = isEmami ? (skuScope === 'all_sku' ? 'All SKUs' : 'Top SKUs') : 'Platform-wise';
 
                     metricDetails = {
                         ruleType: 'Low OSA Alert (Bottom % Product Level)',
                         calculatedOSA: cwOsa.toFixed(2) + '%',
                         aggDelta: aggDelta.toFixed(2),
-                        conditionText: `${platPrefix}Bottom ${threshold}% products by OSA (Platform-wise)`,
+                        conditionText: `${platPrefix}Bottom ${threshold}% products by OSA (${scopeLabel})`,
                     };
 
                     if (isTriggered) {
@@ -960,10 +985,10 @@ export const runEmailAlertsJob = async () => {
                                         mslStatus = 'pareto';
                                     }
                                     return [
-                                        p.Product || 'Unknown', 
-                                        parseFloat(p.osa).toFixed(2) + '%', 
-                                        parseFloat(p.pw_avg || 0).toFixed(2) + '%', 
-                                        parseFloat(p.delta || 0).toFixed(2) + '%', 
+                                        p.Product || 'Unknown',
+                                        parseFloat(p.osa).toFixed(2) + '%',
+                                        parseFloat(p.pw_avg || 0).toFixed(2) + '%',
+                                        parseFloat(p.delta || 0).toFixed(2) + '%',
                                         mslStatus
                                     ];
                                 })
@@ -1109,7 +1134,7 @@ export const runEmailAlertsJob = async () => {
                             delta DESC
                         LIMIT 10 BY platform, bcg
                     `;
-                    
+
                     const aggKwQuery = `
                         WITH
                             latest_date AS (
@@ -1150,7 +1175,7 @@ export const runEmailAlertsJob = async () => {
                         queryAdminDB(aggKwQuery)
                     ]);
                     isTriggered = kwStats.length > 0;
-                    
+
                     const platLabel = getPlatformLabel(alert.platforms);
                     const platPrefix = platLabel ? `${platLabel} ` : '';
 
@@ -1166,14 +1191,14 @@ export const runEmailAlertsJob = async () => {
                     if (isTriggered) {
                         try {
                             const platformsMap = new Map();
-                            const selectedPlats = (Array.isArray(alert.platforms) && alert.platforms.length > 0) 
-                                ? alert.platforms.filter(p => p && p !== 'All Platforms') 
+                            const selectedPlats = (Array.isArray(alert.platforms) && alert.platforms.length > 0)
+                                ? alert.platforms.filter(p => p && p !== 'All Platforms')
                                 : [];
 
                             kwStats.forEach(k => {
                                 let platLabelLocal = (k.platform || 'Unknown').toLowerCase();
                                 let bcgLabel = k.bcg || 'Uncategorized';
-                                
+
                                 if (!platformsMap.has(platLabelLocal)) {
                                     platformsMap.set(platLabelLocal, new Map());
                                 }
@@ -1181,7 +1206,7 @@ export const runEmailAlertsJob = async () => {
                                 if (!bcgMap.has(bcgLabel)) {
                                     bcgMap.set(bcgLabel, []);
                                 }
-                                
+
                                 bcgMap.get(bcgLabel).push([
                                     k.keyword || 'Unknown',
                                     parseFloat(k.sos).toFixed(2) + '%',
@@ -1192,8 +1217,8 @@ export const runEmailAlertsJob = async () => {
 
                             dynamicEmailData = [];
                             for (const [platformNameLower, bcgMap] of platformsMap.entries()) {
-                                const originalPlat = selectedPlats.find(p => p.toLowerCase() === platformNameLower) || 
-                                                     (platformNameLower.charAt(0).toUpperCase() + platformNameLower.slice(1));
+                                const originalPlat = selectedPlats.find(p => p.toLowerCase() === platformNameLower) ||
+                                    (platformNameLower.charAt(0).toUpperCase() + platformNameLower.slice(1));
 
                                 const tables = [];
                                 for (const [bcg, rows] of bcgMap.entries()) {
@@ -1205,7 +1230,7 @@ export const runEmailAlertsJob = async () => {
                                         });
                                     }
                                 }
-                                
+
                                 if (tables.length > 0) {
                                     dynamicEmailData.push({
                                         platformName: originalPlat,
@@ -1286,7 +1311,7 @@ export const runEmailAlertsJob = async () => {
 
                     const currDisc = parseFloat(discStats[0]?.curr_discount) || 0;
                     const baseDisc = parseFloat(baseDiscStats[0]?.base_discount) || 0;
-                    
+
                     const shiftPct = baseDisc > 0 ? Math.abs(((currDisc - baseDisc) / baseDisc) * 100) : Math.abs(currDisc - baseDisc);
                     isTriggered = shiftPct >= threshold;
 
@@ -1354,9 +1379,152 @@ export const runEmailAlertsJob = async () => {
                         conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
+                // Rule 4b: Average Selling Price vs Competition Alert (avg_selling_price_comp)
+                else if (alertType === 'avg_selling_price_comp' || alertType === 'avg_selling_price_comp_weekly' || alertType.includes('selling_price') || alertType.includes('price_comp')) {
+                    isDynamicAlert = true;
+                    const latestDateStr = await getLatestDataDate(dbName);
+                    const dateRanges = computeDateRanges(alert.benchmark_period, latestDateStr);
+
+                    const priceData = await getSellingPriceCompData(
+                        dbName,
+                        alert.platforms,
+                        alert.brands,
+                        dateRanges.currentStart,
+                        dateRanges.currentEnd,
+                        dateRanges.prevStart,
+                        dateRanges.prevEnd
+                    );
+
+                    const overallBrandCurr = parseFloat(priceData.overall?.overall_brand_curr) || 0;
+                    const overallBrandPrev = parseFloat(priceData.overall?.overall_brand_prev) || 0;
+                    const overallCompCurr = parseFloat(priceData.overall?.overall_comp_curr) || 0;
+                    const overallCompPrev = parseFloat(priceData.overall?.overall_comp_prev) || 0;
+
+                    const brandDelta = overallBrandCurr - overallBrandPrev;
+                    const brandDeltaPct = overallBrandPrev > 0 ? (brandDelta / overallBrandPrev) * 100 : 0;
+
+                    // Condition check: "email which is going to client should go only when the threshold value is less than the brand value picked by client"
+                    // Threshold < Brand Value (meaning brandValue > threshold)
+                    const brandValue = overallBrandCurr;
+                    if (alert.conditional_operator === 'lt') {
+                        isTriggered = brandValue < threshold;
+                    } else {
+                        // Default operator / 'gt': threshold < brandValue (i.e. brandValue > threshold)
+                        isTriggered = threshold < brandValue;
+                    }
+
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator) || '>';
+
+                    metricDetails = {
+                        ruleType: 'Average Selling Price vs Competition Alert',
+                        calculatedOSA: `${currency}${overallBrandCurr.toFixed(2)}`,
+                        aggDelta: `${brandDelta >= 0 ? '+' : ''}${currency}${brandDelta.toFixed(2)} (${brandDeltaPct >= 0 ? '+' : ''}${brandDeltaPct.toFixed(1)}%)`,
+                        conditionText: `${platPrefix}Brand Avg SP (${currency}${overallBrandCurr.toFixed(2)}) ${opSym} Threshold (${currency}${threshold}) | Comp Avg SP: ${currency}${overallCompCurr.toFixed(2)}`,
+                    };
+
+                    if (isTriggered) {
+                        const platformSummaries = priceData.platformSummary || [];
+                        const detailedBrands = priceData.detailedBrands || [];
+
+                        const distinctPlatforms = [...new Set(platformSummaries.map(p => p.Platform))];
+
+                        dynamicEmailData = (distinctPlatforms.length > 0 ? distinctPlatforms : ['All Platforms']).map(plat => {
+                            const platSummary = platformSummaries.find(p => p.Platform?.toLowerCase() === plat?.toLowerCase()) || {};
+                            const pBrandCurr = parseFloat(platSummary.brand_curr_sp) || overallBrandCurr;
+                            const pBrandPrev = parseFloat(platSummary.brand_prev_sp) || overallBrandPrev;
+                            const pCompCurr = parseFloat(platSummary.comp_curr_sp) || overallCompCurr;
+                            const pCompPrev = parseFloat(platSummary.comp_prev_sp) || overallCompPrev;
+
+                            const pBrandDelta = pBrandCurr - pBrandPrev;
+                            const pBrandDeltaPct = pBrandPrev > 0 ? (pBrandDelta / pBrandPrev) * 100 : 0;
+
+                            const pCompDelta = pCompCurr - pCompPrev;
+                            const pCompDeltaPct = pCompPrev > 0 ? (pCompDelta / pCompPrev) * 100 : 0;
+
+                            const pGapCurr = pBrandCurr - pCompCurr;
+                            const pGapPrev = pBrandPrev - pCompPrev;
+                            const pGapDelta = pGapCurr - pGapPrev;
+                            const pGapDeltaPct = pCompCurr > 0 ? (pGapCurr / pCompCurr) * 100 : 0;
+
+                            const summaryRows = [
+                                [
+                                    'Our Brand(s) Avg SP',
+                                    `${currency}${pBrandCurr.toFixed(2)}`,
+                                    `${currency}${pBrandPrev.toFixed(2)}`,
+                                    `${pBrandDelta >= 0 ? '+' : ''}${currency}${pBrandDelta.toFixed(2)}`,
+                                    `${pBrandDeltaPct >= 0 ? '+' : ''}${pBrandDeltaPct.toFixed(2)}%`
+                                ],
+                                [
+                                    'Competition Avg SP',
+                                    `${currency}${pCompCurr.toFixed(2)}`,
+                                    `${currency}${pCompPrev.toFixed(2)}`,
+                                    `${pCompDelta >= 0 ? '+' : ''}${currency}${pCompDelta.toFixed(2)}`,
+                                    `${pCompDeltaPct >= 0 ? '+' : ''}${pCompDeltaPct.toFixed(2)}%`
+                                ],
+                                [
+                                    'Price Gap (Our vs Comp)',
+                                    `${pGapCurr >= 0 ? '+' : ''}${currency}${pGapCurr.toFixed(2)}`,
+                                    `${pGapPrev >= 0 ? '+' : ''}${currency}${pGapPrev.toFixed(2)}`,
+                                    `${pGapDelta >= 0 ? '+' : ''}${currency}${pGapDelta.toFixed(2)}`,
+                                    `${pGapDeltaPct >= 0 ? '+' : ''}${pGapDeltaPct.toFixed(2)}%`
+                                ]
+                            ];
+
+                            const platBrands = detailedBrands.filter(b => b.Platform?.toLowerCase() === plat?.toLowerCase());
+                            const brandRows = platBrands.map(b => {
+                                const cSp = parseFloat(b.curr_sp) || 0;
+                                const pSp = parseFloat(b.prev_sp) || 0;
+                                const dSp = cSp - pSp;
+                                const dPct = pSp > 0 ? (dSp / pSp) * 100 : 0;
+                                return [
+                                    b.Brand || 'Unknown',
+                                    Number(b.Comp_flag) === 1 ? 'Competitor' : 'Our Brand',
+                                    `${currency}${cSp.toFixed(2)}`,
+                                    `${currency}${pSp.toFixed(2)}`,
+                                    `${dSp >= 0 ? '+' : ''}${currency}${dSp.toFixed(2)}`,
+                                    `${dPct >= 0 ? '+' : ''}${dPct.toFixed(2)}%`
+                                ];
+                            });
+
+                            const tables = [
+                                {
+                                    tableName: 'Average Selling Price Overview (Brand vs Competition)',
+                                    headers: ['Segment', 'Current Period', 'Previous Period', 'Delta', 'Change %'],
+                                    rows: summaryRows
+                                }
+                            ];
+
+                            if (brandRows.length > 0) {
+                                tables.push({
+                                    tableName: 'Brand & Competitor Price Breakdown',
+                                    headers: ['Brand', 'Classification', 'Current SP', 'Previous SP', 'Delta', 'Change %'],
+                                    rows: brandRows
+                                });
+                            }
+
+                            return {
+                                platformName: plat,
+                                tables
+                            };
+                        });
+                    }
+                }
                 // Rule 5: Low OSA – Product Level | vs Previous Day
                 else if (alertType === 'low_osa_product') {
                     isDynamicAlert = true;
+                    const isEmami = dbName && dbName.toLowerCase().includes('emami');
+                    const skuScope = (alert.sku_scope || '').toLowerCase().trim();
+                    let emamiSkuFilter = '';
+                    if (isEmami) {
+                        if (skuScope === 'all_sku') {
+                            emamiSkuFilter = `AND lower(Web_Pid) IN (SELECT lower(web_pid) FROM \`${dbName}\`.rb_sku_platform WHERE is_competitor = 0)`;
+                        } else {
+                            emamiSkuFilter = `AND lower(Web_Pid) IN (SELECT lower(web_pid) FROM \`${dbName}\`.rb_sku_platform WHERE emsl_flag = '1')`;
+                        }
+                    }
+
                     const dropQuery = `
                         WITH 
                             available_dates AS (
@@ -1376,6 +1544,7 @@ export const runEmailAlertsJob = async () => {
                                 WHERE DATE IN (SELECT DATE FROM available_dates)
                                   AND Comp_flag = 0
                                   ${pdpFilterClause}
+                                  ${emamiSkuFilter}
                                   AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
                                 GROUP BY Platform, Brand, sku, DATE
                             ),
@@ -1399,9 +1568,9 @@ export const runEmailAlertsJob = async () => {
                         LIMIT 10 BY Platform
                     `;
                     const drops = await queryAdminDB(dropQuery);
-                    
+
                     isTriggered = drops.length > 0;
-                    
+
                     metricDetails = {
                         ruleType: 'Low OSA – Product Level | vs Previous Day',
                         calculatedOSA: 'N/A',
@@ -1452,9 +1621,9 @@ export const runEmailAlertsJob = async () => {
                                 overallOsa: overallOsaMap[plat] || null,
                                 headers: ['SKU', 'Yesterday OSA', 'Day Before Yesterday OSA', 'Delta'],
                                 rows: platDrops.map(d => [
-                                    d.sku || 'Unknown', 
-                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%', 
-                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%', 
+                                    d.sku || 'Unknown',
+                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%',
+                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%',
                                     parseFloat(d.delta || 0).toFixed(2) + '%'
                                 ]),
                                 rawDrops: platDrops
@@ -1507,9 +1676,9 @@ export const runEmailAlertsJob = async () => {
                         LIMIT 10 BY Platform
                     `;
                     const drops = await queryAdminDB(dropQuery);
-                    
+
                     isTriggered = drops.length > 0;
-                    
+
                     metricDetails = {
                         ruleType: 'Low OSA – City Level | vs Previous Day',
                         calculatedOSA: 'N/A',
@@ -1558,9 +1727,9 @@ export const runEmailAlertsJob = async () => {
                                 overallOsa: overallOsaMap[plat] || null,
                                 headers: ['City', 'Yesterday OSA', 'Day Before Yesterday OSA', 'Delta'],
                                 rows: platDrops.map(d => [
-                                    d.city || 'Unknown', 
-                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%', 
-                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%', 
+                                    d.city || 'Unknown',
+                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%',
+                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%',
                                     parseFloat(d.delta || 0).toFixed(2) + '%'
                                 ]),
                                 rawDrops: platDrops
@@ -1571,10 +1740,10 @@ export const runEmailAlertsJob = async () => {
                 // Rule 7: Low Offtake – Product Level | vs L30 Days AVG
                 else if (alertType === 'low_offtake_product') {
                     isDynamicAlert = true;
-                    const sqlOp = alert.conditional_operator === 'lt' ? '<' : 
-                                  alert.conditional_operator === 'lte' ? '<=' : 
-                                  alert.conditional_operator === 'gt' ? '>' : 
-                                  alert.conditional_operator === 'gte' ? '>=' : '=';
+                    const sqlOp = alert.conditional_operator === 'lt' ? '<' :
+                        alert.conditional_operator === 'lte' ? '<=' :
+                            alert.conditional_operator === 'gt' ? '>' :
+                                alert.conditional_operator === 'gte' ? '>=' : '=';
 
                     const dropQuery = `
                         WITH 
@@ -1646,9 +1815,9 @@ export const runEmailAlertsJob = async () => {
                         LIMIT 10 BY Platform
                     `;
                     const drops = await queryAdminDB(dropQuery);
-                    
+
                     isTriggered = drops.length > 0;
-                    
+
                     metricDetails = {
                         ruleType: 'Low Offtake – Product Level | vs L30 Days AVG',
                         calculatedOSA: 'N/A', // Not used for this dynamic alert
@@ -1680,7 +1849,7 @@ export const runEmailAlertsJob = async () => {
                         try {
                             const overallRows = await queryAdminDB(overallQuery);
                             overallRows.forEach(r => {
-                                overallOsaMap[r.Platform] = `₹${parseFloat(r.overall_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
+                                overallOsaMap[r.Platform] = `₹${parseFloat(r.overall_offtake || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
                             });
                         } catch (err) {
                             console.warn(`[AlertCron] Overall Offtake query failed for ${dbName}:`, err.message);
@@ -1694,9 +1863,9 @@ export const runEmailAlertsJob = async () => {
                                 overallLabel: 'Overall Offtake',
                                 headers: ['Product', 'Current Offtake', 'L30 Avg Offtake', 'Delta'],
                                 rows: platDrops.map(d => [
-                                    d.sku || 'Unknown', 
-                                    `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`, 
-                                    `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`, 
+                                    d.sku || 'Unknown',
+                                    `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+                                    `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
                                     parseFloat(d.delta || 0).toFixed(2) + '%'
                                 ]),
                                 rawDrops: platDrops
@@ -1728,7 +1897,7 @@ export const runEmailAlertsJob = async () => {
                     const neno = parseFloat(pdpStats[0]?.neno) || 0;
                     const deno = parseFloat(pdpStats[0]?.deno) || 0;
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
-                    
+
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
                     const platLabel = getPlatformLabel(alert.platforms);
                     const platPrefix = platLabel ? `${platLabel} ` : '';
@@ -1870,7 +2039,7 @@ export const runEmailAlertsJob = async () => {
                                     currentMetricValue: isDynamicAlert ? metricDetails.calculatedOSA : (aggregateOsa.currentOsa ? `${aggregateOsa.currentOsa}%` : 'N/A'),
                                     metricDelta: isDynamicAlert ? (metricDetails.aggDelta !== undefined ? metricDetails.aggDelta : aggregateOsa.delta) : aggregateOsa.delta,
                                     operator: isDynamicAlert ? (formatOperatorSymbol(alert.conditional_operator) || '<=') : alertOpSym,
-                                    threshold: threshold,
+                                    threshold: (alert.alert_type && (alert.alert_type.includes('selling_price') || alert.alert_type.includes('price'))) ? ` ${currency}${threshold}` : threshold,
                                     platformData: finalDynamicEmailData,
                                     cwStart: finalCwStart,
                                     cwEnd: finalCwEnd,
@@ -1926,7 +2095,7 @@ export const runEmailAlertsJob = async () => {
                             // waAlerts carries structured data → buildAlertBodyParam() → {{3}}.
                             // waLines is only used for test_2/3/4 which have no structured data.
                             let waAlerts = null;   // AlertEntry[]  – used when available
-                            let waLines  = null;   // string        – legacy fallback
+                            let waLines = null;   // string        – legacy fallback
 
                             if (alertType === 'low_osa_product' || alertType === 'low_osa_city' || alertType === 'low_offtake_product' || alertType.startsWith('whatsapp_test')) {
                                 if (alertType === 'low_osa_product') {
@@ -1941,31 +2110,31 @@ export const runEmailAlertsJob = async () => {
                                             // Each SKU line: name | Curr: X% | Prev: Y% | Δ: Z%
                                             const skuLines = Array.isArray(p.rawDrops)
                                                 ? p.rawDrops.slice(0, 5).map(d => {
-                                                    const name     = (d.sku || 'Unknown').trim();
-                                                    const curr     = parseFloat(d.osa_yesterday   || 0).toFixed(1);
-                                                    const prev     = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
-                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const name = (d.sku || 'Unknown').trim();
+                                                    const curr = parseFloat(d.osa_yesterday || 0).toFixed(1);
+                                                    const prev = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
+                                                    const delta = parseFloat(d.delta || 0);
                                                     const absDelta = Math.abs(delta).toFixed(1);
-                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    const trend = delta < 0 ? '🔻' : '🔺';
                                                     // \r inside the string is preserved by sanitizeSegment and
                                                     // renders as a real line break on WhatsApp clients.
                                                     return `${name}\r  OSA dropped from ${prev}% to ${curr}% (${trend} ${absDelta}%)`;
                                                 })
                                                 : [];
                                             return {
-                                                title:      alert.alert_name || 'Alert',
-                                                platform:   p.platformName  || null,
-                                                threshold:  thresholdStr1   || null,
-                                                overallOsa: p.overallOsa    || null,
-                                                skus:       skuLines,
+                                                title: alert.alert_name || 'Alert',
+                                                platform: p.platformName || null,
+                                                threshold: thresholdStr1 || null,
+                                                overallOsa: p.overallOsa || null,
+                                                skus: skuLines,
                                             };
                                         });
                                     } else {
                                         waAlerts = [{
-                                            title:     alert.alert_name || 'Alert',
-                                            platform:  null,
+                                            title: alert.alert_name || 'Alert',
+                                            platform: null,
                                             threshold: thresholdStr1 || null,
-                                            skus:      [],
+                                            skus: [],
                                         }];
                                     }
                                 } else if (alertType === 'low_osa_city') {
@@ -1978,31 +2147,31 @@ export const runEmailAlertsJob = async () => {
                                         waAlerts = dynamicEmailData.map((p) => {
                                             const cityLines = Array.isArray(p.rawDrops)
                                                 ? p.rawDrops.slice(0, 5).map(d => {
-                                                    const name     = (d.city || 'Unknown').trim();
-                                                    const curr     = parseFloat(d.osa_yesterday   || 0).toFixed(1);
-                                                    const prev     = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
-                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const name = (d.city || 'Unknown').trim();
+                                                    const curr = parseFloat(d.osa_yesterday || 0).toFixed(1);
+                                                    const prev = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
+                                                    const delta = parseFloat(d.delta || 0);
                                                     const absDelta = Math.abs(delta).toFixed(1);
-                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    const trend = delta < 0 ? '🔻' : '🔺';
                                                     return `${name}\r  OSA dropped from ${prev}% to ${curr}% (${trend} ${absDelta}%)`;
                                                 })
                                                 : [];
                                             return {
-                                                title:      alert.alert_name || 'Alert',
-                                                platform:   p.platformName  || null,
-                                                threshold:  thresholdStr1   || null,
-                                                overallOsa: p.overallOsa    || null,
+                                                title: alert.alert_name || 'Alert',
+                                                platform: p.platformName || null,
+                                                threshold: thresholdStr1 || null,
+                                                overallOsa: p.overallOsa || null,
                                                 impactedItemName: 'City',
-                                                skus:       cityLines,
+                                                skus: cityLines,
                                             };
                                         });
                                     } else {
                                         waAlerts = [{
-                                            title:     alert.alert_name || 'Alert',
-                                            platform:  null,
+                                            title: alert.alert_name || 'Alert',
+                                            platform: null,
                                             threshold: thresholdStr1 || null,
                                             impactedItemName: 'City',
-                                            skus:      [],
+                                            skus: [],
                                         }];
                                     }
                                 } else if (alertType === 'low_offtake_product') {
@@ -2015,33 +2184,33 @@ export const runEmailAlertsJob = async () => {
                                         waAlerts = dynamicEmailData.map((p) => {
                                             const offtakeLines = Array.isArray(p.rawDrops)
                                                 ? p.rawDrops.slice(0, 5).map(d => {
-                                                    const name     = (d.sku || 'Unknown').trim();
-                                                    const curr     = `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
-                                                    const prev     = `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
-                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const name = (d.sku || 'Unknown').trim();
+                                                    const curr = `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                                                    const prev = `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                                                    const delta = parseFloat(d.delta || 0);
                                                     const absDelta = Math.abs(delta).toFixed(1);
-                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    const trend = delta < 0 ? '🔻' : '🔺';
                                                     return `${name}\r  Offtake dropped from ${prev} to ${curr} (${trend} ${absDelta}%)`;
                                                 })
                                                 : [];
                                             return {
-                                                title:      alert.alert_name || 'Alert',
-                                                platform:   p.platformName  || null,
-                                                threshold:  thresholdStr1   || null,
-                                                overallOsa: p.overallOsa    || null,
+                                                title: alert.alert_name || 'Alert',
+                                                platform: p.platformName || null,
+                                                threshold: thresholdStr1 || null,
+                                                overallOsa: p.overallOsa || null,
                                                 overallLabel: 'Overall Offtake',
                                                 impactedItemName: 'Product',
-                                                skus:       offtakeLines,
+                                                skus: offtakeLines,
                                             };
                                         });
                                     } else {
                                         waAlerts = [{
-                                            title:     alert.alert_name || 'Alert',
-                                            platform:  null,
+                                            title: alert.alert_name || 'Alert',
+                                            platform: null,
                                             threshold: thresholdStr1 || null,
                                             overallLabel: 'Overall Offtake',
                                             impactedItemName: 'Product',
-                                            skus:      [],
+                                            skus: [],
                                         }];
                                     }
                                 } else if (alertType === 'whatsapp_test_3') {
@@ -2058,24 +2227,36 @@ export const runEmailAlertsJob = async () => {
                                     ? `${opSym} ${threshold}%`.trim()
                                     : null;
 
-                                if (platformData.length > 0) {
+                                if (isDynamicAlert && Array.isArray(dynamicEmailData) && dynamicEmailData.length > 0) {
+                                    waAlerts = dynamicEmailData.map((pd) => {
+                                        const skuNames = Array.isArray(pd.rows)
+                                            ? pd.rows.map(r => String(r[0] || 'Unknown')).slice(0, 5)
+                                            : (Array.isArray(pd.rawDrops) ? pd.rawDrops.map(d => String(d.sku || 'Unknown')).slice(0, 5) : []);
+                                        return {
+                                            title: alert.alert_name || metricDetails.ruleType || 'Alert',
+                                            platform: pd.platformName || pd.platform || null,
+                                            threshold: thresholdStr || null,
+                                            skus: skuNames,
+                                        };
+                                    });
+                                } else if (platformData.length > 0) {
                                     waAlerts = platformData.map((pd) => {
                                         const skuNames = Array.isArray(pd.skus)
                                             ? pd.skus.map(s => s.skuName || s.sku_name || 'Unknown')
                                             : [];
                                         return {
-                                            title:     alert.alert_name || metricDetails.ruleType || 'Alert',
-                                            platform:  pd.platform || null,
+                                            title: alert.alert_name || metricDetails.ruleType || 'Alert',
+                                            platform: pd.platform || null,
                                             threshold: thresholdStr || null,
-                                            skus:      skuNames,
+                                            skus: skuNames,
                                         };
                                     });
                                 } else {
                                     waAlerts = [{
-                                        title:     alert.alert_name || metricDetails.ruleType || 'Alert',
-                                        platform:  null,
+                                        title: alert.alert_name || metricDetails.ruleType || 'Alert',
+                                        platform: null,
                                         threshold: thresholdStr || null,
-                                        skus:      [],
+                                        skus: [],
                                     }];
                                 }
                             }
@@ -2083,15 +2264,15 @@ export const runEmailAlertsJob = async () => {
                             const components = buildAlertTemplateComponents({
                                 recipientName,
                                 clientName: companyDisplayName,
-                                alerts:     waAlerts,
-                                lines:      waLines,
+                                alerts: waAlerts,
+                                lines: waLines,
                                 dashboardPathParam: '',
                             });
                             const fullText = buildAlertFullText({
                                 recipientName,
                                 clientName: companyDisplayName,
-                                alerts:     waAlerts,
-                                lines:      waLines,
+                                alerts: waAlerts,
+                                lines: waLines,
                             });
 
                             try {
@@ -2137,7 +2318,7 @@ export const initAlertCron = () => {
     }
 
     console.log(`[AlertCron] Initializing alert scheduler (runs every 30 minutes)`);
-    
+
     cronIntervalId = setInterval(() => {
         runEmailAlertsJob().catch(err => {
             console.error('[AlertCron] Interval execution failed:', err.message);

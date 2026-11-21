@@ -77,6 +77,10 @@ export const computeDateRanges = (benchmarkPeriod, latestDateStr) => {
         currentStart.setDate(currentStart.getDate() - 29);
         prevEnd.setDate(prevEnd.getDate() - 30);
         prevStart.setDate(prevStart.getDate() - 59);
+    } else if (bp.includes('l4w') || bp.includes('4 week') || bp.includes('4w')) {
+        currentStart.setDate(currentStart.getDate() - 6);
+        prevEnd.setDate(prevEnd.getDate() - 7);
+        prevStart.setDate(prevStart.getDate() - 34);
     } else {
         currentStart.setDate(currentStart.getDate() - 6);
         prevEnd.setDate(prevEnd.getDate() - 7);
@@ -282,5 +286,87 @@ export const getAggregateOsa = async (dbName, platforms, brands, currentStart, c
     } catch (err) {
         console.error(`[AlertData] getAggregateOsa failed for ${dbName}:`, err.message);
         return { currentOsa: 0, previousOsa: 0, delta: 0 };
+    }
+};
+
+/**
+ * Fetch Average Selling Price for Client Brand(s) vs Competition from rb_pdp_olap
+ * across Current Period, Previous Period, and Delta.
+ */
+export const getSellingPriceCompData = async (dbName, platforms, brands, currentStart, currentEnd, prevStart, prevEnd) => {
+    try {
+        const platFilter = buildInClause(platforms);
+        const platformClause = platFilter ? `AND lower(Platform) IN (${platFilter})` : '';
+
+        const brandFilter = buildInClause(brands);
+        const brandClause = brandFilter ? `AND lower(Brand) IN (${brandFilter})` : '';
+
+        // 1. Overall Aggregates across platforms
+        const overallQuery = `
+            SELECT
+                round(avg(CASE WHEN Comp_flag = 0 AND DATE BETWEEN '${currentStart}' AND '${currentEnd}' AND Selling_Price > 0 ${brandClause} THEN Selling_Price END), 2) AS overall_brand_curr,
+                round(avg(CASE WHEN Comp_flag = 0 AND DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND Selling_Price > 0 ${brandClause} THEN Selling_Price END), 2) AS overall_brand_prev,
+                round(avg(CASE WHEN Comp_flag = 1 AND DATE BETWEEN '${currentStart}' AND '${currentEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS overall_comp_curr,
+                round(avg(CASE WHEN Comp_flag = 1 AND DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS overall_comp_prev
+            FROM \`${dbName}\`.rb_pdp_olap
+            WHERE DATE BETWEEN '${prevStart}' AND '${currentEnd}'
+              AND Selling_Price > 0
+              ${platformClause}
+        `;
+
+        // 2. Platform Summary
+        const platformQuery = `
+            SELECT
+                Platform,
+                round(avg(CASE WHEN Comp_flag = 0 AND DATE BETWEEN '${currentStart}' AND '${currentEnd}' AND Selling_Price > 0 ${brandClause} THEN Selling_Price END), 2) AS brand_curr_sp,
+                round(avg(CASE WHEN Comp_flag = 0 AND DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND Selling_Price > 0 ${brandClause} THEN Selling_Price END), 2) AS brand_prev_sp,
+                round(avg(CASE WHEN Comp_flag = 1 AND DATE BETWEEN '${currentStart}' AND '${currentEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS comp_curr_sp,
+                round(avg(CASE WHEN Comp_flag = 1 AND DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS comp_prev_sp
+            FROM \`${dbName}\`.rb_pdp_olap
+            WHERE DATE BETWEEN '${prevStart}' AND '${currentEnd}'
+              AND Selling_Price > 0
+              ${platformClause}
+            GROUP BY Platform
+            ORDER BY Platform
+        `;
+
+        // 3. Detailed Brand breakdown per Platform
+        const detailedQuery = `
+            SELECT
+                Platform,
+                Brand,
+                Comp_flag,
+                round(avg(CASE WHEN DATE BETWEEN '${currentStart}' AND '${currentEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS curr_sp,
+                round(avg(CASE WHEN DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND Selling_Price > 0 THEN Selling_Price END), 2) AS prev_sp,
+                count() AS row_cnt
+            FROM \`${dbName}\`.rb_pdp_olap
+            WHERE DATE BETWEEN '${prevStart}' AND '${currentEnd}'
+              AND Selling_Price > 0
+              ${platformClause}
+              ${brandFilter ? `AND (Comp_flag = 1 OR (${brandClause.replace(/^AND\s+/i, '')}))` : ''}
+            GROUP BY Platform, Brand, Comp_flag
+            HAVING curr_sp > 0 OR prev_sp > 0
+            ORDER BY Platform, Comp_flag ASC, count() DESC
+            LIMIT 10 BY Platform, Comp_flag
+        `;
+
+        const [overallRows, platformRows, detailedRows] = await Promise.all([
+            queryAdminDB(overallQuery),
+            queryAdminDB(platformQuery),
+            queryAdminDB(detailedQuery)
+        ]);
+
+        return {
+            overall: overallRows[0] || {},
+            platformSummary: platformRows || [],
+            detailedBrands: detailedRows || []
+        };
+    } catch (err) {
+        console.error(`[AlertData] getSellingPriceCompData failed for ${dbName}:`, err.message);
+        return {
+            overall: {},
+            platformSummary: [],
+            detailedBrands: []
+        };
     }
 };

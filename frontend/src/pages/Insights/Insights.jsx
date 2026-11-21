@@ -3330,6 +3330,7 @@ const InsightsSignalHub = () => {
             contactText: contactParts.length > 0 ? contactParts.join(" & ") : "No contact details",
             frequency: a.alert_frequency || a.frequency || "Real-time",
             threshold: a.threshold_value != null ? `${a.threshold_value}%` : (a.threshold || "15%"),
+            skuScope: a.sku_scope || a.skuScope || "",
             raw: a,
         };
     }, []);
@@ -3964,6 +3965,11 @@ const InsightsSignalHub = () => {
                                                     <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "#d1fae5", padding: "2px 8px", borderRadius: "12px" }}>
                                                         Active
                                                     </span>
+                                                    {alert.skuScope && (
+                                                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#0047FF", background: "#eff6ff", padding: "2px 8px", borderRadius: "12px", border: "1px solid #bfdbfe" }}>
+                                                            {alert.skuScope === "all_sku" ? "All SKU" : "Top SKU"}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "3px" }}>
                                                     {alert.contactText || `${alert.phone} & ${alert.email}`} • {alert.frequency} • Threshold: {alert.threshold}

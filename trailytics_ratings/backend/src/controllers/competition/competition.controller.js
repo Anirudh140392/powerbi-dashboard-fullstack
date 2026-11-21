@@ -6,6 +6,32 @@ const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
 };
 
+const queryChWithFallback = async (db, queryOlap, queryMl, params) => {
+    try {
+        const chRes = await clickhouse.query({
+            database: db,
+            query: queryOlap,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        return await chRes.json();
+    } catch (err) {
+        console.warn(`[queryChWithFallback] Primary query on OLAP table failed for database '${db}': ${err.message}. Trying fallback query on ml_reviews...`);
+        try {
+            const chRes = await clickhouse.query({
+                database: db,
+                query: queryMl,
+                query_params: params,
+                format: 'JSONEachRow'
+            });
+            return await chRes.json();
+        } catch (fallbackErr) {
+            console.error(`[queryChWithFallback] Fallback query on ml_reviews also failed for database '${db}': ${fallbackErr.message}`);
+            return [];
+        }
+    }
+};
+
 export const getCompetitorMentions = async (req, res) => {
     try {
         const { brand, platform, date_from, date_to, limit = 100 } = req.query;
@@ -106,9 +132,8 @@ export const getCompetitorMatrix = async (req, res) => {
             where.push(`review_date >= subtractMonths(today(), ${pm})`);
         }
 
-        const db = getTargetDb(req);
-        const isOlap = useOlapTable(db);
-        const tableName = getOlapTableName(db);
+        const targetDb = getTargetDb(req);
+        const olapTable = getOlapTableName(targetDb);
 
         const buildSql = (tbl, catField) => {
             const w = [...where];
@@ -129,20 +154,9 @@ export const getCompetitorMatrix = async (req, res) => {
             `;
         };
 
-        let rows = [];
-        if (isOlap) {
-            try {
-                const chRes = await clickhouse.query({ database: db, query: buildSql(tableName, 'product_category'), query_params: queryParams, format: 'JSONEachRow' });
-                rows = await chRes.json();
-            } catch (err) {
-                console.warn(`[getCompetitorMatrix] Primary OLAP query on ${tableName} failed: ${err.message}. Trying ml_reviews fallback...`);
-                const chRes = await clickhouse.query({ database: db, query: buildSql('ml_reviews', 'category'), query_params: queryParams, format: 'JSONEachRow' });
-                rows = await chRes.json();
-            }
-        } else {
-            const chRes = await clickhouse.query({ database: db, query: buildSql('ml_reviews', 'category'), query_params: queryParams, format: 'JSONEachRow' });
-            rows = await chRes.json();
-        }
+        const olapSql = buildSql(olapTable, 'product_category');
+        const mlSql = buildSql('ml_reviews', 'category');
+        const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
 
         res.json({ success: true, matrix: rows });
     } catch (err) {
@@ -495,10 +509,10 @@ export const exportCompetitorMappingPairs = async (req, res) => {
 
 export const getCompetitorBrands = async (req, res) => {
     try {
-        const db = getTargetDb(req);
-        const isOlap = useOlapTable(db);
-        const tableName = getOlapTableName(db);
+        const targetDb = getTargetDb(req);
+        const olapTable = getOlapTableName(targetDb);
         const queryParams = { companyId: String(req.companyId) };
+
         const buildBrandSql = (tbl) => `
             SELECT brand FROM (
                 SELECT initcap(lower(brand)) AS brand, count() AS n FROM ${tbl}
@@ -511,21 +525,10 @@ export const getCompetitorBrands = async (req, res) => {
             ) ORDER BY brand ASC
         `;
 
-        let rows = [];
-        if (isOlap) {
-            try {
-                const chRes = await clickhouse.query({ database: db, query: buildBrandSql(tableName), query_params: queryParams, format: 'JSONEachRow' });
-                rows = await chRes.json();
-            } catch (err) {
-                console.warn(`[getCompetitorBrands] Primary OLAP query on ${tableName} failed: ${err.message}. Trying ml_reviews fallback...`);
-                const chRes = await clickhouse.query({ database: db, query: buildBrandSql('ml_reviews'), query_params: queryParams, format: 'JSONEachRow' });
-                rows = await chRes.json();
-            }
-        } else {
-            const chRes = await clickhouse.query({ database: db, query: buildBrandSql('ml_reviews'), query_params: queryParams, format: 'JSONEachRow' });
-            rows = await chRes.json();
-        }
-        
+        const olapSql = buildBrandSql(olapTable);
+        const mlSql = buildBrandSql('ml_reviews');
+        const rows = await queryChWithFallback(targetDb, olapSql, mlSql, queryParams);
+
         res.json({ brands: rows.map(r => r.brand) });
     } catch (err) {
         console.error('Competitor-brands error:', err);
