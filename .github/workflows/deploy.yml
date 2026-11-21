@@ -7,6 +7,7 @@ on:
       - enhancement_01122025_backend_kenil
       - enhancement_01122025_dev_kenil
       - enhancement_01122025_marico_kenil
+      - ds_tester
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -61,7 +62,7 @@ jobs:
             MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_PROD_CALLBACK_URL }}"
             [ -z "$MICROSOFT_PROD_URL" ] && MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
             echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_PROD_URL}" >> $GITHUB_ENV
-          elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ] || [ "${{ github.ref_name }}" = "ds_tester" ]; then
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
             echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
@@ -316,13 +317,22 @@ jobs:
             git checkout ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
             
-            echo "🛑 Stopping and removing all managed containers..."
-            docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
-            docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
-            
-            echo "🔨 Building and starting all containers..."
-            docker compose up -d --build
-            
+            # Only stop the isolated DS Tester up front. Core containers keep
+            # serving traffic while the new images build, so a failed build
+            # leaves the existing application untouched.
+            echo "🛑 Stopping isolated DS Tester container..."
+            docker stop ds_tester || true
+            docker rm ds_tester || true
+
+            # Core app first. Any failure here must fail the deployment.
+            echo "🔨 Building and starting core containers..."
+            docker compose up -d --build backend_multiple report_backend ratings_backend content_backend frontend_multiple
+
+            # DS Tester is intentionally isolated: a build/start failure here
+            # must never block or roll back the rest of the application.
+            echo "🧪 Building and starting DS Tester (isolated)..."
+            docker compose up -d --build ds_tester || echo "⚠️  DS Tester failed to start (core app unaffected)"
+
             echo "⏳ Waiting for services to start..."
             sleep 15
             
@@ -334,6 +344,7 @@ jobs:
             curl -sf http://localhost:3001/api/health || echo "⚠️  Ratings backend health check skipped (endpoint may not exist)"
             curl -sf http://localhost:8000/health || echo "⚠️  Content analysis backend health check skipped (endpoint may not exist)"
             curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
+            curl -sf http://localhost:8002/health || echo "⚠️  DS Tester health check failed (isolated; core app unaffected)"
             
             echo "🎉 Deployment successful!"
           ENDSSH
@@ -354,6 +365,7 @@ jobs:
           echo "🔗 Main API: http://${{ env.TARGET_HOST }}/api" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Ratings API: http://${{ env.TARGET_HOST }}:3001" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Content API: http://${{ env.TARGET_HOST }}:8000" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 DS Tester API: http://${{ env.TARGET_HOST }}:8002" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Services" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Container | Port |" >> $GITHUB_STEP_SUMMARY
@@ -361,6 +373,7 @@ jobs:
           echo "| Main Backend | backend_multiple | 5000 |" >> $GITHUB_STEP_SUMMARY
           echo "| Ratings Backend | ratings_backend | 3001 |" >> $GITHUB_STEP_SUMMARY
           echo "| Content Analysis Backend | content_backend | 8000 |" >> $GITHUB_STEP_SUMMARY
+          echo "| DS Tester (isolated) | ds_tester | 8002 |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | frontend_multiple | 9400 |" >> $GITHUB_STEP_SUMMARY
 
           

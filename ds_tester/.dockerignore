@@ -1,0 +1,8 @@
+# DS Tester backend image context — only Python sources are needed.
+frontend/
+**/__pycache__/
+*.py[cod]
+.env
+**/.env
+*.log
+screenshots/
