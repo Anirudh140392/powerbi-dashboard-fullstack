@@ -3,6 +3,14 @@ import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
+import { getTier1Cities } from './availabilityService.js';
+
+function cityTierKey(city) {
+    const name = String(city ?? '').trim().toLowerCase();
+    if (name === 'bangalore') return 'bengaluru';
+    if (name === 'gurgaon') return 'gurugram';
+    return name;
+}
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
@@ -958,6 +966,9 @@ class VisibilityService {
     async getPlatformKpiMatrix(filters) {
         console.log('[VisibilityService] getPlatformKpiMatrix called with filters:', filters);
 
+        const comparisonColumn = filters.viewMode === 'CategoryCrossPlatform' ? 'keyword_category'
+            : filters.viewMode === 'CityCrossPlatform' ? 'location_name' : null;
+
         try {
             // Build WHERE clause based on date filters
             let startDate = filters.startDate;
@@ -969,66 +980,7 @@ class VisibilityService {
                 startDate = dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
             }
 
-            const replacements = { startDate, endDate };
-
-            // Base WHERE clause for rb_kw_olap
-            let baseWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
-
-            if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                if (channelCond !== '1=1') baseWhere += ` AND ${channelCond}`;
-            }
-
-            // Apply platform filter if provided
-            if (filters.platform && filters.platform !== 'All') {
-                const platCond = buildCHCondition(filters.platform, 'platform_name');
-                baseWhere += ` AND ${platCond}`;
-            } else {
-                // Always exclude specific platforms from the matrix
-                const excludedList = EXCLUDED_PLATFORMS.map(p => `'${escapeCH(p)}'`).join(',');
-                baseWhere += ` AND platform_name NOT IN (${excludedList})`;
-            }
-
-            // Apply location filter if provided
-            if (filters.location && filters.location !== 'All') {
-                const locCond = buildCHCondition(filters.location, 'location_name');
-                baseWhere += ` AND ${locCond}`;
-            }
-
-            // Apply keyword filter if provided
-            if (filters.keyword && filters.keyword !== 'All') {
-                baseWhere += ` AND ${buildCHCondition(filters.keyword, 'keyword')}`;
-            }
-
-            if (filters.keywordType && filters.keywordType !== 'All') {
-                baseWhere += ` AND ${buildCHCondition(filters.keywordType, 'keyword_type')}`;
-            }
-
-            // Apply format (category) filter if provided
-            const categoryValue = filters.category || filters.format;
-            if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
-                const formatCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-                baseWhere += ` AND ${formatCond}`;
-            }
-
-            // Apply pincode filter if provided
-            if (filters.pincode && filters.pincode !== 'All') {
-                const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
-                const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
-                if (filteredPins.length > 0) {
-                    const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
-                    baseWhere += ` AND toString(pincode) IN (${pinList})`;
-                }
-            }
-
-            // Apply rank filter if provided
-            if (filters.rank && filters.rank !== 'All') {
-                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                if (!isNaN(maxRank) && maxRank > 0) {
-                    baseWhere += ` AND POSITION <= ${maxRank} AND POSITION > 0`;
-                }
-            }
+            let regionCondition = '';
 
             // Handle Zone/MetroFlag filters: fetch cities first to ensure reliable filtering
             if ((filters.zone && filters.zone !== 'All') || (filters.metroFlag && filters.metroFlag !== 'All')) {
@@ -1053,10 +1005,9 @@ class VisibilityService {
                     const cityResults = await queryClickHouse(cityQuery);
                     if (cityResults && cityResults.length > 0) {
                         const cityList = cityResults.map(r => `'${escapeCH(r.location_name)}'`).join(',');
-                        baseWhere += ` AND location_name IN (${cityList})`;
+                        regionCondition = ` AND location_name IN (${cityList})`;
                     } else {
-                        // If no cities found for zone/metro, force empty result
-                        baseWhere += " AND 1=0";
+                        regionCondition = ' AND 1=0';
                     }
                 }
             }
@@ -1076,42 +1027,11 @@ class VisibilityService {
                 prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
             }
 
-            // Apply same filters to previous period
-            let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
-            if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                if (channelCond !== '1=1') prevBaseWhere += ` AND ${channelCond}`;
-            }
-            if (filters.platform && filters.platform !== 'All') {
-                prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
-            } else {
-                const excludedList = EXCLUDED_PLATFORMS.map(p => `'${escapeCH(p)}'`).join(',');
-                prevBaseWhere += ` AND platform_name NOT IN (${excludedList})`;
-            }
-            if (filters.location && filters.location !== 'All') {
-                prevBaseWhere += ` AND ${buildCHCondition(filters.location, 'location_name')}`;
-            }
-            if (filters.pincode && filters.pincode !== 'All') {
-                const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
-                const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
-                if (filteredPins.length > 0) {
-                    const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
-                    prevBaseWhere += ` AND toString(pincode) IN (${pinList})`;
-                }
-            }
-            // Re-apply city list filter to previous where if needed
-            if (baseWhere.includes('location_name IN')) {
-                const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
-                if (cityListMatch) {
-                    prevBaseWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                }
-            }
-
             // Query builder helper for current/prev/sparkline
             const getMatrixQueries = async (dimColumn, dimAlias, filtersToExclude = []) => {
                 // Build filtered where clauses for this specific matrix
-                let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
-                let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'${regionCondition}`;
+                let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'${regionCondition}`;
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1131,7 +1051,7 @@ class VisibilityService {
                     // This allows the user to drill down into a specific city/category in the matrix view
                     if (val && val !== 'All' && val !== 'all') {
                         const isCat = col === 'keyword_category';
-                        const cond = buildCHCondition(val, col, { isCategory: isCat });
+                        const cond = buildCHCondition(val, col, { isCategory: isCat, noSplit: col === comparisonColumn });
                         currentWhere += ` AND ${cond}`;
                         prevWhere += ` AND ${cond}`;
                     }
@@ -1164,15 +1084,6 @@ class VisibilityService {
                     }
                 }
 
-                // Re-apply city list filter if zones/metroFlags were used
-                if (baseWhere.includes('location_name IN (')) {
-                    const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
-                    if (cityListMatch) {
-                        currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                        currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                    }
-                }
-
                 const current = `
                     SELECT 
                         ${dimColumn} as ${dimAlias},
@@ -1183,7 +1094,7 @@ class VisibilityService {
                     WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                     GROUP BY ${dimColumn}
                     ORDER BY count() DESC
-                    LIMIT 15
+                    ${comparisonColumn ? '' : 'LIMIT 15'}
                 `;
 
                 const previous = `
@@ -1212,17 +1123,6 @@ class VisibilityService {
 
                 return { current, previous, sparkline };
             };
-
-            // Execute all queries in parallel for efficiency
-            const platQueries = await getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
-            const formQueries = await getMatrixQueries('keyword_category', 'format');
-            const cityQueries = await getMatrixQueries('location_name', 'city');
-
-            const [platRes, platPrev, platSpark, formRes, formPrev, formSpark, cityRes, cityPrev, citySpark] = await Promise.all([
-                queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
-                queryClickHouse(formQueries.current), queryClickHouse(formQueries.previous), queryClickHouse(formQueries.sparkline),
-                queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline)
-            ]);
 
             // Helper to process results into UI format
             const processResults = (current, previous, sparkline) => {
@@ -1263,11 +1163,13 @@ class VisibilityService {
                         const currData = current.find(c => (c.platform || c.format || c.city) === dimName);
                         const prevData = prevMap[dimName];
 
+                        const missingValue = comparisonColumn && currData?.[kpi.key] == null;
+                        const missingPrevious = comparisonColumn && prevData?.[kpi.key] == null;
                         const val = Number(currData?.[kpi.key]) || 0;
                         const prevVal = Number(prevData?.[kpi.key]) || 0;
 
-                        row[dimName] = val;
-                        trend[dimName] = Number((val - prevVal).toFixed(1));
+                        row[dimName] = missingValue ? null : val;
+                        trend[dimName] = missingValue || missingPrevious ? null : Number((val - prevVal).toFixed(1));
                         series[dimName] = sparkMap[dimName]?.[kpi.sparkKey] || [val];
                     });
 
@@ -1279,14 +1181,48 @@ class VisibilityService {
                 return { columns, rows };
             };
 
+            // Execute all queries in parallel for efficiency
+            const platQueries = await getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
+            if (comparisonColumn) {
+                const period = { startDate, endDate, compareStartDate: prevStart, compareEndDate: prevEnd };
+                if (filters.viewMode === 'CityCrossPlatform') {
+                    const cities = await getTier1Cities();
+                    if (!cities.some(city => cityTierKey(city) === cityTierKey(filters.location))) {
+                        return { platformData: { columns: ['kpi'], rows: [] }, period };
+                    }
+                }
+                const [current, previous] = await Promise.all([
+                    queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous)
+                ]);
+                return {
+                    platformData: processResults(current, previous, []),
+                    period
+                };
+            }
+
+            const formQueries = await getMatrixQueries('keyword_category', 'format');
+            const cityQueries = await getMatrixQueries('location_name', 'city');
+
+            const [platRes, platPrev, platSpark, formRes, formPrev, formSpark, cityRes, cityPrev, citySpark, tier1Cities] = await Promise.all([
+                queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
+                queryClickHouse(formQueries.current), queryClickHouse(formQueries.previous), queryClickHouse(formQueries.sparkline),
+                queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline),
+                getTier1Cities()
+            ]);
+            const tier1Keys = new Set(tier1Cities.map(cityTierKey));
+            // The daily series covers cities beyond the main matrix's top 15.
+            const availableCities = new Set(citySpark.map(row => row.city));
+            const comparisonCities = [...availableCities].filter(city => tier1Keys.has(cityTierKey(city))).sort();
+
             return {
                 platformData: processResults(platRes, platPrev, platSpark),
                 formatData: processResults(formRes, formPrev, formSpark),
-                cityData: processResults(cityRes, cityPrev, citySpark)
+                cityData: { ...processResults(cityRes, cityPrev, citySpark), comparisonCities }
             };
 
         } catch (error) {
             console.error('[VisibilityService] Error in getPlatformKpiMatrix:', error);
+            if (comparisonColumn) throw error;
             return {
                 platformData: { columns: ["kpi"], rows: [] },
                 formatData: { columns: ["kpi"], rows: [] },
