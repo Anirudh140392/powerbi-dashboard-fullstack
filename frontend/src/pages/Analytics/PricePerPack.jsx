@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import { FilterContext } from "../../utils/FilterContext";
 
 function TabButton({ label, active, onClick }) {
     const theme = useTheme();
@@ -46,11 +47,21 @@ import {
 import PortfoliosAnalysis from "../../components/Analytics/PortfoliosAnalysis/PortfoliosAnalysis";
 import PricePerPack from "../../components/Analytics/PortfoliosAnalysis/PricePerPack";
 
-export default function WatchTower() {
+export default function PricePerPackPage() {
+    const { refreshFilters, platform } = useContext(FilterContext);
+
+    // Restore comprehensive platform list from rca_sku_dim on mount
+    // (Prevents subsetting from other pages like Performance Marketing)
+    useEffect(() => {
+        if (typeof refreshFilters === 'function') {
+            refreshFilters();
+        }
+    }, [refreshFilters]);
+
     const [showTrends, setShowTrends] = useState(false);
 
     const [filters, setFilters] = useState({
-        platform: "Blinkit",
+        platform: platform || "",
         months: 6,
         timeStep: "Monthly",
     });
@@ -61,8 +72,13 @@ export default function WatchTower() {
     const [trendParams, setTrendParams] = useState({
         months: 6,
         timeStep: "Monthly",
-        platform: "Blinkit",
+        platform: platform || "",
     });
+
+    useEffect(() => {
+        setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+        setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+    }, [platform]);
 
     const [trendData, setTrendData] = useState({
         timeSeries: [],
@@ -109,7 +125,7 @@ export default function WatchTower() {
 
         setTrendParams((prev) => ({
             ...prev,
-            platform: card.name ?? "Blinkit",
+            platform: card.name ?? filters.platform ?? platform ?? "",
         }));
 
         setShowTrends(true);

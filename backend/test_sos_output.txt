@@ -1,0 +1,310 @@
+[dotenv@17.3.1] injecting env (11) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[ClickHouse] Created client for database: mars
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+Database connected.
+Testing Watch Tower Overview SOS...
+Processing Watch Tower request with filters: {
+  startDate: '2026-03-01',
+  endDate: '2026-03-18',
+  brand: 'All',
+  platform: 'All',
+  location: 'All',
+  category: 'All'
+}
+[ClickHouse Debug] DB: mars | Query: EXISTS TABLE watchtower_agg_daily
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: DESCRIBE TABLE rb_pdp_olap
+[ClickHouse Debug] Result: 44 rows
+🔍 [ColumnDiscovery] DB=mars, Table=rb_pdp_olap: 44 columns discovered
+[ClickHouse Debug] DB: mars | Query: SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap
+[ClickHouse Debug] Result: 1 rows
+🎯 [MaxDate][mars] Latest available date detected and cached: 2026-03-19
+Date Range: 2026-03-01 to 2026-03-18
+Compare Range: 2026-02-01 to 2026-02-18
+[ClickHouse Debug] DB: mars | Query: SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18'
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT Product as sku_name, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sku_gmv FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Product IS NOT NULL AND Product != '' GROUP BY sku_name ORDER BY sku_gmv DESC LIMIT 10 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = 0 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = 0 
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name
+[ClickHouse Debug] DB: mars | Query: SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18'
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) * 100 as avg_promo FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) * 100 as avg_promo FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = '0' 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 10 rows
+[ValidBrands][mars] Cached 10 valid brand names from RcaSkuDim
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+🚀 [Coalesce] Starting computation: perf-kpi::2025-09:2026-03:::null
+[ClickHouse Debug] DB: mars | Query: DESCRIBE TABLE rb_pm_olap
+[ClickHouse Debug] Result: 13 rows
+🔍 [ColumnDiscovery] DB=mars, Table=rb_pm_olap: 13 columns discovered
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(DATE, '%Y-%m-01') as month, 0 as total_sales, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as total_spend FROM rb_pm_olap WHERE DATE BETWEEN '2025-09-01' AND '2026-03-18' GROUP BY formatDateTime(DATE, '%Y-%m-01') ORDER BY month ASC 
+[ClickHouse Debug] Result: 7 rows
+✅ [Coalesce] Completed: perf-kpi::2025-09:2026-03:::null
+[Performance KPIs] Bulk GROUP BY Fetch 1774008502643-ywezd: 391.163ms
+[Performance KPIs] Fetched 7 months of data in single query
+[ClickHouse Debug] DB: mars | Query:  SELECT 0 as sales, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as adSales, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as spend FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT 0 as sales, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as adSales, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as spend FROM rb_pm_olap WHERE DATE BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2025-09-01' AND '2026-03-31' AND toString(flag) = '1' GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01') 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2025-09-01' AND '2026-03-31' GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01') 
+[ClickHouse Debug] Result: 6 rows
+[ClickHouse Debug] Result: 6 rows
+[SOS Trend] OPTIMIZED: Fetched 7 months with 2 bulk queries
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2025-09-01' AND '2026-03-31' GROUP BY month 
+[ClickHouse Debug] Result: 7 rows
+[OSA Trend] OPTIMIZED: Fetched 7 months with 1 bulk query
+[ClickHouse Debug] DB: mars | Query:  SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform 
+[ClickHouse Debug] Result: 3 rows
+📦 [Cache Set][mars] Distinct platforms (3 items)
+[Platform Overview] Fetched 3 platforms from rca_sku_dim: [ 'Blinkit', 'Instamart', 'Zepto' ]
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders FROM rb_pm_olap WHERE DATE BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+ALL COLUMN OFFTAKE VALUES: {
+  allOfftake: 84054722,
+  currMetrics_totalSales: 84054722,
+  currConditions: "toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18'"
+}
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = 0 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = 0 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = '1' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = '1' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[Platform Overview] Starting bulk fetch for 3 platforms...
+🚀 [Coalesce] Starting computation: platform:2026-03-01:2026-03-18:::
+[ClickHouse Debug] DB: mars | Query:  SELECT Platform as Platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' GROUP BY Platform 
+[ClickHouse Debug] DB: mars | Query:  SELECT platform as platform_name, SUM(if(group_brand IN (), toFloat64OrZero(toString(sales)), 0)) / nullIf(SUM(toFloat64OrZero(toString(sales))), 0) * 100 as ms FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' GROUP BY platform 
+[ClickHouse Debug] DB: mars | Query:  SELECT Platform as Platform, SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as spend, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as Ad_sales, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' GROUP BY Platform 
+[ClickHouse Debug] DB: mars | Query:  SELECT Platform as Platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' GROUP BY Platform 
+[ClickHouse Debug] DB: mars | Query:  SELECT platform as platform_name, SUM(if(group_brand IN (), toFloat64OrZero(toString(sales)), 0)) / nullIf(SUM(toFloat64OrZero(toString(sales))), 0) * 100 as ms FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' GROUP BY platform 
+[ClickHouse Debug] DB: mars | Query:  SELECT Platform as Platform, SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) as spend, SUM(ifNull(toFloat64OrZero(toString(ad_sales)), 0)) as Ad_sales, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders FROM rb_pm_olap WHERE DATE BETWEEN '2026-02-01' AND '2026-02-18' GROUP BY Platform 
+[ClickHouse Debug] Result: 2 rows
+[ClickHouse Debug] Result: 2 rows
+[ClickHouse Debug] Result: 3 rows
+[ClickHouse Debug] Result: 3 rows
+[ClickHouse Debug] Result: 3 rows
+[ClickHouse Debug] Result: 3 rows
+[Bulk Platform] Processed 3 platforms with combined queries
+[Bulk Platform] Total 1774008504837: 272.193ms
+✅ [Coalesce] Completed: platform:2026-03-01:2026-03-18:::
+[Platform Overview] Bulk Fetch Total 1774008504836-yr6gk: 273.629ms
+[Platform Overview] Bulk fetch complete. Now processing 3 platforms in-memory...
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Instamart%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Instamart%') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Blinkit%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Blinkit%') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Zepto%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND (platform LIKE '%Zepto%') 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Zepto' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Zepto' AND Comp_flag = '1' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Blinkit' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Blinkit' AND Comp_flag = '1' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Instamart' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT avg(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0), 0)) as avg_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = 'Instamart' AND Comp_flag = '1' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Instamart%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Instamart%') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Blinkit%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Blinkit%') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Zepto%') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND (platform LIKE '%Zepto%') 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+Calculating Month Overview for Platform: []
+[Month Overview] OPTIMIZED: Fetching all months in 1 bulk queries
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = '' GROUP BY month 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = '' GROUP BY month 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND platform_name = '' AND toString(flag) = '1' GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01') 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND platform_name = '' GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01') 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND sales IS NOT NULL AND platform = '' AND location = '' AND group_brand IN () GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01') 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND sales IS NOT NULL AND platform = '' AND location = '' GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01') 
+[ClickHouse Debug] DB: mars | Query:  SELECT formatDateTime(DATE, '%Y-%m-01') as month, SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Platform = '' GROUP BY month 
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[ClickHouse Debug] Result: 0 rows
+[Month Overview] OPTIMIZED: Processed 1 months with 5 bulk queries (vs 5 individual queries)
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) as category FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) != 'Others' ORDER BY category
+[ClickHouse Debug] Result: 3 rows
+[Category Overview] Platform: All, Found 3 categories: [ 'Chocolates (Gifting)', 'Chocolates (Non Gifting)', 'GMFC' ]
+[Category Overview] Processing category: Chocolates (Gifting), Platform: All
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Gifting)' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = 0 AND lower(if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') )) IN ('chocolates (gifting)') 
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Gifting)' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Gifting)' AND Comp_flag = '1' 
+[Category Overview] Processing category: Chocolates (Non Gifting), Platform: All
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Non Gifting)' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = 0 AND lower(if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') )) IN ('chocolates (non gifting)') 
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Non Gifting)' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'Chocolates (Non Gifting)' AND Comp_flag = '1' 
+[Category Overview] Processing category: GMFC, Platform: All
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'GMFC' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = 0 AND lower(if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') )) IN ('gmfc') 
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'GMFC' AND Comp_flag = '0' 
+[ClickHouse Debug] DB: mars | Query:  SELECT AVG(CASE WHEN ifNull(toFloat64OrZero(toString(MRP)), 0) > 0 THEN (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) ELSE 0 END) as avg_promo_depth FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others') ) = 'GMFC' AND Comp_flag = '1' 
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND lower(keyword_category) IN ('chocolates (gifting)') 
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND lower(keyword_category) IN ('chocolates (non gifting)') 
+[ClickHouse Debug] DB: mars | Query:  SELECT sumIf(toInt32(overall), lower(brand_name_th) IN ('boomer', 'bounty', 'doublemint', 'galaxy', 'm&m', 'mars', 'orbit', 'skittles', 'snickers', 'twix')) as num, sum(toInt32(overall)) as den FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND lower(keyword_category) IN ('gmfc') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND lower(category) = 'chocolates (gifting)' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND lower(category) = 'chocolates (non gifting)' 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as total_orders, SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions, SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as total_clicks FROM rb_pm_olap WHERE DATE BETWEEN '2026-03-01' AND '2026-03-18' AND lower(category) = 'gmfc' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('Chocolates (Gifting)') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('Chocolates (Gifting)') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('Chocolates (Non Gifting)') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('Chocolates (Non Gifting)') 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('GMFC') AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND category IN ('GMFC') 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[Category Overview] Chocolates (Gifting): Offtake=4063127, Spend=545456.5384359998, AdSales=2744124.556407, Clicks=27128.741400000003, Impressions=2406166.0862
+[Category Overview] Chocolates (Gifting): MarketShare=0.76%
+[Category Overview] Chocolates (Gifting): PromoMyBrand=10.58%, PromoCompete=3.25%
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[Category Overview] GMFC: Offtake=15707237, Spend=1012111.8061550003, AdSales=2425846.72367, Clicks=93244.31480000004, Impressions=3336424.851799998
+[Category Overview] GMFC: MarketShare=12.21%
+[Category Overview] GMFC: PromoMyBrand=3.50%, PromoCompete=2.32%
+[ClickHouse Debug] Result: 1 rows
+[Category Overview] Chocolates (Non Gifting): Offtake=64284358, Spend=6227337.039572008, AdSales=17299869.77183299, Clicks=385007.0186990001, Impressions=22493269.26819901
+[Category Overview] Chocolates (Non Gifting): MarketShare=5.85%
+[Category Overview] Chocolates (Non Gifting): PromoMyBrand=5.17%, PromoCompete=4.46%
+[ClickHouse Debug] DB: mars | Query:  SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' ORDER BY brand 
+[ClickHouse Debug] Result: 27 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT Brand as Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) as total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions, AVG(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) * 100, 0)) as avg_discount, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND Comp_flag = '0' AND Brand LIKE '%%' GROUP BY Brand 
+[ClickHouse Debug] DB: mars | Query:  SELECT Brand as Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_Ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) as total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions, AVG(if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) * 100, 0)) as avg_discount, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno FROM rb_pdp_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' AND Comp_flag = '0' GROUP BY Brand 
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query: SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''
+[ClickHouse Debug] DB: mars | Query:  SELECT DISTINCT brand_name FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT group_brand as brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') GROUP BY group_brand 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] DB: mars | Query:  SELECT group_brand as brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' AND group_brand IN ('Doublemint', 'Snickers', 'Galaxy', 'Bounty', 'Skittles', 'Twix', 'M&M', 'Orbit', 'Boomer', 'Mars') GROUP BY group_brand 
+[ClickHouse Debug] DB: mars | Query:  SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 11 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 14 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[Brands Overview] Calculating SOS for 10 brands using bulk method...
+🚀 [Coalesce] Starting computation: bulk-sos:All:2026-03-01:2026-03-18::All:All
+[Bulk SOS] Calculating SOS for 10 brands. Platform: All, Category: All, Channel: undefined
+[ClickHouse Debug] DB: mars | Query:  SELECT lower(brand) as brand, sum(toInt32(overall)) as num_overall, sum(toInt32(spons)) as num_spons, sum(toInt32(organic)) as num_organic FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' AND toString(flag) = '1' GROUP BY brand 
+[ClickHouse Debug] DB: mars | Query:  SELECT sum(toInt32(overall)) as den_overall, sum(toInt32(spons)) as den_spons, sum(toInt32(organic)) as den_organic FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-18' 
+[ClickHouse Debug] DB: mars | Query:  SELECT lower(brand) as brand, sum(toInt32(overall)) as num_overall, sum(toInt32(spons)) as num_spons, sum(toInt32(organic)) as num_organic FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' AND toString(flag) = '1' GROUP BY brand 
+[ClickHouse Debug] DB: mars | Query:  SELECT sum(toInt32(overall)) as den_overall, sum(toInt32(spons)) as den_spons, sum(toInt32(organic)) as den_organic FROM rb_kw_olap WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-02-18' 
+[ClickHouse Debug] Result: 11 rows
+[ClickHouse Debug] Result: 10 rows
+[ClickHouse Debug] Result: 1 rows
+[ClickHouse Debug] Result: 1 rows
+[Bulk SOS] Total Time 1774008507074-3pclq: 182.427ms
+✅ [Coalesce] Completed: bulk-sos:All:2026-03-01:2026-03-18::All:All
+[Brands Overview] Bulk SOS Calculation 1774008507074: 183.308ms
+[Brands Overview] SOS calculated for 10 brands

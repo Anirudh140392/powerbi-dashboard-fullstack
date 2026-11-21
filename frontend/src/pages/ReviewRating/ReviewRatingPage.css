@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import "../../../../trailytics_ratings/frontend/src/index.css";
+/*
+ * ReviewRatingPage — CSS isolation wrapper
+ *
+ * The Digital Shelf has aggressive global rules (font-family !important,
+ * table td text-transform, body overflow, etc.) that break the embedded
+ * Rating Intelligence dashboard.  This file scopes overrides under the
+ * `.ratings-isolated` root so only elements inside the ratings dashboard
+ * are affected.
+ */
+
+/* ── layout: fill the flex column parent that CommonContainer's Container gives us ── */
+.ratings-isolated {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8fafc;
+  /* Dashboard's root div uses h-full – give it a real pixel-height context */
+  height: 100%;
+}
+
+/* ── undo the Digital Shelf global font override inside ratings ── */
+.ratings-isolated *:not(svg):not(svg *):not(.material-icons):not([class*="icon"]) {
+  font-family: 'Inter', 'Mulish', system-ui, sans-serif !important;
+}
+
+/* ── undo Digital Shelf table text-transform ── */
+.ratings-isolated table tbody td {
+  text-transform: none !important;
+}
+
+/* ── undo MUI component text-transform ── */
+.ratings-isolated .MuiTableCell-body,
+.ratings-isolated .MuiChip-label,
+.ratings-isolated .MuiListItemText-primary,
+.ratings-isolated .MuiAutocomplete-option,
+.ratings-isolated [data-slot="badge"],
+.ratings-isolated .MuiSelect-select,
+.ratings-isolated .MuiMenuItem-root {
+  text-transform: none !important;
+}
+
+/* ── recharts ── */
+.ratings-isolated .recharts-tooltip-item-value,
+.ratings-isolated .recharts-legend-item-text {
+  text-transform: none !important;
+}
+
+/* ── ensure Suspense fallback also centers inside the full height ── */
+.ratings-isolated > * {
+  min-height: 0;
+}

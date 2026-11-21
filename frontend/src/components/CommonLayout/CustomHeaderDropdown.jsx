@@ -1,0 +1,297 @@
+import React, { useState, useRef } from "react";
+import {
+    Box,
+    Typography,
+    TextField,
+    Checkbox,
+    Divider,
+    Popover,
+    Paper,
+} from "@mui/material";
+import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const CustomHeaderDropdown = ({
+    label,
+    options = [],
+    value,
+    onChange,
+    width = 200,
+    multiSelect = true,
+}) => {
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const open = Boolean(anchorEl);
+
+    const getSelectedList = () => {
+        if (value === "All" || (Array.isArray(value) && value.includes("All"))) return options;
+        if (Array.isArray(value)) return value;
+        if (!value) return [];
+        return [value];
+    };
+
+    const currentSelected = getSelectedList();
+
+    const filteredOptions = options.filter((opt) =>
+        opt.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const emitChange = (newList) => {
+        if (!multiSelect) {
+            onChange(newList[0] || "All");
+            handleClose();
+            return;
+        }
+
+        if (newList.length === options.length && options.length > 0) {
+            onChange("All");
+        } else {
+            onChange(newList);
+        }
+    };
+
+    const handleToggleOption = (option) => {
+        if (!multiSelect) {
+            emitChange([option]);
+            return;
+        }
+
+        let newList;
+        if (currentSelected.includes(option)) {
+            newList = currentSelected.filter((item) => item !== option && item !== "All");
+        } else {
+            // If they clicked an option, remove "All" from the list
+            newList = currentSelected.filter((item) => item !== "All");
+            newList.push(option);
+        }
+
+
+
+        emitChange(newList);
+    };
+
+    const handleSelectAll = () => {
+        if (currentSelected.length === options.length && currentSelected.length > 0) {
+            // Deselect all
+            emitChange([]);
+        } else {
+            // Select all
+            emitChange([...options]);
+        }
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleTriggerClick = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const isAllSelected = value === "All" || (Array.isArray(value) && (value.includes("All") || (value.length === options.length && options.length > 0)));
+
+    const displayValue = isAllSelected
+        ? "All"
+        : (Array.isArray(value)
+            ? (value.length === 0 ? "None" : value.join(", "))
+            : (value || "None"));
+
+    return (
+        <Box sx={{ width }}>
+            <Typography
+                sx={{
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    mb: 0.4,
+                    opacity: 0.8,
+                    textTransform: "uppercase",
+                    letterSpacing: '0.05em',
+                    fontFamily: 'Roboto, sans-serif',
+                    color: '#64748b'
+                }}
+            >
+                {label}
+            </Typography>
+
+            {/* Trigger Button */}
+            <Box
+                onClick={handleTriggerClick}
+                sx={{
+                    height: "34px",
+                    bgcolor: "white",
+                    borderRadius: "8px",
+                    border: "1px solid",
+                    borderColor: open ? "#2563eb" : "#e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    px: 1,
+                    gap: 0.5,
+                    cursor: "pointer",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: open ? "0 0 0 2px rgba(37, 99, 235, 0.1)" : "0 1px 2px rgba(0,0,0,0.02)",
+                    "&:hover": { borderColor: "#2563eb", bgcolor: "#fcfdfe" },
+                }}
+            >
+                <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden" }}>
+                    <Box
+                        sx={{
+                            bgcolor: "#f8fafc",
+                            px: 1,
+                            py: 0.2,
+                            borderRadius: "5px",
+                            border: "1px solid #f1f5f9",
+                        }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                                color: "#1e293b",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: "100px",
+                                fontFamily: 'Roboto, sans-serif',
+                                textTransform: 'capitalize'
+                            }}
+                        >
+                            {displayValue}
+                        </Typography>
+                    </Box>
+                </Box>
+                {open ? <ChevronUp size={14} className="text-blue-500" /> : <ChevronDown size={14} className="text-slate-400" />}
+            </Box>
+
+            <Popover
+                open={open}
+                anchorEl={anchorEl}
+                onClose={handleClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                }}
+                slotProps={{
+                    paper: {
+                        sx: {
+                            mt: 1,
+                            zIndex: 9999,
+                            borderRadius: "12px",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                            border: "1px solid #F1F5F9",
+                            width: { xs: "calc(100vw - 40px)", sm: "280px" },
+                            maxWidth: "280px",
+                            overflow: 'visible',
+                            p: 2,
+                        }
+                    }
+                }}
+            >
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1.5,
+                    }}
+                >
+                    {/* Search */}
+                    <TextField
+                        size="small"
+                        placeholder="Search"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        InputProps={{
+                            startAdornment: <Search size={16} style={{ marginRight: 8, color: "#94A3B8" }} />,
+                            sx: {
+                                borderRadius: "8px",
+                                bgcolor: "#F8FAFC",
+                                "& fieldset": { borderColor: "#E2E8F0" },
+                            },
+                        }}
+                        fullWidth
+                    />
+
+                    {/* Select All */}
+                    {multiSelect && (
+                        <>
+                            <Box
+                                onClick={handleSelectAll}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                    cursor: "pointer",
+                                    "&:hover": { opacity: 0.8 },
+                                }}
+                            >
+                                <Checkbox
+                                    size="small"
+                                    checked={currentSelected.length === options.length && currentSelected.length > 0}
+                                    indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
+                                    sx={{ p: 0.5 }}
+                                />
+                                <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                                    Select All
+                                </Typography>
+                            </Box>
+                            <Divider />
+                        </>
+                    )}
+
+                    {/* Options List */}
+                    <Box
+                        sx={{
+                            maxHeight: "200px",
+                            overflowY: "auto",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 0.5,
+                            pr: 0.5,
+                            "&::-webkit-scrollbar": { width: "6px" },
+                            "&::-webkit-scrollbar-thumb": { bgcolor: "#CBD5E1", borderRadius: "3px" },
+                        }}
+                    >
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.map((option) => (
+                                <Box
+                                    key={option}
+                                    onClick={() => handleToggleOption(option)}
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                        cursor: "pointer",
+                                        py: 0.5,
+                                        borderRadius: "4px",
+                                        "&:hover": { bgcolor: "#F8FAFC" },
+                                    }}
+                                >
+                                    {multiSelect && (
+                                        <Checkbox
+                                            size="small"
+                                            checked={currentSelected.includes(option)}
+                                            sx={{ p: 0.5 }}
+                                        />
+                                    )}
+                                    <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, textTransform: 'capitalize' }}>
+                                        {option}
+                                    </Typography>
+                                </Box>
+                            ))
+                        ) : (
+                            <Typography sx={{ fontSize: "0.85rem", color: "#64748B", textAlign: "center", py: 2 }}>
+                                No results found
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
+            </Popover>
+        </Box>
+
+    );
+};
+
+export default CustomHeaderDropdown;
