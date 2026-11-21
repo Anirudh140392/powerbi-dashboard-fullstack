@@ -93,6 +93,44 @@ function buildCHCondition(value, column, options = {}) {
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
+// Match each search listing once so repeated keyword appearances cannot multiply PDP observations.
+async function getKeywordSkuWeightedMetrics({ skuSearchWhere, dateFrom, dateTo, location, brand }) {
+    const columns = await getTableColumns('rb_pdp_olap');
+    const col = name => resolveColumn(columns, name);
+    const numeric = name => {
+        const field = col(name);
+        return columns.has(field.toLowerCase()) ? `toFloat64OrNull(toString(p.${field}))` : 'CAST(NULL AS Nullable(Float64))';
+    };
+    const validOsa = 'available >= 0 AND observed > 0 AND listing BETWEEN 0 AND 100';
+    const validPrice = 'mrp_value > 0 AND selling_price_value >= 0 AND sales_value > 0';
+    return queryClickHouse(`
+        WITH listings AS (
+            SELECT DISTINCT keyword_search_product AS name,
+                   lower(platform_name) AS pf, lower(toString(web_pid)) AS pid
+            FROM rb_kw_olap
+            WHERE ${skuSearchWhere} AND toInt32(flag) = 1 AND notEmpty(toString(web_pid))
+        ), observations AS (
+            SELECT lower(p.${col('Platform')}) AS pf, lower(toString(p.${col('Web_Pid')})) AS pid,
+                   lower(trim(p.${col('Location')})) AS city,
+                   ${numeric('neno_osa')} AS available, ${numeric('deno_osa')} AS observed,
+                   ${numeric('listing_percent')} AS listing, ${numeric('MRP')} AS mrp_value,
+                   ${numeric('Selling_Price')} AS selling_price_value, ${numeric('Sales')} AS sales_value
+            FROM rb_pdp_olap AS p
+            WHERE toDate(p.${col('DATE')}) BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND toInt32(p.${col('Comp_flag')}) = 0
+              AND ${buildCHCondition(location, `p.${col('Location')}`, { isDimension: true })}
+              AND ${buildCHCondition(brand, `p.${col('Brand')}`, { isDimension: true })}
+        )
+        SELECT name, city, GROUPING(city) AS is_total,
+               round(sumIf(available, ${validOsa}) / nullIf(sumIf(observed, ${validOsa}), 0)
+                     * avgIf(listing, ${validOsa}), 2) AS weighted_osa,
+               round(100 * sumIf((mrp_value - selling_price_value) / nullIf(mrp_value, 0) * sales_value, ${validPrice})
+                     / nullIf(sumIf(sales_value, ${validPrice}), 0), 2) AS weighted_discount
+        FROM observations INNER JOIN listings USING (pf, pid)
+        GROUP BY GROUPING SETS ((name), (name, city))
+    `);
+}
+
 /**
  * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
  * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
@@ -4134,6 +4172,17 @@ class VisibilityService {
             }
             const skuOuterWhere = skuOuterFilters.length > 0 ? `WHERE ${skuOuterFilters.join(' AND ')}` : '';
 
+            const skuSearchWhere = `DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          ${rankCondition}
+                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''`;
+
             const mainQuery = viewMode === 'sku' ? `
                     WITH product_counts AS (
                         SELECT
@@ -4153,16 +4202,7 @@ class VisibilityService {
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
                             max(toInt32(flag)) as is_own_sku
                         FROM rb_kw_olap
-                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                          AND ${platformCondition}
-                          AND ${channelCondition}
-                          AND ${locationCondition}
-                          AND ${categoryCondition}
-                          AND ${globalKeywordTypeCondition}
-                          AND ${localKeywordTypeCondition}
-                          AND ${keywordCondition}
-                          ${rankCondition}
-                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                        WHERE ${skuSearchWhere}
                         GROUP BY platform_name, keyword_search_product
                     )
                     SELECT
@@ -4415,6 +4455,23 @@ class VisibilityService {
 
             // Fetch SKU images, page_url from rb_sku_platform and calculate Offtake Share from rb_pdp_olap
             if (viewMode === 'sku') {
+                if (filters.includeWeightedMetrics && ownBrandsOnly && results.length) {
+                    try {
+                        const metrics = await getKeywordSkuWeightedMetrics({ skuSearchWhere, dateFrom, dateTo, location, brand });
+                        for (const row of metrics) {
+                            const item = itemsMap[row.name];
+                            if (!item) continue;
+                            const values = { weightedOsa: row.weighted_osa, weightedDiscount: row.weighted_discount };
+                            if (Number(row.is_total)) Object.assign(item, values);
+                            else {
+                                item.weightedByCity ??= Object.create(null);
+                                item.weightedByCity[row.city] = values;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[VisibilityService] Failed to load weighted SKU metrics:', error);
+                    }
+                }
                 const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
                 if (webPids.length > 0) {
                     try {
