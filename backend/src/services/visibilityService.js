@@ -42,10 +42,33 @@ export const isAllValue = (val) => {
     );
 };
 
+/**
+ * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
+ * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
+ */
+const processKeywordType = (val) => {
+    if (!val || val === 'All' || val === 'all') return null;
+    if (Array.isArray(val)) {
+        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
+            const lower = String(t).toLowerCase();
+            if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+            return lower;
+        }).flat();
+    }
+    const lower = String(val).toLowerCase();
+    if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+    return lower;
+};
+
 function buildCHCondition(value, column, options = {}) {
     let { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
     if (column === 'keyword_search_product' || column === 'Product' || column === 'item_name') {
         noSplit = true;
+    }
+
+    if (column === 'keyword_type' || column.endsWith('.keyword_type') || isKeywordType) {
+        isKeywordType = true;
+        value = processKeywordType(value);
     }
 
     const isAll = isAllValue;
@@ -79,29 +102,12 @@ function buildCHCondition(value, column, options = {}) {
     }
 
     if (isCategory || isKeywordType || isPlatform || isDimension ||
-        ['platform_name', 'keyword', 'keyword_search_product', 'location_name', 'brand'].includes(column)) {
+        ['platform_name', 'keyword', 'keyword_type', 'keyword_search_product', 'location_name', 'brand'].includes(column) ||
+        column.endsWith('.platform_name') || column.endsWith('.keyword') || column.endsWith('.keyword_type') || column.endsWith('.brand')) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
-
-/**
- * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
- * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
- */
-const processKeywordType = (val) => {
-    if (!val || val === 'All' || val === 'all') return null;
-    if (Array.isArray(val)) {
-        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
-            const lower = String(t).toLowerCase();
-            if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
-            return lower;
-        }).flat();
-    }
-    const lower = String(val).toLowerCase();
-    if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
-    return lower;
-};
 
 /**
  * Shared helper to build platform condition based on channel

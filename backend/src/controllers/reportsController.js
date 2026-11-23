@@ -3046,7 +3046,7 @@ async function getCachedOrFetchPriceViolationRows(req) {
             m.sku AS sku,
             toString(p.web_pid) AS web_pid,
             p.location_name AS location,
-            toString(p.pincode) AS pincode,
+            multiIf(isNull(p.pincode) OR p.pincode = 0, '', toString(p.pincode)) AS pincode,
             round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
             round(toFloat64(p.price_rp), 2) AS current_mrp,
             round(toFloat64(p.price_sp), 2) AS selling_price,
@@ -3153,7 +3153,7 @@ export const getPriceViolationFilterOptions = async (req, res) => {
 
         const platforms = [...new Set(filterRowsExcluding('platform').map(r => r.platform).filter(Boolean))].sort();
         const locations = [...new Set(filterRowsExcluding('location').map(r => r.location).filter(Boolean))].sort();
-        const pincodes = [...new Set(filterRowsExcluding('pincode').map(r => r.pincode).filter(Boolean))].sort();
+        const pincodes = [...new Set(filterRowsExcluding('pincode').map(r => r.pincode).filter(p => p && p !== '0'))].sort();
         const skus = [...new Set(filterRowsExcluding('sku').map(r => r.sku).filter(Boolean))].sort();
         const webPids = [...new Set(filterRowsExcluding('web_pid').map(r => r.web_pid).filter(Boolean))].sort();
 

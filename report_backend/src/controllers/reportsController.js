@@ -2686,7 +2686,7 @@ async function fetchAndProcessPriceViolationData(reqQuery) {
             m.sku AS sku,
             toString(p.web_pid) AS web_pid,
             p.location_name AS location,
-            toString(p.pincode) AS pincode,
+            multiIf(isNull(p.pincode) OR p.pincode = 0, '', toString(p.pincode)) AS pincode,
             round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
             round(toFloat64(p.price_rp), 2) AS current_mrp,
             round(toFloat64(p.price_sp), 2) AS selling_price,

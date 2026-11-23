@@ -908,8 +908,8 @@ const VisiblityAnalysisData = ({
     };
 
     // Use real API data only — no random generators
-    const overviewCards = apiData?.overview?.cards;
-    if (overviewCards && overviewCards.length > 0) {
+    const overviewCards = (apiData?.overview?.cards || []).filter(card => !String(card.title || '').includes('SOV'));
+    if (overviewCards.length > 0) {
       return overviewCards.map((card, idx) => {
         // Parse numeric value from string like "19.6%"
         const numValue = parseFloat(card.value) || 0;

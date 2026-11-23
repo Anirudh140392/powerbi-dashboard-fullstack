@@ -18,15 +18,18 @@ const ALL_KPIS = [
 ];
 
 const DEFAULT_VISIBLE_KPIS = {
-  searchVolume: true,
+  searchVolume: false,
   leadingBrand: true,
   overallSOS: true,
-  overallSOV: true,
+  overallSOV: false,
   organicSOS: true,
-  organicSOV: true,
+  organicSOV: false,
   paidSOS: true,
-  adSOV: true,
+  adSOV: false,
 };
+
+// KPIs removed from both the table AND the Custom KPI Columns modal per business request
+const HIDDEN_KPIS = { searchVolume: true, overallSOV: true, organicSOV: true, adSOV: true };
 
 
 const sosColor = (val) => {
@@ -521,16 +524,19 @@ export default function SearchTermsPerformance() {
   const [optionsLoading, setOptionsLoading] = useState({ platforms: false, categories: false, brands: false });
 
   // Custom KPI Column Visibility State
+  // Force-hide the columns the business requested off the UI (Search Volume, Overall SOV, Organic SOV, Ad SOV)
+  // so they stay hidden even when a saved localStorage preference would re-enable them.
+  const FORCE_HIDDEN_KPIS = { searchVolume: false, overallSOV: false, organicSOV: false, adSOV: false };
   const [visibleKpis, setVisibleKpis] = useState(() => {
     try {
       const saved = localStorage.getItem("top_search_terms_visible_kpis");
       if (saved) {
-        return { ...DEFAULT_VISIBLE_KPIS, ...JSON.parse(saved) };
+        return { ...DEFAULT_VISIBLE_KPIS, ...JSON.parse(saved), ...FORCE_HIDDEN_KPIS };
       }
     } catch (e) {
       // ignore
     }
-    return DEFAULT_VISIBLE_KPIS;
+    return { ...DEFAULT_VISIBLE_KPIS, ...FORCE_HIDDEN_KPIS };
   });
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
   const [tempVisibleKpis, setTempVisibleKpis] = useState(visibleKpis);
@@ -598,6 +604,7 @@ export default function SearchTermsPerformance() {
     return ALL_KPIS.filter(kpi => {
       if (activeView !== "keyword" && kpi.keywordOnly) return false;
       if (kpi.hideIfSugar && isSugarUser) return false;
+      if (HIDDEN_KPIS[kpi.id]) return false;
       return true;
     });
   }, [activeView, isSugarUser]);
