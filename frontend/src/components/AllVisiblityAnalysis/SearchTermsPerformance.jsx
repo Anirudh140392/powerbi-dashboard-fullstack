@@ -1035,7 +1035,7 @@ export default function SearchTermsPerformance() {
             textAlign: "center",
             color: "#475569",
           }}>
-            Under construction
+            Coming soon
           </p>
         </>
       ) : (
