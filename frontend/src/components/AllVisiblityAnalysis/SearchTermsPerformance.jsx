@@ -624,8 +624,9 @@ export default function SearchTermsPerformance() {
   };
 
   const filterParams = useMemo(() => {
+    if (activeView === "banner") return null;
     return {
-      viewMode: activeView === "keyword" ? "keyword" : (activeView === "brand" ? "brand" : "sku"),
+      viewMode: activeView,
       platform: normalize(localFilters.platform.length > 0 ? localFilters.platform : (activeView === "sku" ? currentSkuPlatform : globalPlatform)),
       brand: normalize(localFilters.brand.length > 0 ? localFilters.brand : selectedBrand),
       location: normalize(selectedLocation),
@@ -644,6 +645,7 @@ export default function SearchTermsPerformance() {
   }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, compareStart, compareEnd, localFilters, selectedRank]);
 
   useEffect(() => {
+    if (!filterParams) return;
     let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
@@ -985,6 +987,21 @@ export default function SearchTermsPerformance() {
     return "100%";
   }, [activeKpis.length]);
 
+  const viewTabs = (
+    <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
+      {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "banner", label: "Banner" }].map(v => (
+        <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
+          padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+          fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+          background: activeView === v.id ? "#0f172a" : "transparent",
+          color: activeView === v.id ? "#fff" : "#64748b",
+          boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
+          whiteSpace: "nowrap"
+        }}>{v.label}</button>
+      ))}
+    </div>
+  );
+
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#f1f5f9", minHeight: 200, padding: "28px 32px", borderRadius: 24, margin: "24px 0", border: "1px solid #e2e8f0" }}>
       <style>{`
@@ -1005,6 +1022,24 @@ export default function SearchTermsPerformance() {
         </div>
       </div>
 
+      {activeView === "banner" ? (
+        <>
+          {viewTabs}
+          <p style={{
+            margin: "16px 0 0",
+            padding: 24,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.05)",
+            textAlign: "center",
+            color: "#475569",
+          }}>
+            Under construction
+          </p>
+        </>
+      ) : (
+      <>
       {/* Controls Row */}
       <div style={{
         display: "flex",
@@ -1021,18 +1056,7 @@ export default function SearchTermsPerformance() {
         msOverflowStyle: "none"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
-            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "brand", label: "Brands" }].map(v => (
-              <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
-                padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-                background: activeView === v.id ? "#0f172a" : "transparent",
-                color: activeView === v.id ? "#fff" : "#64748b",
-                boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
-                whiteSpace: "nowrap"
-              }}>{v.label}</button>
-            ))}
-          </div>
+          {viewTabs}
 
           {/* Search Bar */}
           <div style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
@@ -2077,6 +2101,8 @@ export default function SearchTermsPerformance() {
           initialFilters={trendDrawerFilters}
           initialAudience="Keyword"
         />
+      )}
+      </>
       )}
     </div>
   );
