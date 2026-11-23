@@ -12009,8 +12009,16 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const { platform, location } = filters;
 
-        // Dark store table for Business Overview Dark Store Count
-        const darkstoreTable = 'rb_location_darkstore';
+        // Determine dark store table for Business Overview Dark Store Count
+        let darkstoreTable = 'rb_location_darkstore_testing';
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
+            if (Number(check?.[0]?.result) !== 1) {
+                darkstoreTable = 'rb_location_darkstore';
+            }
+        } catch (e) {
+            darkstoreTable = 'rb_location_darkstore_testing';
+        }
 
         // Check if rca_sku_dim table exists for channel filtering
         let rcaExists = false;

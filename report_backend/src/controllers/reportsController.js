@@ -2616,11 +2616,11 @@ async function resolvePriceViolationTables() {
         return { pdpTable: null, mrpTable: null };
     }
 
-    const pdpTable = (await checkTableExists(`${currentDb}.rb_pdp_olap`))
-        ? `${currentDb}.rb_pdp_olap`
-        : (await checkTableExists('rb_pdp_olap'))
-            ? 'rb_pdp_olap'
-            : 'emami.rb_pdp_olap';
+    const pdpTable = (await checkTableExists(`${currentDb}.rb_pdp`))
+        ? `${currentDb}.rb_pdp`
+        : (await checkTableExists('rb_pdp'))
+            ? 'rb_pdp'
+            : 'emami.rb_pdp';
 
     const mrpTable = (await checkTableExists(`${currentDb}.emami_mrp_master`))
         ? `${currentDb}.emami_mrp_master`
@@ -2636,17 +2636,21 @@ async function fetchAndProcessPriceViolationData(reqQuery) {
     if (!pdpTable || !mrpTable) {
         return [];
     }
-    const { platform, location, sku, web_pid, webPid, startDate, endDate } = reqQuery;
+    const { platform, location, sku, web_pid, webPid, pincode, startDate, endDate } = reqQuery;
 
-    const conditions = ['p.MRP > m.Mrp_master'];
+    const conditions = ['p.price_rp > m.Mrp_master'];
 
     if (platform && platform !== 'All' && !platform.startsWith('All ') && platform.trim() !== '') {
         const items = platform.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
-        conditions.push(`lower(trim(p.Platform)) IN (${items})`);
+        conditions.push(`lower(trim(p.platform_name)) IN (${items})`);
     }
     if (location && location !== 'All' && !location.startsWith('All ') && location.trim() !== '') {
         const items = location.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
-        conditions.push(`lower(trim(p.Location)) IN (${items})`);
+        conditions.push(`lower(trim(p.location_name)) IN (${items})`);
+    }
+    if (pincode && pincode !== 'All' && !pincode.startsWith('All ') && pincode.trim() !== '') {
+        const items = pincode.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`toString(p.pincode) IN (${items})`);
     }
     if (sku && sku !== 'All' && !sku.startsWith('All ') && sku.trim() !== '') {
         const items = sku.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
@@ -2655,14 +2659,14 @@ async function fetchAndProcessPriceViolationData(reqQuery) {
     const pidVal = web_pid || webPid;
     if (pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
         const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
-        conditions.push(`toString(p.Web_Pid) IN (${items})`);
+        conditions.push(`toString(p.web_pid) IN (${items})`);
     }
     if (startDate && endDate) {
-        conditions.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+        conditions.push(`toDate(p.created_on) >= '${startDate}' AND toDate(p.created_on) <= '${endDate}'`);
     } else if (startDate) {
-        conditions.push(`toDate(p.DATE) >= '${startDate}'`);
+        conditions.push(`toDate(p.created_on) >= '${startDate}'`);
     } else if (endDate) {
-        conditions.push(`toDate(p.DATE) <= '${endDate}'`);
+        conditions.push(`toDate(p.created_on) <= '${endDate}'`);
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -2680,20 +2684,21 @@ async function fetchAndProcessPriceViolationData(reqQuery) {
         )
         SELECT 
             m.sku AS sku,
-            toString(p.Web_Pid) AS web_pid,
-            p.Location AS location,
+            toString(p.web_pid) AS web_pid,
+            p.location_name AS location,
+            toString(p.pincode) AS pincode,
             round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
-            round(toFloat64(p.MRP), 2) AS current_mrp,
-            round(toFloat64(p.Selling_Price), 2) AS selling_price,
-            p.Platform AS platform,
-            formatDateTime(p.DATE, '%Y-%m-%d') AS date,
-            round(toFloat64(p.MRP) - toFloat64(m.Mrp_master), 2) AS price_violation
+            round(toFloat64(p.price_rp), 2) AS current_mrp,
+            round(toFloat64(p.price_sp), 2) AS selling_price,
+            p.platform_name AS platform,
+            formatDateTime(p.created_on, '%Y-%m-%d') AS date,
+            round(toFloat64(p.price_rp) - toFloat64(m.Mrp_master), 2) AS price_violation
         FROM ${pdpTable} AS p
         INNER JOIN latest_mrp AS m 
-            ON toString(p.Web_Pid) = m.mrp_web_pid
-            AND lower(trim(p.Platform)) = m.mrp_platform
+            ON toString(p.web_pid) = m.mrp_web_pid
+            AND lower(trim(p.platform_name)) = m.mrp_platform
         ${whereClause}
-        ORDER BY p.DATE DESC, price_violation DESC
+        ORDER BY date DESC, price_violation DESC
     `;
 
     const rows = await queryClickHouse(query);
@@ -2704,12 +2709,12 @@ export const getPriceViolationFilterOptions = async (req, res) => {
     try {
         const { pdpTable, mrpTable } = await resolvePriceViolationTables();
         if (!pdpTable || !mrpTable) {
-            return res.json({ platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null });
+            return res.json({ platforms: [], locations: [], pincodes: [], skus: [], webPids: [], minDate: null, maxDate: null });
         }
-        const { platform, location, sku, web_pid, webPid, startDate, endDate } = req.query;
+        const { platform, location, sku, web_pid, webPid, pincode, startDate, endDate } = req.query;
 
         const buildWhere = (excludeField) => {
-            const conds = ['p.MRP > m.Mrp_master'];
+            const conds = ['p.price_rp > m.Mrp_master'];
 
             const addIn = (field, col, val) => {
                 if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
@@ -2717,18 +2722,23 @@ export const getPriceViolationFilterOptions = async (req, res) => {
                 conds.push(`lower(trim(${col})) IN (${items})`);
             };
 
-            addIn('platform', 'p.Platform', platform);
-            addIn('location', 'p.Location', location);
+            addIn('platform', 'p.platform_name', platform);
+            addIn('location', 'p.location_name', location);
             addIn('sku', 'm.sku', sku);
 
             const pidVal = web_pid || webPid;
             if (excludeField !== 'web_pid' && pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
                 const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
-                conds.push(`toString(p.Web_Pid) IN (${items})`);
+                conds.push(`toString(p.web_pid) IN (${items})`);
+            }
+
+            if (excludeField !== 'pincode' && pincode && pincode !== 'All' && !pincode.startsWith('All ') && pincode.trim() !== '') {
+                const items = pincode.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+                conds.push(`toString(p.pincode) IN (${items})`);
             }
 
             if (startDate && endDate) {
-                conds.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+                conds.push(`toDate(p.created_on) >= '${startDate}' AND toDate(p.created_on) <= '${endDate}'`);
             }
 
             return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
@@ -2750,19 +2760,21 @@ export const getPriceViolationFilterOptions = async (req, res) => {
         const baseFrom = `
             FROM ${pdpTable} AS p
             INNER JOIN latest_mrp AS m 
-                ON toString(p.Web_Pid) = m.mrp_web_pid
-                AND lower(trim(p.Platform)) = m.mrp_platform
+                ON toString(p.web_pid) = m.mrp_web_pid
+                AND lower(trim(p.platform_name)) = m.mrp_platform
         `;
 
-        const platformQuery = `${cte} SELECT DISTINCT p.Platform AS platform ${baseFrom} ${buildWhere('platform')} AND p.Platform != '' AND p.Platform IS NOT NULL ORDER BY platform`;
-        const locationQuery = `${cte} SELECT DISTINCT p.Location AS location ${baseFrom} ${buildWhere('location')} AND p.Location != '' AND p.Location IS NOT NULL ORDER BY location`;
+        const platformQuery = `${cte} SELECT DISTINCT p.platform_name AS platform ${baseFrom} ${buildWhere('platform')} AND p.platform_name != '' AND p.platform_name IS NOT NULL ORDER BY platform`;
+        const locationQuery = `${cte} SELECT DISTINCT p.location_name AS location ${baseFrom} ${buildWhere('location')} AND p.location_name != '' AND p.location_name IS NOT NULL ORDER BY location`;
+        const pincodeQuery = `${cte} SELECT DISTINCT toString(p.pincode) AS pincode ${baseFrom} ${buildWhere('pincode')} AND p.pincode IS NOT NULL AND p.pincode > 0 ORDER BY pincode`;
         const skuQuery = `${cte} SELECT DISTINCT m.sku AS sku ${baseFrom} ${buildWhere('sku')} AND m.sku != '' AND m.sku IS NOT NULL ORDER BY sku`;
-        const webPidQuery = `${cte} SELECT DISTINCT toString(p.Web_Pid) AS web_pid ${baseFrom} ${buildWhere('web_pid')} AND p.Web_Pid != '' AND p.Web_Pid IS NOT NULL ORDER BY web_pid`;
-        const dateRangeQuery = `${cte} SELECT formatDateTime(MIN(p.DATE), '%Y-%m-%d') AS minDate, formatDateTime(MAX(p.DATE), '%Y-%m-%d') AS maxDate ${baseFrom} ${buildWhere()}`;
+        const webPidQuery = `${cte} SELECT DISTINCT toString(p.web_pid) AS web_pid ${baseFrom} ${buildWhere('web_pid')} AND p.web_pid != '' AND p.web_pid IS NOT NULL ORDER BY web_pid`;
+        const dateRangeQuery = `${cte} SELECT formatDateTime(MIN(p.created_on), '%Y-%m-%d') AS minDate, formatDateTime(MAX(p.created_on), '%Y-%m-%d') AS maxDate ${baseFrom} ${buildWhere()}`;
 
-        const [platformsRes, locationsRes, skusRes, webPidsRes, dateRangeRes] = await Promise.all([
+        const [platformsRes, locationsRes, pincodesRes, skusRes, webPidsRes, dateRangeRes] = await Promise.all([
             queryClickHouse(platformQuery).catch(() => []),
             queryClickHouse(locationQuery).catch(() => []),
+            queryClickHouse(pincodeQuery).catch(() => []),
             queryClickHouse(skuQuery).catch(() => []),
             queryClickHouse(webPidQuery).catch(() => []),
             queryClickHouse(dateRangeQuery).catch(() => []),
@@ -2770,12 +2782,13 @@ export const getPriceViolationFilterOptions = async (req, res) => {
 
         const platforms = platformsRes.map(r => r.platform).filter(Boolean);
         const locations = locationsRes.map(r => r.location).filter(Boolean);
+        const pincodes = pincodesRes.map(r => r.pincode).filter(Boolean);
         const skus = skusRes.map(r => r.sku).filter(Boolean);
         const webPids = webPidsRes.map(r => r.web_pid).filter(Boolean);
         const minDate = dateRangeRes?.[0]?.minDate || null;
         const maxDate = dateRangeRes?.[0]?.maxDate || null;
 
-        res.json({ platforms, locations, skus, webPids, minDate, maxDate });
+        res.json({ platforms, locations, pincodes, skus, webPids, minDate, maxDate });
     } catch (error) {
         console.error('[getPriceViolationFilterOptions] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -2828,6 +2841,7 @@ export const downloadPriceViolationReport = async (req, res) => {
             "Web PID",
             "Platform",
             "Location",
+            "Pincode",
             "Date",
             "MRP Master",
             "Current MRP",
@@ -2840,6 +2854,7 @@ export const downloadPriceViolationReport = async (req, res) => {
             row.web_pid || "",
             row.platform || "",
             row.location || "",
+            row.pincode || "",
             row.date || "",
             row.Mrp_master !== undefined ? row.Mrp_master : "",
             row.current_mrp !== undefined ? row.current_mrp : "",

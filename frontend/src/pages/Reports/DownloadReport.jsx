@@ -1478,6 +1478,9 @@ export default function DownloadReport() {
                         <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
                           Location
                         </TableCell>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Pincode
+                        </TableCell>
                         <TableCell align="center" sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
                           Date
                         </TableCell>
@@ -1498,7 +1501,7 @@ export default function DownloadReport() {
                     <TableBody>
                       {pvRows.length === 0 && !pvLoading ? (
                         <TableRow>
-                          <TableCell colSpan={9} align="center" sx={{ py: 6, color: "#94a3b8" }}>
+                          <TableCell colSpan={10} align="center" sx={{ py: 6, color: "#94a3b8" }}>
                             No price violations found for selected filters.
                           </TableCell>
                         </TableRow>
@@ -1516,6 +1519,9 @@ export default function DownloadReport() {
                             </TableCell>
                             <TableCell sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1, textTransform: "capitalize" }}>
                               {row.location}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              {row.pincode || "-"}
                             </TableCell>
                             <TableCell align="center" sx={{ fontSize: "0.78rem", color: "#64748b", borderBottom: "1px solid #f1f5f9", py: 1 }}>
                               {row.date}
