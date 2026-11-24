@@ -68,7 +68,7 @@ const formatKpiValue = (value, kpiKey) => {
     }
 
     if (kpiKey === 'discount') return `${num.toFixed(1)}%`;
-    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp' || kpiKey === 'mrp') return `${currency}${num.toFixed(2)}`;
+    if (kpiKey === 'pricePerUnit' || kpiKey === 'ppu' || kpiKey === 'ppg' || kpiKey === 'asp' || kpiKey === 'mrp') return `${currency}${num.toFixed(2)}`;
     if (kpiKey === 'rpi') return `${num.toFixed(1)}`;
     if (kpiKey === 'offtake') return formatNumber(num, 1);
     
@@ -77,9 +77,11 @@ const formatKpiValue = (value, kpiKey) => {
 
 const kpiLabels = {
     discount: 'Discount %',
-    pricePerUnit: 'Wt. Price per Unit',
+    ppu: 'PPU (Price Per Unit)',
+    ppg: 'PPG (Price Per Gram)',
     asp: 'Average Selling Price',
     mrp: 'MRP',
+    pricePerUnit: 'PPU (Price Per Unit)',
 };
 
 
@@ -93,7 +95,8 @@ const LatestOverivewCatCity = ({
     const { openHelpWithMenu } = useHelp();
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Wt. Price per Unit', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
+        { key: 'ppu', label: 'PPU (Price Per Unit)', infoTooltip: 'PPU = Offtakes Sales / Quantity Sold' },
+        { key: 'ppg', label: 'PPG (Price Per Gram)', infoTooltip: 'PPG = Price / Weight (gram or ml)' },
         { key: 'asp', label: 'Average Selling Price' },
         { key: 'mrp', label: 'MRP' },
     ], [propKpis]);
@@ -119,7 +122,7 @@ const LatestOverivewCatCity = ({
 
     // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'asp', 'mrp'])
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'ppu', 'ppg', 'asp', 'mrp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -131,7 +134,7 @@ const LatestOverivewCatCity = ({
         grammages: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'pricePerUnit', 'asp', 'mrp'],
+        kpis: ['discount', 'ppu', 'ppg', 'asp', 'mrp'],
         filterLogic: 'OR',
     })
 
@@ -152,7 +155,7 @@ const LatestOverivewCatCity = ({
                 grammages: [],
                 dateFrom: '',
                 dateTo: '',
-                kpis: ['discount', 'pricePerUnit', 'asp'],
+                kpis: ['discount', 'ppu', 'ppg', 'asp', 'mrp'],
                 filterLogic: 'OR',
             });
         }

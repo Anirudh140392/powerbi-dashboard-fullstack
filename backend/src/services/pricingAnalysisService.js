@@ -58,8 +58,33 @@ async function getPricingSource() {
     const qtySoldCol = r('Qty_Sold');
     const ppuCol = r('PPU');
 
+    let hasSkuPlatform = false;
+    let skuPlatformGramCol = null;
+    let skuPlatformWebPidCol = null;
+    let skuPlatformCols = null;
+    try {
+        skuPlatformCols = await getTableColumns('rb_sku_platform');
+        if (skuPlatformCols && skuPlatformCols.size > 0) {
+            hasSkuPlatform = true;
+            skuPlatformGramCol = columnExists(skuPlatformCols, 'gram') ? resolveColumn(skuPlatformCols, 'gram')
+                : (columnExists(skuPlatformCols, 'weight') ? resolveColumn(skuPlatformCols, 'weight') : null);
+            skuPlatformWebPidCol = columnExists(skuPlatformCols, 'web_pid') ? resolveColumn(skuPlatformCols, 'web_pid') : 'web_pid';
+        }
+    } catch (e) {
+        // rb_sku_platform might not exist in some DBs
+    }
+
+    const skuPlatformJoin = hasSkuPlatform && skuPlatformWebPidCol
+        ? `LEFT JOIN rb_sku_platform s ON lower(toString(p.${webPidCol})) = lower(toString(s.${skuPlatformWebPidCol}))`
+        : '';
+
     const hasWeight = columnExists(cols, 'Weight');
-    const weightExpr = hasWeight ? `toFloat64OrZero(extract(toString(p.${weightCol}), '^[0-9.]+'))` : '1';
+    const rawGrammageSql = hasSkuPlatform && skuPlatformGramCol
+        ? `if(s.${skuPlatformGramCol} IS NOT NULL AND s.${skuPlatformGramCol} != '', s.${skuPlatformGramCol}, ${hasWeight ? `toString(p.${weightCol})` : "''"})`
+        : (hasWeight ? `toString(p.${weightCol})` : `''`);
+
+    const weightExpr = `toFloat64OrZero(extract(${rawGrammageSql}, '^[0-9.]+'))`;
+    const weightGramExpr = `if(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:kg|kilo)') != '', toFloat64OrZero(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:kg|kilo)')) * 1000, if(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:lt\\\\b|ltr|litre|liter|l$)') != '', toFloat64OrZero(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:lt\\\\b|ltr|litre|liter|l$)')) * 1000, if(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:g|gm|grams?|ml\\\\b)') != '', toFloat64OrZero(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*(?:g|gm|grams?|ml\\\\b)')), if(extract(${rawGrammageSql}, '(?i)([0-9.]+)\\\\s*pcs?') != '', null, toFloat64OrZero(extract(${rawGrammageSql}, '([0-9.]+)'))))))`;
 
     const wrap = (col) => `ifNull(toFloat64OrZero(toString(p.${col})), 0)`;
 
@@ -72,6 +97,12 @@ async function getPricingSource() {
         table: 'rb_pdp_olap',
         cols,
         hasWeight,
+        hasSkuPlatform,
+        skuPlatformCols,
+        skuPlatformGramCol,
+        skuPlatformWebPidCol,
+        skuPlatformJoin,
+        rawGrammageSql,
         f: {
             sellingPrice: sellingPriceCol,
             mrp: mrpCol,
@@ -92,10 +123,13 @@ async function getPricingSource() {
             denoOsa: denoOsaCol,
             qtySold: qtySoldCol,
             weightExpr,
+            weightGramExpr,
+            rawGrammageSql,
             // Wrapped expressions for SQL
             wSellingPrice: wrap(sellingPriceCol),
             wMrp: wrap(mrpCol),
             wSales: wrap(salesCol),
+            wQtySold: wrap(qtySoldCol),
             wDiscount: wrap(discountCol),
             wListingPercent: `toFloat64OrZero(toString(p.${listingPercentCol}))`,
             wNenoOsa: wrap(nenoOsaCol),
@@ -1203,11 +1237,7 @@ const getDimensionOverview = async (filters = {}) => {
             // ✅ Grammage filter applies across dimensions
             const grammages = parseMultiSelectFilter(filters.grammage);
             if (grammages) {
-                const pdpCols = await getTableColumns(src.table);
-                if (columnExists(pdpCols, 'weight')) {
-                    const weightCol = resolveColumn(pdpCols, 'weight');
-                    whereConditions.push(buildInClause(`p.${weightCol}`, grammages));
-                }
+                whereConditions.push(buildInClause(src.rawGrammageSql, grammages));
             }
 
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
@@ -1217,33 +1247,27 @@ const getDimensionOverview = async (filters = {}) => {
             let pageUrlExpr = `'' AS page_url`;
             let platformNameExpr = `'' AS platform_name`;
             let webPidExpr = `'' AS web_pid`;
-            let joinClause = ``;
+            let joinClause = src.skuPlatformJoin;
 
             if (isSku) {
-                try {
-                    const skuCols = await getTableColumns('rb_sku_platform');
-                    if (skuCols.size > 0 && columnExists(skuCols, 'image_url')) {
-                        joinClause = `LEFT JOIN rb_sku_platform s ON LOWER(p.${f.webPid}) = LOWER(s.web_pid)`;
-                        imageExpr = `any(s.image_url) AS image_url`;
-                        if (columnExists(skuCols, 'page_url')) {
-                            pageUrlExpr = `any(s.page_url) AS page_url`;
-                        }
-                        if (columnExists(skuCols, 'platform_name')) {
-                            platformNameExpr = `any(s.platform_name) AS platform_name`;
-                        }
-                        if (columnExists(skuCols, 'web_pid')) {
-                            webPidExpr = `any(s.web_pid) AS web_pid`;
-                        }
+                if (src.hasSkuPlatform) {
+                    imageExpr = `any(s.image_url) AS image_url`;
+                    if (src.skuPlatformCols && columnExists(src.skuPlatformCols, 'page_url')) {
+                        pageUrlExpr = `any(s.page_url) AS page_url`;
                     }
-                } catch (e) {
-                    console.log("[PricingAnalysisService] rb_sku_platform or image_url missing, skipping image fetch");
+                    if (src.skuPlatformCols && columnExists(src.skuPlatformCols, 'platform_name')) {
+                        platformNameExpr = `any(s.platform_name) AS platform_name`;
+                    }
+                    if (src.skuPlatformCols && columnExists(src.skuPlatformCols, 'web_pid')) {
+                        webPidExpr = `any(s.web_pid) AS web_pid`;
+                    }
                 }
             } else if (isPlatform) {
                 try {
                     const platCols = await getTableColumns('rb_platform');
                     // In watchtower it's queried as pf_name, let's also make sure pf_name exists to join safely
                     if (platCols.size > 0 && columnExists(platCols, 'platform_description') && columnExists(platCols, 'pf_name')) {
-                        joinClause = `LEFT JOIN rb_platform pl ON lower(trim(p.${f.platform})) = lower(trim(pl.pf_name))`;
+                        joinClause = `${src.skuPlatformJoin} LEFT JOIN rb_platform pl ON lower(trim(p.${f.platform})) = lower(trim(pl.pf_name))`;
                         imageExpr = `any(pl.platform_description) AS image_url`;
                     }
                 } catch (e) {
@@ -1251,16 +1275,7 @@ const getDimensionOverview = async (filters = {}) => {
                 }
             }
 
-            let weightColExpr = `'' AS weight`;
-            try {
-                const pdpCols = await getTableColumns(src.table);
-                if (columnExists(pdpCols, 'weight')) {
-                    const weightCol = resolveColumn(pdpCols, 'weight');
-                    weightColExpr = `any(p.${weightCol}) AS weight`;
-                }
-            } catch (err) {
-                console.error('[getDimensionOverview] error resolving weight column', err);
-            }
+            const weightColExpr = `any(${src.rawGrammageSql}) AS weight`;
 
             const query = `
                 SELECT
@@ -1277,6 +1292,12 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ${f.wMrp} 
                         ELSE NULL END) AS MRP,
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
+                    -- PPU (Price Per Unit) = Offtakes Sales / quantity Sold
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wQtySold} ELSE 0 END), 0) AS PPU,
+                    -- PPG (Price Per Gram) = Price / Weight (gram or ml)
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0
+                        THEN ${f.wSellingPrice} / ${f.weightGramExpr}
+                        ELSE NULL END) AS PPG,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
@@ -1308,6 +1329,10 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ${f.wMrp} 
                         ELSE NULL END) AS mrp_prev,
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wQtySold} ELSE 0 END), 0) AS ppu_prev,
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0
+                        THEN ${f.wSellingPrice} / ${f.weightGramExpr}
+                        ELSE NULL END) AS ppg_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
@@ -1374,7 +1399,9 @@ const getDimensionOverview = async (filters = {}) => {
                     })(),
                     data: {
                         discount: getMetric(r.Discount, r.discount_prev),
-                        pricePerUnit: getMetric(r.price_per_100g, r.price_per_100g_prev),
+                        ppu: getMetric(r.PPU, r.ppu_prev),
+                        ppg: getMetric(r.PPG, r.ppg_prev),
+                        pricePerUnit: getMetric(r.PPU ?? r.price_per_100g, r.ppu_prev ?? r.price_per_100g_prev),
                         asp: getMetric(r.ASP, r.asp_prev),
                         mrp: getMetric(r.MRP, r.mrp_prev),
                     }
@@ -1492,6 +1519,10 @@ const getDimensionTrends = async (filters = {}) => {
             MAX(toDate(p.${f.date})) AS ref_date,
             -- Current metrics (Subject Brands)
             (SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            SUM(CASE WHEN ${brandCondition} THEN ${f.wSales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandCondition} THEN ${f.wQtySold} ELSE 0 END), 0) AS ppu,
+            AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0
+                THEN ${f.wSellingPrice} / ${f.weightGramExpr}
+                ELSE NULL END) AS ppg,
             AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition}
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1507,6 +1538,7 @@ const getDimensionTrends = async (filters = {}) => {
             AVG(CASE WHEN ${brandCondition} AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             any(po.platform_offtake) AS offtake
         FROM ${src.table} p
+        ${src.skuPlatformJoin}
         LEFT JOIN (
             SELECT ${offtakeGroupExpression} AS offtake_group, ${f.platform}, sum(ifNull(toFloat64OrZero(toString(${f.sales})), 0)) as platform_offtake 
             FROM ${src.table} 
@@ -1530,18 +1562,22 @@ const getDimensionTrends = async (filters = {}) => {
             SELECT
                 count(*) AS total_rows,
                 countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_discount_data,
-                countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_ppu_data,
+                countIf(${brandCondition} AND ${f.wSales} > 0 AND ${f.wQtySold} > 0) AS has_ppu_data,
+                countIf(${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0) AS has_ppg_data,
+                countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_price_per_unit_data,
                 countIf(${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0) AS has_asp_data,
                 countIf(${brandCondition} AND ${f.wMrp} > 0) AS has_mrp_data,
                 sum(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS has_offtake_data
             FROM ${src.table} p
+            ${src.skuPlatformJoin}
             WHERE ${whereClause}
         `;
         const presenceResult = await queryClickHouse(presenceQuery);
         const pr = presenceResult[0] || {};
 
         const hasDiscountData = parseInt(pr.has_discount_data || 0) > 0;
-        const hasPpuData = parseInt(pr.has_ppu_data || 0) > 0;
+        const hasPpuData = parseInt(pr.has_ppu_data || 0) > 0 || parseInt(pr.has_price_per_unit_data || 0) > 0;
+        const hasPpgData = parseInt(pr.has_ppg_data || 0) > 0;
         const hasAspData = parseInt(pr.has_asp_data || 0) > 0;
         const hasMrpData = parseInt(pr.has_mrp_data || 0) > 0;
         const hasOfftakeData = parseFloat(pr.has_offtake_data || 0) > 0;
@@ -1550,7 +1586,9 @@ const getDimensionTrends = async (filters = {}) => {
             // All pricing KPIs come from rb_pdp_olap, but each has its own data requirement
             pdp: parseInt(pr.total_rows || 0) > 0,
             Discount: hasDiscountData,
-            PricePerUnit: hasPpuData,
+            PPU: hasPpuData,
+            PPG: hasPpgData,
+            PricePerUnit: hasPpuData || hasPpgData,
             ASP: hasAspData,
             MRP: hasMrpData,
             Offtake: hasOfftakeData,
@@ -1600,7 +1638,9 @@ const getDimensionTrends = async (filters = {}) => {
         const timeSeries = (results || []).map(r => ({
             date: formatDateLabel(r),
             Discount: hasDiscountData ? (parseFloat(r.discount) || 0) : null,
-            PricePerUnit: hasPpuData ? (parseFloat(r.price_per_unit) || 0) : null,
+            PPU: hasPpuData ? (parseFloat(r.ppu ?? r.price_per_unit) || 0) : null,
+            PPG: hasPpgData ? (parseFloat(r.ppg) || 0) : null,
+            PricePerUnit: hasPpuData ? (parseFloat(r.ppu ?? r.price_per_unit) || 0) : null,
             ASP: hasAspData ? (parseFloat(r.asp) || 0) : null,
             MRP: hasMrpData ? (parseFloat(r.mrp) || 0) : null,
             Offtake: hasOfftakeData ? (parseFloat(r.offtake) || 0) : null,
@@ -1697,6 +1737,8 @@ const getPricingCompetitionTrends = async (filters) => {
             toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            SUM(${f.wSales}) / NULLIF(SUM(${f.wQtySold}), 0) AS ppu,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0 THEN ${f.wSellingPrice} / ${f.weightGramExpr} ELSE NULL END) AS ppg,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1705,6 +1747,7 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
+        ${src.skuPlatformJoin}
         LEFT JOIN (
             SELECT 
                 p.${f.date} AS date_key, 
@@ -1740,7 +1783,9 @@ const getPricingCompetitionTrends = async (filters) => {
 
             timeSeriesByTarget[tName][rowDate] = {
                 Discount: parseFloat(r.discount) || 0,
-                PricePerUnit: parseFloat(r.price_per_unit) || 0,
+                PPU: parseFloat(r.ppu ?? r.price_per_unit) || 0,
+                PPG: parseFloat(r.ppg) || 0,
+                PricePerUnit: parseFloat(r.ppu ?? r.price_per_unit) || 0,
                 ASP: parseFloat(r.asp) || 0,
                 MRP: parseFloat(r.mrp) || 0,
                 Offtake: parseFloat(r.offtake) || 0,
@@ -1849,6 +1894,8 @@ const getPricingCompetition = async (filters) => {
         SELECT
             p.${f.brand} AS brand_name,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            SUM(${f.wSales}) / NULLIF(SUM(${f.wQtySold}), 0) AS ppu,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0 THEN ${f.wSellingPrice} / ${f.weightGramExpr} ELSE NULL END) AS ppg,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1857,6 +1904,7 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
+        ${src.skuPlatformJoin}
         WHERE ${whereClause}
         GROUP BY brand_name, platform_comp_avg
         ORDER BY discount DESC
@@ -1871,6 +1919,8 @@ const getPricingCompetition = async (filters) => {
             p.${f.product} AS sku_name,
             p.${f.brand} AS brand_name,
             (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            SUM(${f.wSales}) / NULLIF(SUM(${f.wQtySold}), 0) AS ppu,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.weightGramExpr} > 0 THEN ${f.wSellingPrice} / ${f.weightGramExpr} ELSE NULL END) AS ppg,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1879,6 +1929,7 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE NULL END) AS mrp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
+        ${src.skuPlatformJoin}
         WHERE ${whereClause}
           AND p.${f.product} IS NOT NULL
           AND p.${f.product} != ''
@@ -1897,7 +1948,9 @@ const getPricingCompetition = async (filters) => {
         const brandRows = (brandResults || []).map(r => ({
             brand_name: r.brand_name,
             Discount: parseFloat(r.discount) || 0,
-            PricePerUnit: parseFloat(r.price_per_unit) || 0,
+            PPU: parseFloat(r.ppu ?? r.price_per_unit) || 0,
+            PPG: parseFloat(r.ppg) || 0,
+            PricePerUnit: parseFloat(r.ppu ?? r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
             MRP: parseFloat(r.mrp) || 0,
         }));
@@ -1906,7 +1959,9 @@ const getPricingCompetition = async (filters) => {
             sku_name: r.sku_name,
             brand_name: r.brand_name,
             Discount: parseFloat(r.discount) || 0,
-            PricePerUnit: parseFloat(r.price_per_unit) || 0,
+            PPU: parseFloat(r.ppu ?? r.price_per_unit) || 0,
+            PPG: parseFloat(r.ppg) || 0,
+            PricePerUnit: parseFloat(r.ppu ?? r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
             MRP: parseFloat(r.mrp) || 0,
         }));

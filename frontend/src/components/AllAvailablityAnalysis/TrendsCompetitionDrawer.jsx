@@ -699,7 +699,9 @@ const KPI_SOURCE_MAP = {
   marketShare: 'ms', categoryShare: 'ms',
   // Pricing-specific KPIs (per-KPI granularity from pricing backend)
   Discount: 'Discount', discount: 'Discount',
-  PricePerUnit: 'PricePerUnit',
+  PricePerUnit: 'PPU',
+  PPU: 'PPU', ppu: 'PPU',
+  PPG: 'PPG', ppg: 'PPG',
   ASP: 'ASP',
   MRP: 'MRP', mrp: 'MRP',
   RPI: 'ASP',  // RPI depends on ASP (selling price) data
@@ -2193,9 +2195,16 @@ export default function TrendsCompetitionDrawer({
               default: true,
             },
             {
-              id: "PricePerUnit",
-              label: `Wt. Price Per Unit (${currencySymbol})`,
+              id: "PPU",
+              label: `PPU (${currencySymbol})`,
               color: "#14B8A6",
+              axis: "left",
+              default: true,
+            },
+            {
+              id: "PPG",
+              label: `PPG (${currencySymbol})`,
+              color: "#06B6D4",
               axis: "left",
               default: true,
             },
@@ -2215,16 +2224,18 @@ export default function TrendsCompetitionDrawer({
             },
           ],
           points: [
-            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190, MRP: 205 },
-            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, ASP: 188, MRP: 205 },
-            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, ASP: 186, MRP: 205 },
-            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, ASP: 182, MRP: 205 },
-            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, ASP: 185, MRP: 205 },
-            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, ASP: 189, MRP: 205 },
-            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, ASP: 198, MRP: 215 },
+            { date: "06 Sep'25", Discount: 10.2, PPU: 178, PPG: 1.78, PricePerUnit: 178, ASP: 190, MRP: 205 },
+            { date: "10 Sep'25", Discount: 11.4, PPU: 175, PPG: 1.75, PricePerUnit: 175, ASP: 188, MRP: 205 },
+            { date: "15 Sep'25", Discount: 12.8, PPU: 172, PPG: 1.72, PricePerUnit: 172, ASP: 186, MRP: 205 },
+            { date: "20 Sep'25", Discount: 14.5, PPU: 169, PPG: 1.69, PricePerUnit: 169, ASP: 182, MRP: 205 },
+            { date: "25 Sep'25", Discount: 13.2, PPU: 174, PPG: 1.74, PricePerUnit: 174, ASP: 185, MRP: 205 },
+            { date: "30 Sep'25", Discount: 11.9, PPU: 177, PPG: 1.77, PricePerUnit: 177, ASP: 189, MRP: 205 },
+            { date: "04 Oct'25", Discount: 12.4, PPU: 185, PPG: 1.85, PricePerUnit: 185, ASP: 198, MRP: 215 },
           ].map((p, idx) => ({
             ...p,
             Discount: applyVar(p.Discount, idx),
+            PPU: applyVar(p.PPU, idx),
+            PPG: applyVar(p.PPG, idx),
             PricePerUnit: applyVar(p.PricePerUnit, idx),
             ASP: applyVar(p.ASP, idx),
             MRP: applyVar(p.MRP, idx),
@@ -2239,15 +2250,16 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "Discount", label: "Discount", color: "#6366F1", default: true },
-            { id: "PricePerUnit", label: "Wt. Price Per Unit", color: "#14B8A6", default: true },
+            { id: "PPU", label: "PPU", color: "#14B8A6", default: true },
+            { id: "PPG", label: "PPG", color: "#06B6D4", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
             { id: "MRP", label: "MRP", color: "#F59E0B", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), ASP: applyVar(195, x), MRP: applyVar(210, x) })),
-            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), ASP: applyVar(188, x), MRP: applyVar(205, x) })),
-            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), ASP: applyVar(200, x), MRP: applyVar(220, x) })),
+            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PPU: applyVar(180, x), PPG: applyVar(1.8, x), PricePerUnit: applyVar(180, x), ASP: applyVar(195, x), MRP: applyVar(210, x) })),
+            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PPU: applyVar(172, x), PPG: applyVar(1.72, x), PricePerUnit: applyVar(172, x), ASP: applyVar(188, x), MRP: applyVar(205, x) })),
+            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PPU: applyVar(190, x), PPG: applyVar(1.9, x), PricePerUnit: applyVar(190, x), ASP: applyVar(200, x), MRP: applyVar(220, x) })),
           },
         },
 
@@ -2258,13 +2270,16 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "Discount", label: "Discount", type: "metric" },
-            { id: "PricePerUnit", label: "Price per Unit", type: "metric" },
+            { id: "PPU", label: "PPU", type: "metric" },
+            { id: "PPG", label: "PPG", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "MRP", label: "MRP", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
             Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
+            PPU: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
+            PPG: { value: applyVar(1.75 + i * 0.05), delta: i % 2 === 0 ? 0.02 : -0.03 },
             PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
             ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
             MRP: { value: applyVar(210 + i * 10), delta: i % 2 === 0 ? 1.5 : -1.0 },
@@ -2701,7 +2716,8 @@ export default function TrendsCompetitionDrawer({
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
             { id: "Discount", label: "Discount", type: "metric" },
-            { id: "PricePerUnit", label: "Wt. Price Per Unit", type: "metric" },
+            { id: "PPU", label: "PPU", type: "metric" },
+            { id: "PPG", label: "PPG", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "MRP", label: "MRP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
@@ -2714,6 +2730,8 @@ export default function TrendsCompetitionDrawer({
             MarketShare: { value: applyVar(15 + i, b), delta: 0.8 },
             OSA: { value: applyVar(85 + i * 0.5, b), delta: 0.3 },
             Discount: { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
+            PPU: { value: applyVar(50 + i * 2, b), delta: 1.0 },
+            PPG: { value: applyVar(0.5 + i * 0.02, b), delta: 0.01 },
             PricePerUnit: { value: applyVar(50 + i * 2, b), delta: 1.0 },
             ASP: { value: applyVar(45 + i * 1.5, b), delta: 0.8 },
             MRP: { value: applyVar(55 + i * 2, b), delta: 1.0 },
@@ -2909,7 +2927,7 @@ export default function TrendsCompetitionDrawer({
     if (sName.includes('%') || sName.includes('rate') || sName.includes('promo') || sName.includes('discount') || sName.includes('share') || sName.includes('osa') || sName.includes('availability') || sName.includes('sos') || sName.includes('conversion')) {
       return `${formatted}%`;
     }
-    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm') || sName.includes('mrp') || sName.includes('asp')) {
+    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm') || sName.includes('mrp') || sName.includes('asp') || sName.includes('ppu') || sName.includes('ppg')) {
       return `${currencySymbol} ${formatted}`;
     }
     return formatted;
@@ -3021,6 +3039,8 @@ export default function TrendsCompetitionDrawer({
         id.includes("offtake") ||
         id.includes("spend") ||
         id.includes("price") ||
+        id.includes("ppu") ||
+        id.includes("ppg") ||
         id.includes("asp") ||
         id.includes("cpc") ||
         id.includes("cpm") ||
@@ -3031,6 +3051,8 @@ export default function TrendsCompetitionDrawer({
         label.includes("₹") ||
         label.includes("aed") ||
         label.includes("price") ||
+        label.includes("ppu") ||
+        label.includes("ppg") ||
         label.includes("sales") ||
         label.includes("spend") ||
         label.includes("offtake")
