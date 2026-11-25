@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
+import BrandPlatformPicker from './BrandPlatformPicker'
+import BrandKpiViews from './BrandKpiViews'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
@@ -189,7 +191,26 @@ const BACKEND_TITLE_TO_KEY = {
 }
 
 // Map backend API response entity → frontend entity format
-const mapApiEntityToFrontend = (apiEntity) => {
+// Brand comparisons show movement relative to the previous period.
+const brandDelta = (text) => {
+    const amount = parseFloat(text)
+    if (!Number.isFinite(amount)) return null
+    return {
+        value: text.replace(/^[+-]/, ''),
+        dir: amount === 0 ? 'flat' : amount > 0 ? 'up' : 'down'
+    }
+}
+
+const platformMetricKey = (platform, metric) => `${platform.trim().toLowerCase()}:${metric}`
+
+const citySummaryKpis = [
+    { key: 'offtakes', label: 'Offtake' },
+    { key: 'marketShare', label: 'Market Share' },
+    { key: 'shareOfVolume', label: 'SOS Overall' }
+]
+const summaryKpis = [...citySummaryKpis, { key: 'spend', label: 'Ad Spend' }]
+
+const mapApiEntityToFrontend = (apiEntity, dimension) => {
     const data = {}
     if (apiEntity.columns && Array.isArray(apiEntity.columns)) {
         apiEntity.columns.forEach(col => {
@@ -197,11 +218,11 @@ const mapApiEntityToFrontend = (apiEntity) => {
             if (key) {
                 const changeText = col.change?.text || '0%'
                 const isPositive = col.change?.positive !== false
-                data[key] = {
-                    value: col.value || '0',
+                data[col.platform ? platformMetricKey(col.platform, key) : key] = {
+                    value: dimension === 'brand' || col.platform ? (col.value ?? 'N/A') : (col.value || '0'),
                     rawVal: col.rawVal ?? col.rawValue ?? null,
                     meta: col.meta || null,
-                    delta: {
+                    delta: dimension === 'brand' || col.platform ? brandDelta(col.change?.text) : {
                         value: changeText.replace(/^[+-]/, ''),
                         dir: isPositive ? 'up' : 'down'
                     }
@@ -271,6 +292,55 @@ const DIMENSION_API_MAP = {
 
 // Color palette for dynamically created entities
 const ENTITY_COLORS = ['#6366f1', '#8b5cf6', '#f97316', '#14b8a6', '#e11d48', '#06b6d4', '#0ea5e9', '#22c55e', '#eab308', '#ec4899', '#a855f7', '#f43f5e']
+
+const SectionWrapper = ({
+    title,
+    icon: Icon,
+    children,
+    className = '',
+    chip,
+    headerRight
+}) => {
+    return (
+        <motion.div
+            className={`bg-white rounded-3xl shadow-lg border border-slate-100/60 ${className}`}
+            style={{ boxShadow: '0 2px 0px rgba(0, 0, 0, 0.04)' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+        >
+            {/* Header */}
+            <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-slate-100/60">
+                <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3">
+                    {/* Left: Icon + Title + Chip */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                            <Icon size={18} className="text-blue-600 sm:w-5 sm:h-5" />
+                        </div>
+                        <span className="text-[14px] sm:text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>{title}</span>
+                        {/* {chip && (
+                            <span className="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded-full border border-slate-200">
+                                {chip}
+                            </span>
+                        )} */}
+                    </div>
+
+                    {/* Right: Custom Actions */}
+                    {headerRight && (
+                        <div className="flex items-center gap-3">
+                            {headerRight}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-3 sm:p-6">
+                {children}
+            </div>
+        </motion.div>
+    )
+}
 
 const PlatformOverviewNew = ({
     onViewTrends = () => { },
@@ -344,7 +414,15 @@ const PlatformOverviewNew = ({
         setApiLoading(true);
         setDrlSource(newSource);
     };
+    const [platformSelections, setPlatformSelections] = useState({ brand: [], location: [], month: [], category: [] })
+    const [collapsedByTab, setCollapsedByTab] = useState({})
+    const [layoutsByTab, setLayoutsByTab] = useState({})
     const [dimension, setDimension] = useState('platform')
+    const comparisonTab = ['brand', 'location', 'month', 'category'].includes(dimension)
+    const brandPlatforms = platformSelections[dimension] || platformSelections.brand
+    const setComparisonPlatforms = values => setPlatformSelections(prev => ({ ...prev, [dimension]: values }))
+    const collapsedPlatforms = collapsedByTab[dimension] || {}
+    const brandLayout = layoutsByTab[dimension] || 'table'
     const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
     const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
     const [toastMessage, setToastMessage] = useState('');
@@ -387,14 +465,14 @@ const PlatformOverviewNew = ({
                 const dimLabel = currentDimension?.label || 'Entity';
                 rowObj[dimLabel] = e.name || e.key || '';
 
-                selectedKpis.forEach(kpi => {
+                displayKpis.forEach(kpi => {
                     const label = kpiLabels[kpi.key] || kpi.label;
                     const cell = e.data?.[kpi.key];
-                    const val = getFullDisplayValue(kpi.key, cell);
+                    const val = getFullDisplayValue(kpi.metricKey || kpi.key, cell);
                     rowObj[label] = val;
 
                     if (cell?.delta?.value) {
-                        const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
+                        const dirSymbol = cell.delta.dir === 'flat' ? '' : cell.delta.dir === 'up' ? '+' : '-';
                         rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
                     } else {
                         rowObj[`${label} (Change)`] = '-';
@@ -448,9 +526,25 @@ const PlatformOverviewNew = ({
         return 'All';
     }, [globalPlatform]);
 
+    const brandPlatformOptions = useMemo(() => {
+        const scope = effectivePlatform.toLowerCase().split(',').map(p => p.trim())
+        const seen = new Set()
+        return (globalPlatforms || []).filter(platform => {
+            const name = platform.trim().toLowerCase()
+            if (!name || name === 'all' || seen.has(name) || user?.tabPermissions?.[`platform_${name}`] === false) return false
+            seen.add(name)
+            return scope.includes('all') || scope.includes(name)
+        })
+    }, [effectivePlatform, globalPlatforms, user])
+    const chosenBrandPlatforms = useMemo(() => {
+        const chosen = new Set(brandPlatforms.map(p => p.toLowerCase()))
+        return brandPlatformOptions.filter(p => chosen.has(p.toLowerCase()))
+    }, [brandPlatformOptions, brandPlatforms])
+    const comparedPlatforms = comparisonTab && chosenBrandPlatforms.length > 1 ? chosenBrandPlatforms : null
+
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
-    const activePlatformFilter = (dimension !== 'platform' && dimension !== 'sku')
+    const activePlatformFilter = comparisonTab ? (chosenBrandPlatforms.length === 1 && dimension !== 'brand' ? chosenBrandPlatforms[0] : effectivePlatform) : (dimension !== 'platform' && dimension !== 'sku')
         ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform)
         : (dimension === 'sku')
             ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform)
@@ -475,6 +569,16 @@ const PlatformOverviewNew = ({
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
+        if (dimension === 'brand' && chosenBrandPlatforms.length) {
+            return kpis.filter(kpi => {
+                if (['categorySize', 'marketShare'].includes(kpi.key)) return false
+                if (kpi.key === 'buyBoxPct') return chosenBrandPlatforms.some(isBuyBoxPlatform)
+                if (kpi.key === 'deliveryTime') return chosenBrandPlatforms.some(isEcomPlatform)
+                if (kpi.key === 'cpm' && chosenBrandPlatforms.length === 1) return !isEcomPlatform(chosenBrandPlatforms[0])
+                if (kpi.key === 'cpc' && chosenBrandPlatforms.length === 1) return isPidilite || !isQcomPlatform(chosenBrandPlatforms[0])
+                return true
+            })
+        }
         let baseKpis = kpis;
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
@@ -512,7 +616,7 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite, chosenBrandPlatforms]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = [
@@ -626,6 +730,7 @@ const PlatformOverviewNew = ({
         const isGlobalSubBrandReset = selectedSubBrand === "All" || (Array.isArray(selectedSubBrand) && selectedSubBrand.includes("All")) || !selectedSubBrand;
 
         if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset && isGlobalSubBrandReset) {
+            setPlatformSelections({ brand: [], location: [], month: [], category: [] });
             setAdvancedFilters(prev => ({
                 ...prev,
                 brands: [],
@@ -719,6 +824,8 @@ const PlatformOverviewNew = ({
         let reqPlatform;
         if (dimension === 'sku') {
             reqPlatform = skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform;
+        } else if (comparisonTab) {
+            reqPlatform = chosenBrandPlatforms.length === 1 ? chosenBrandPlatforms[0] : effectivePlatform
         } else if (dimension !== 'platform') {
             reqPlatform = localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform;
         } else {
@@ -743,6 +850,7 @@ const PlatformOverviewNew = ({
         return JSON.stringify({
             dimension,
             reqPlatform,
+            comparePlatforms: comparedPlatforms || undefined,
             reqBrand,
             reqCategory,
             reqLocation,
@@ -754,7 +862,7 @@ const PlatformOverviewNew = ({
             reqCompareEnd,
             reqSapCode,
             skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
-            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
+            localPlatformFilter: (!comparisonTab && dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
             drlSource: isDrl ? drlSource : undefined,
             advancedFilters: {
                 subBrands: advancedFilters.subBrands,
@@ -767,13 +875,19 @@ const PlatformOverviewNew = ({
             selectedMsl,
             selectedSubBrand
         });
-    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl, selectedSubBrand, isDrl, drlSource]);
+    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl, selectedSubBrand, isDrl, drlSource, comparedPlatforms, chosenBrandPlatforms]);
+
+    const waitingForBrandData = comparisonTab && apiData.brandFilterKey !== filterKey
 
     // Fetch data from backend API when filters change (stable version)
+    const requestController = useRef(null)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
         const endpoint = DIMENSION_API_MAP[dimension]
         if (!endpoint) return
 
+        requestController.current?.abort()
+        const controller = new AbortController()
+        requestController.current = controller
         setApiError(null)
         try {
             const parsed = JSON.parse(filterKey);
@@ -798,22 +912,27 @@ const PlatformOverviewNew = ({
             };
 
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data`, params)
-            const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
+            if (parsed.comparePlatforms) {
+                params.breakdown = 'platform'
+                params.platform = parsed.comparePlatforms.join(',')
+            }
+            const { data: rows } = await axiosInstance.get(endpoint, {
+                params, timeout: parsed.comparePlatforms ? 180000 : 60000, signal: controller.signal
+            })
 
             // Only update state if this is still the most recent fetch
             if (currentFetchId !== fetchIdRef.current) return;
 
-            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities`)
-                setApiData(prev => ({ ...prev, [dimension]: res.data }))
-            } else {
-                setApiData(prev => ({ ...prev, [dimension]: [] }))
-            }
+            setApiData(prev => ({
+                ...prev,
+                ...(comparisonTab && { brandFilterKey: filterKey }),
+                [dimension]: Array.isArray(rows) ? rows : []
+            }))
         } catch (err) {
             if (currentFetchId === fetchIdRef.current) {
                 console.error(`[PlatformOverviewNew] API error:`, err.message)
                 setApiError(err.message || `Failed to load ${dimension} data`)
-                setApiData(prev => ({ ...prev, [dimension]: null }))
+                setApiData(prev => ({ ...prev, ...(comparisonTab && { brandFilterKey: filterKey }), [dimension]: null }))
             }
         } finally {
             if (currentFetchId === fetchIdRef.current) {
@@ -840,6 +959,7 @@ const PlatformOverviewNew = ({
         }
 
         setApiLoading(true);
+        if (comparisonTab) setCurrentPage(1);
         // Clear old dimension data so previous response never renders while loading
         setApiData(prev => ({ ...prev, [dimension]: undefined }));
 
@@ -853,7 +973,12 @@ const PlatformOverviewNew = ({
             fetchDimensionDataRef.current(currentFetchId);
         }, 50);
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer)
+            requestController.current?.abort()
+            ++fetchIdRef.current
+            lastFetchedKeyRef.current = null
+        };
     }, [filterKey, selectedChannel, selectedLocation, dimension]);
 
     // Manual retry handler
@@ -872,14 +997,19 @@ const PlatformOverviewNew = ({
     // Handle filter apply from modal
     // Handle filter apply from modal (segment-specific filter)
     const handleApplyFilters = (filters) => {
-        setAdvancedFilters(filters);
+        if (comparisonTab) {
+            setComparisonPlatforms(filters.platforms || [])
+            setAdvancedFilters({ ...filters, platforms: advancedFilters.platforms })
+        } else {
+            setAdvancedFilters(filters)
+        }
         setGlanceKpis(filters.kpis);
     };
     // Count active dimension filters
     const activeDimensionFilters = [
         advancedFilters.brands?.length > 0,
         advancedFilters.categories?.length > 0,
-        advancedFilters.platforms?.length > 0,
+        comparisonTab ? chosenBrandPlatforms.length > 0 : advancedFilters.platforms?.length > 0,
         advancedFilters.subBrands?.length > 0,
         advancedFilters.skus?.length > 0,
         advancedFilters.sapCodes?.length > 0,
@@ -892,10 +1022,28 @@ const PlatformOverviewNew = ({
     // Get selected KPIs in order (excluding spOfftake & mrpOfftake)
     const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key) && k.key !== 'spOfftake' && k.key !== 'mrpOfftake')
     const kpiCount = selectedKpis.length
+    const displayKpis = comparedPlatforms ? comparedPlatforms.flatMap(platform => {
+        const summary = dimension === 'location' ? citySummaryKpis : summaryKpis
+        const metrics = brandLayout === 'table' && collapsedPlatforms[platform] ? summary : selectedKpis
+        return metrics.map(kpi => ({
+            key: platformMetricKey(platform, kpi.key),
+            metricKey: kpi.key,
+            metricLabel: kpi.label,
+            label: `${kpi.label} · ${platform}`,
+            platform
+        }))
+    }) : selectedKpis
+
+    const brandSortVisible = displayKpis.some(kpi => kpi.key === sortConfig.key)
+    useEffect(() => {
+        if (comparisonTab && sortConfig.key && !brandSortVisible) {
+            setSortConfig({ key: null, direction: 'desc' })
+        }
+    }, [dimension, sortConfig.key, brandSortVisible])
 
     // Build entities from API data only — NO hardcoded fallback
     const entities = useMemo(() => {
-        const rawApiEntities = apiData[dimension]
+        const rawApiEntities = waitingForBrandData ? undefined : apiData[dimension]
 
         let result = []
         if (rawApiEntities && rawApiEntities.length > 0) {
@@ -912,7 +1060,7 @@ const PlatformOverviewNew = ({
                     color,
                     offtakeShare: apiEntity.offtakeShare,
                     page_url: apiEntity.page_url || null,
-                    data: mapApiEntityToFrontend(apiEntity)
+                    data: mapApiEntityToFrontend(apiEntity, dimension)
                 }
             })
         }
@@ -1013,7 +1161,7 @@ const PlatformOverviewNew = ({
         }
 
         return result
-    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter, sortConfig])
+    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter, sortConfig, waitingForBrandData])
 
 
     // Pagination logic
@@ -1022,54 +1170,6 @@ const PlatformOverviewNew = ({
         return entities.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     }, [entities, currentPage, pageSize])
 
-    const SectionWrapper = ({
-        title,
-        icon: Icon,
-        children,
-        className = '',
-        chip,
-        headerRight
-    }) => {
-        return (
-            <motion.div
-                className={`bg-white rounded-3xl shadow-lg border border-slate-100/60 ${className}`}
-                style={{ boxShadow: '0 2px 0px rgba(0, 0, 0, 0.04)' }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-            >
-                {/* Header */}
-                <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-slate-100/60">
-                    <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3">
-                        {/* Left: Icon + Title + Chip */}
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <Icon size={18} className="text-blue-600 sm:w-5 sm:h-5" />
-                            </div>
-                            <span className="text-[14px] sm:text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>{title}</span>
-                            {/* {chip && (
-                                <span className="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded-full border border-slate-200">
-                                    {chip}
-                                </span>
-                            )} */}
-                        </div>
-
-                        {/* Right: Custom Actions */}
-                        {headerRight && (
-                            <div className="flex items-center gap-3">
-                                {headerRight}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-3 sm:p-6">
-                    {children}
-                </div>
-            </motion.div>
-        )
-    }
     return (
         <>
             <div>
@@ -1145,8 +1245,15 @@ const PlatformOverviewNew = ({
                                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-500 pointer-events-none" size={14} />
                                 </div>
                             )}
-                            {/* Platform Dropdown for non-platform, non-sku dimensions (Brand, Category, Month) */}
-                            {dimension !== 'platform' && dimension !== 'sku' && (
+                            {comparisonTab && (
+                                <BrandPlatformPicker
+                                    options={brandPlatformOptions}
+                                    selected={chosenBrandPlatforms}
+                                    combinedLabel={effectivePlatform === 'All' ? 'All platforms' : effectivePlatform.replaceAll(',', ', ')}
+                                    onApply={setComparisonPlatforms}
+                                />
+                            )}
+                            {!comparisonTab && dimension !== 'platform' && dimension !== 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
                                         value={localPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (localPlatformFilter || '').toLowerCase()) || localPlatformFilter || 'All')}
@@ -1199,7 +1306,7 @@ const PlatformOverviewNew = ({
                             <motion.button
                                 onClick={() => setIsFilterModalOpen(true)}
                                 className={cn(
-                                    'hidden sm:flex',
+                                    comparisonTab ? 'flex' : 'hidden sm:flex',
                                     'items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
                                     activeDimensionFilters > 0
                                         ? 'bg-slate-900 text-white border-slate-900 shadow-md'
@@ -1245,9 +1352,9 @@ const PlatformOverviewNew = ({
                     }
                 >
                     {/* Grid Content - Or Error/Loading State */}
-                    {apiLoading ? (
+                    {apiLoading || waitingForBrandData ? (
                         /* Loading skeleton rows */
-                        <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
+                        <div className="space-y-3 overflow-hidden sm:space-y-4 py-3 sm:py-4">
                             {[1, 2, 3, 4].map((i) => (
                                 <div key={i} className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
                                     <div className="w-48 sm:w-72 flex-shrink-0 flex items-center gap-2 sm:gap-3">
@@ -1304,6 +1411,25 @@ const PlatformOverviewNew = ({
                         <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center min-h-[150px] gap-2">
                             <p className="text-sm text-slate-400 font-medium">No data available for the current selection</p>
                         </div>
+                    ) : dimension === 'brand' || comparedPlatforms ? (
+                        <BrandKpiViews
+                            entityLabel={currentDimension.label}
+                            brands={paginatedEntities}
+                            count={entities.length}
+                            kpis={selectedKpis}
+                            columns={displayKpis}
+                            platforms={comparedPlatforms}
+                            collapsedPlatforms={collapsedPlatforms}
+                            onTogglePlatform={platform => setCollapsedByTab(prev => ({ ...prev, [dimension]: { ...prev[dimension], [platform]: !prev[dimension]?.[platform] } }))}
+                            layout={brandLayout}
+                            onLayoutChange={layout => setLayoutsByTab(prev => ({ ...prev, [dimension]: layout }))}
+                            sortConfig={sortConfig}
+                            onSort={handleSort}
+                            onTrend={name => onViewTrends(name, currentDimension.label, drlSource, chosenBrandPlatforms.join(',') || undefined)}
+                            onCopy={handleCopy}
+                            getFullValue={getFullDisplayValue}
+                            comparison={dimension === 'month' ? 'previous month' : compareStart && compareEnd && `${compareStart.format('D MMM YYYY')} – ${compareEnd.format('D MMM YYYY')}`}
+                        />
                     ) : (
                         /* Normal data grid */
                         <div className="overflow-x-auto no-scrollbar pb-2">
@@ -1574,7 +1700,7 @@ const PlatformOverviewNew = ({
                                     <TrendingUp size={14} className="text-white" />
                                 </div>
                                 <span className="text-slate-800 text-xs sm:text-sm font-bold">
-                                    {entities.reduce((sum, e) => sum + selectedKpis.filter(k => e.data[k.key]?.delta?.dir === 'up').length, 0)}
+                                    {entities.reduce((sum, e) => sum + displayKpis.filter(k => e.data[k.key]?.delta?.dir === 'up').length, 0)}
                                 </span>
                                 <span className="text-slate-500 text-xs">positive</span>
                             </div>
@@ -1583,12 +1709,12 @@ const PlatformOverviewNew = ({
                                     <TrendingDown size={14} className="text-white" />
                                 </div>
                                 <span className="text-slate-800 text-xs sm:text-sm font-bold">
-                                    {entities.reduce((sum, e) => sum + selectedKpis.filter(k => e.data[k.key]?.delta?.dir === 'down').length, 0)}
+                                    {entities.reduce((sum, e) => sum + displayKpis.filter(k => e.data[k.key]?.delta?.dir === 'down').length, 0)}
                                 </span>
                                 <span className="text-slate-500 text-xs">negative</span>
                             </div>
                         </div>
-                        <span className="text-[10px] sm:text-xs text-slate-500 font-medium text-center">Click any card to copy • Select KPIs above</span>
+                        <span className="text-[10px] sm:text-xs text-slate-500 font-medium text-center">{dimension === 'brand' ? 'Click a KPI value to copy it' : 'Click any card to copy • Select KPIs above'}</span>
                     </div>
                 </SectionWrapper>
             </div>
@@ -1616,9 +1742,10 @@ const PlatformOverviewNew = ({
                     <AdvancedFilterModal
                         isOpen={isFilterModalOpen}
                         onClose={() => setIsFilterModalOpen(false)}
-                        filters={{ ...advancedFilters, kpis: glanceKpis }}
+                        filters={{ ...advancedFilters, ...(comparisonTab && { platforms: chosenBrandPlatforms }), kpis: glanceKpis }}
                         onApply={handleApplyFilters}
                         currentDimension={dimension}
+                        platformScope={comparisonTab ? brandPlatformOptions : undefined}
                         brands={brandOptions}
                         categories={categoryOptions}
                         platforms={platformOptions}

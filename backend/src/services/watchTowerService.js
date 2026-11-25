@@ -7903,6 +7903,22 @@ const getMonthOverview = async (filters) => {
     return monthOverview;
 };
 
+const overviewComparisonDates = (filters, startDate, endDate) => {
+    const durationDays = endDate.diff(startDate, 'day');
+    let momEnd = startDate.clone().subtract(1, 'day').endOf('day');
+    let momStart = momEnd.clone().subtract(durationDays, 'day').startOf('day');
+    if (filters.compareStartDate && filters.compareEndDate) {
+        const requestedStart = dayjs(filters.compareStartDate);
+        const requestedEnd = dayjs(filters.compareEndDate);
+        if (requestedStart.isValid() && requestedEnd.isValid() && !requestedStart.isAfter(requestedEnd)) {
+            const limit = filters.maxAllowedDate && dayjs(filters.maxAllowedDate);
+            momStart = (limit && requestedStart.isAfter(limit) ? limit : requestedStart).startOf('day');
+            momEnd = (limit && requestedEnd.isAfter(limit) ? limit : requestedEnd).endOf('day');
+        }
+    }
+    return { momStart, momEnd };
+};
+
 /**
  * Get Category Overview Data - OPTIMIZED
  * Requires categoryOverviewPlatform parameter
@@ -7956,10 +7972,7 @@ const getCategoryOverview = async (filters) => {
         if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
-    // Comparison period logic (MoM / same duration)
-    const durationDays = endDate.diff(startDate, 'day');
-    const momEnd = startDate.clone().subtract(1, 'day').endOf('day');
-    const momStart = momEnd.clone().subtract(durationDays, 'day').startOf('day');
+    const { momStart, momEnd } = overviewComparisonDates(filters, startDate, endDate);
 
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
@@ -8562,9 +8575,7 @@ const getBrandsOverview = async (filters) => {
     }
 
     // Comparison period logic (MoM / same duration)
-    const durationDays = endDate.diff(startDate, 'day');
-    const momEnd = startDate.clone().subtract(1, 'day').endOf('day');
-    const momStart = momEnd.clone().subtract(durationDays, 'day').startOf('day');
+    const { momStart, momEnd } = overviewComparisonDates(filters, startDate, endDate);
 
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
@@ -14376,10 +14387,7 @@ const getCityOverview = async (filters) => {
         if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
-    // Comparison period logic (MoM / same duration)
-    const diff = endDate.diff(startDate, 'day') + 1;
-    const prevEndDate = startDate.subtract(1, 'day').endOf('day');
-    const prevStartDate = prevEndDate.subtract(diff - 1, 'day').startOf('day');
+    const { momStart: prevStartDate, momEnd: prevEndDate } = overviewComparisonDates(filters, startDate, endDate);
 
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -14822,14 +14830,51 @@ const getCityOverview = async (filters) => {
     const prevAllWtOsa = prevAllAvailability !== null ? (prevAllListingPercent !== null ? (prevAllAvailability * prevAllListingPercent) / 100 : prevAllAvailability) : null;
     const prevAllMarketShare = allMsPrevSales > 0 ? (prevAllOfftake / allMsPrevSales) * 100 : null;
 
+    async function loadCitySos(start, end) {
+        const shares = new Map();
+        if (filters.breakdown !== 'platform') return shares;
+        const conditions = [
+            'toDate(DATE) BETWEEN {start:Date} AND {end:Date}',
+            'POSITION <= 10',
+            buildPlatformChannelCond(cityPlatform, channel, 'platform_name'),
+            locationArr && buildLocationQueryCond(locationArr, cityPlatform, 'location_name', 'platform_name'),
+            categoryArr && 'lower(keyword_category) IN {categories:Array(String)}'
+        ].filter(Boolean);
+        const numerator = brandArr ? 'lower(brand) IN {brands:Array(String)}' : "toString(flag) = '1'";
+        const rows = await queryClickHouse(`
+            SELECT location_name, sumIf(toInt32(overall), ${numerator}) AS num, sum(toInt32(overall)) AS den
+            FROM rb_kw_olap WHERE ${conditions.join(' AND ')} GROUP BY location_name
+        `, {
+            start: start.format('YYYY-MM-DD'), end: end.format('YYYY-MM-DD'),
+            categories: (categoryArr || []).map(c => c.toLowerCase()),
+            brands: (brandArr || []).map(b => b.toLowerCase())
+        });
+        const totals = new Map();
+        for (const row of rows) {
+            for (const key of [null, normCityKey(row.location_name)]) {
+                const total = totals.get(key) || { num: 0, den: 0 };
+                total.num += Number(row.num);
+                total.den += Number(row.den);
+                totals.set(key, total);
+            }
+        }
+        for (const [key, { num, den }] of totals) {
+            if (den > 0) shares.set(key, 100 * num / den);
+        }
+        return shares;
+    }
+    const [citySos, previousCitySos] = await Promise.all([
+        loadCitySos(startDate, endDate), loadCitySos(prevStartDate, prevEndDate)
+    ]);
+
     const panIndiaRow = {
         key: 'pan_india',
         label: 'Pan India',
         type: 'Overall',
         logo: "https://cdn-icons-png.flaticon.com/512/535/535239.png",
         columns: generateKpiColumns({
-            offtake: allOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPercent, sos: null, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allAdSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: allAov, promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: allMsCurrSales > 0 ? allMsCurrSales : null,
-            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPercent, prevSos: null, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllAdSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: prevAllAov, prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: allMsPrevSales > 0 ? allMsPrevSales : null,
+            offtake: allOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPercent, sos: citySos.get(null) ?? null, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allAdSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: allAov, promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: allMsCurrSales > 0 ? allMsCurrSales : null,
+            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPercent, prevSos: previousCitySos.get(null) ?? null, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllAdSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: prevAllAov, prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: allMsPrevSales > 0 ? allMsPrevSales : null,
             offtakeUnits: allOfftakeUnits, inorgUnits: allOrders, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllOrders
         })
     };
@@ -14968,8 +15013,8 @@ const getCityOverview = async (filters) => {
             type: "Location",
             logo: "https://cdn-icons-png.flaticon.com/512/535/535239.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, listingPercent, sos: null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityNameLower) || null) : null,
-                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos: null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityNameLower) || null) : null,
+                offtake, availability, wtOsa, listingPercent, sos: citySos.get(cityNameLower) ?? null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityNameLower) || null) : null,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos: previousCitySos.get(cityNameLower) ?? null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityNameLower) || null) : null,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };
