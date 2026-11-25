@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 
@@ -36,8 +37,17 @@ import MainPerformanceMarketing from "../../components/PerformanceMarketing/Main
 export default function MainPerformanceMarketings() {
   const [showTrends, setShowTrends] = useState(false);
 
+  const { refreshFilters, platform } = useContext(FilterContext);
+
+  // Restore comprehensive platform/location list on mount
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
+
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: platform || "",
     months: 6,
     timeStep: "Monthly",
   });
@@ -48,8 +58,13 @@ export default function MainPerformanceMarketings() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: platform || "",
   });
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+  }, [platform]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
@@ -96,7 +111,7 @@ export default function MainPerformanceMarketings() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);
@@ -196,11 +211,11 @@ export default function MainPerformanceMarketings() {
   return (
     <>
       <CommonContainer
-        title="Performace Marketing"
+        title="Performance Marketing"
         filters={filters}
         onFiltersChange={setFilters}
       >
-    <MainPerformanceMarketing />;
+        <MainPerformanceMarketing />
       </CommonContainer>
 
       {/* Trend Drawer */}

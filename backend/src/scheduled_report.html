@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:v="urn:schemas-microsoft-com:vml"
+      xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{COMPANY_NAME}} - {{REPORT_NAME}}</title>
+
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+<o:AllowPNG/>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+
+<style>
+html, body {
+    margin:0 !important;
+    padding:0 !important;
+    width:100% !important;
+    height:100% !important;
+}
+body, table, td, a {
+    -webkit-text-size-adjust:100%;
+    -ms-text-size-adjust:100%;
+}
+table, td {
+    mso-table-lspace:0pt;
+    mso-table-rspace:0pt;
+}
+table {
+    border-collapse:collapse;
+}
+img {
+    -ms-interpolation-mode:bicubic;
+    border:0;
+    outline:none;
+    text-decoration:none;
+    display:block;
+}
+.ExternalClass { width:100%; }
+.ExternalClass, .ExternalClass p, .ExternalClass span,
+.ExternalClass font, .ExternalClass td, .ExternalClass div {
+    line-height:100%;
+}
+
+@media only screen and (max-width:600px) {
+    .email-shell {
+        width:100% !important;
+    }
+    .outer-pad {
+        padding:10px !important;
+    }
+    .mobile-pad {
+        padding:8px !important;
+    }
+    .logo {
+        width:100px !important;
+        max-width:100px !important;
+    }
+    .metric-cell {
+        display:block !important;
+        width:100% !important;
+        padding:0 0 6px 0 !important;
+    }
+    .metric-value {
+        font-size:13px !important;
+    }
+    .tbl td {
+        padding:4px !important;
+        font-size:7px !important;
+    }
+    .section-title {
+        font-size:7px !important;
+        padding:5px 8px !important;
+    }
+}
+</style>
+</head>
+
+<body bgcolor="#f4f7fb" style="margin:0;padding:0;background-color:#f4f7fb;">
+
+<!-- Inbox preview text -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+    {{PREHEADER}}
+</div>
+
+<center bgcolor="#f4f7fb" style="width:100%;background-color:#f4f7fb;">
+
+<!--[if mso]>
+<table role="presentation" width="676" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="padding:0;">
+<![endif]-->
+
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       align="center"
+       class="email-shell"
+       style="width:100%;max-width:676px;">
+<tr>
+<td class="outer-pad" style="padding:18px;">
+
+<!--[if !mso]><!-->
+<div style="max-width:640px;margin:0 auto;">
+<!--<![endif]-->
+
+<!--[if mso]>
+<table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr><td>
+<![endif]-->
+
+<!-- HEADER -->
+<table bgcolor="#f8fbff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#f8fbff;border:1px solid #d7e6ff;">
+<tr>
+<td bgcolor="#f8fbff" class="mobile-pad"
+    style="padding:10px;background-color:#f8fbff;">
+
+<div style="font-family:Arial,sans-serif;color:#4b74c9;font-size:9px;
+            line-height:12px;font-weight:700;letter-spacing:1.5px;
+            text-transform:uppercase;">
+    SCHEDULED REPORTS
+</div>
+
+{{LOGO_HTML}}
+
+<div style="font-family:Arial,sans-serif;color:#667085;font-size:11px;line-height:15px;">
+    Scheduled Report Delivery
+</div>
+
+<div style="padding-top:4px;font-family:Arial,sans-serif;color:#667085;
+            font-size:11px;line-height:15px;">
+    {{TIMESTAMP}}
+</div>
+
+<div style="font-family:Arial,sans-serif;color:#667085;font-size:11px;padding-top:4px;">
+    {{PERIOD_LABEL}}
+</div>
+
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
+<!-- MAIN CARD -->
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#ffffff;border:1px solid #e5edf8;">
+<tr>
+<td class="mobile-pad" style="padding:10px;">
+
+<!-- REPORT TITLE -->
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+<td valign="middle"
+    style="font-family:Arial,sans-serif;color:#111827;font-size:13px;
+           line-height:17px;font-weight:700;word-break:break-word;
+           word-wrap:break-word;overflow-wrap:break-word;">
+    {{REPORT_NAME}} | {{FREQUENCY}}
+</td>
+
+<td valign="middle"
+    align="right"
+    style="font-family:Arial,sans-serif;color:#16a34a;font-size:9px;
+           line-height:12px;font-weight:700;white-space:nowrap;">
+    READY
+</td>
+</tr>
+</table>
+
+{{MESSAGE_HTML}}
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:8px;line-height:8px;font-size:8px;">&nbsp;</td></tr>
+</table>
+
+<!-- SUMMARY TILES -->
+<table bgcolor="#f8fbff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#f8fbff;border:1px solid #cfe0ff;">
+<tr>
+<td class="mobile-pad" style="padding:8px;">
+
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+{{SUMMARY_TILES_HTML}}
+</tr>
+</table>
+
+</td>
+</tr>
+</table>
+
+{{PREVIEW_HTML}}
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
+<!-- DELIVERY -->
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#ffffff;border:1px solid #d7e6ff;">
+<tr>
+<td style="padding:6px;font-family:Arial,sans-serif;color:#111827;
+           font-size:10px;line-height:14px;word-break:break-word;
+           word-wrap:break-word;overflow-wrap:break-word;">
+
+<div style="font-family:Arial,sans-serif;color:#1e5eff;font-size:8px;
+            line-height:10px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.3px;padding-bottom:3px;">
+    Your Report
+</div>
+
+{{DELIVERY_HTML}}
+
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
+<!-- REPORT DETAILS -->
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#ffffff;border:1px solid #e5eaf3;">
+<tr>
+<td bgcolor="#f8fafc" class="section-title"
+    style="padding:5px 8px;background-color:#f8fafc;
+           border-bottom:1px solid #e8eef7;
+           font-family:Arial,sans-serif;color:#64748b;font-size:8px;
+           line-height:10px;font-weight:700;text-transform:uppercase;
+           letter-spacing:.3px;">
+    Report Details
+</td>
+</tr>
+<tr>
+<td style="padding:4px 8px 6px 8px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{DETAILS_HTML}}
+</table>
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:8px;line-height:8px;font-size:8px;">&nbsp;</td></tr>
+</table>
+
+<!-- FOOTER -->
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+<td align="center"
+    style="font-family:Arial,sans-serif;color:#64748b;font-size:8px;
+           line-height:11px;">
+    Automated report generated by Trailytics{{SCHEDULED_BY_HTML}}
+</td>
+</tr>
+{{FOOTER_LINKS_HTML}}
+</table>
+
+<!--[if mso]>
+</td>
+</tr>
+</table>
+<![endif]-->
+
+<!--[if !mso]><!-->
+</div>
+<!--<![endif]-->
+
+</td>
+</tr>
+</table>
+
+<!--[if mso]>
+</td>
+</tr>
+</table>
+<![endif]-->
+
+</center>
+</body>
+</html>

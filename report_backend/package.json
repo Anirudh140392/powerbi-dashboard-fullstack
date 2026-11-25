@@ -1,0 +1,30 @@
+{
+  "name": "report_backend",
+  "version": "1.0.0",
+  "description": "Dedicated microservice for report downloads and heavy query exports",
+  "type": "module",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node --max-old-space-size=4096 --max-http-header-size=81920 src/app.js",
+    "dev": "nodemon --max-http-header-size=81920 src/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@clickhouse/client": "^1.16.0",
+    "@clickhouse/client-common": "^1.16.0",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "redis": "^5.11.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

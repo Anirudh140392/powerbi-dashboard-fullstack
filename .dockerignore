@@ -1,0 +1,55 @@
+# ──────────────────────────────────────────────────────
+# Root .dockerignore
+# Used when frontend Dockerfile builds with context = .
+# Exclude everything that the frontend build doesn't need
+# ──────────────────────────────────────────────────────
+
+# All node_modules (deps are installed inside the container)
+**/node_modules
+
+# Git history
+.git
+.github
+
+# Build outputs (will be produced inside the container)
+**/dist
+**/build
+
+# Backend source (not needed by frontend build)
+backend/
+
+# Ratings backend (not needed by frontend build)
+trailytics_ratings/backend/
+
+# Content analysis backend (not needed by frontend build)
+trailytics_content_analysis/backend/
+
+# Ratings unused directory
+trailytics_ratings/unused/
+
+# Environment files (secrets — never bake into images)
+**/.env
+**/.env.*
+
+# IDE / OS files
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+
+# Logs and temp files
+**/*.log
+**/*.tmp
+**/*.temp
+
+# Debug / test scripts at repo root
+*.js
+*.mjs
+*.py
+*.sh
+*.json
+!package.json
+!package-lock.json
+
+# Documentation
+**/*.md
