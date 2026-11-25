@@ -76,7 +76,9 @@ KPIS = [
 
 def resolve_company_id(client: str) -> str:
     """Dynamically fetches the company_id UUID from admin_master.tb_database for client."""
-    db_name = (client or "danone").lower().strip()
+    db_name = (client or "").lower().strip()
+    if not db_name:
+        return ""
     try:
         ch = get_clickhouse_client("admin_master")
         rows = ch.query(f"SELECT toString(company_id) FROM tb_database WHERE lower(db_name) = '{db_name}' LIMIT 1").result_rows
@@ -87,34 +89,50 @@ def resolve_company_id(client: str) -> str:
     except Exception:
         pass
 
-    fallbacks = {
-        "prestige": "297e37ea-a5ac-47df-bebd-ac44e52b7979",
-        "danone": "c2e2a437-05c9-4bab-9eab-2cc46bf93508",
-        "drl": "4f0a0a92-9347-4b43-84aa-1e35428c72e3",
-    }
-    return fallbacks.get(db_name, "")
+    # Dynamic fallback: query company_id directly from the client's own tables
+    try:
+        ch_client = get_clickhouse_client(db_name)
+        for tbl in ["rb_review_olap", "ml_reviews", "company_master"]:
+            try:
+                rows = ch_client.query(f"SELECT toString(company_id) FROM {db_name}.{tbl} WHERE company_id IS NOT NULL AND toString(company_id) != '00000000-0000-0000-0000-000000000000' LIMIT 1").result_rows
+                if rows and rows[0] and rows[0][0]:
+                    cid = str(rows[0][0]).strip()
+                    if cid:
+                        return cid
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return ""
 
 
 def get_platforms_for_client(client: str) -> List[str]:
     """Dynamically fetches distinct platforms with review data for this client."""
     db_name = (client or "").lower().strip()
-    if db_name not in SUPPORTED_CLIENTS:
-        return []
     try:
         ch = get_clickhouse_client(db_name)
-        if db_name == "prestige":
-            rows = ch.query("SELECT DISTINCT lower(platform) FROM ml_reviews WHERE platform IS NOT NULL AND platform != '' ORDER BY platform").result_rows
-        else:
-            rows = ch.query("SELECT DISTINCT lower(platform) FROM rb_review_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform").result_rows
-        return [str(r[0]).strip().lower() for r in rows if r and r[0]]
+        tables = [r[0] for r in ch.query(f"SELECT name FROM system.tables WHERE database = '{db_name}'").result_rows]
+        if "ml_reviews" in tables:
+            rows = ch.query(f"SELECT DISTINCT lower(platform) FROM {db_name}.ml_reviews WHERE platform IS NOT NULL AND platform != '' ORDER BY platform").result_rows
+            plats = [str(r[0]).strip().lower() for r in rows if r and r[0]]
+            if plats:
+                return plats
+        if "rb_review_olap" in tables:
+            rows = ch.query(f"SELECT DISTINCT lower(platform) FROM {db_name}.rb_review_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform").result_rows
+            plats = [str(r[0]).strip().lower() for r in rows if r and r[0]]
+            if plats:
+                return plats
     except Exception:
-        return []
+        pass
+    return []
 
 
-def get_segments(client: Optional[str] = "danone") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """Returns dynamic segments available for the given client."""
     norm_client = (client or "").lower().strip()
-    if norm_client not in SUPPORTED_CLIENTS:
+    platforms = get_platforms_for_client(norm_client)
+    if not platforms:
         return []
 
     segments = [
@@ -184,11 +202,11 @@ class ReviewRatingModule:
     ]
 
     @classmethod
-    def get_segments(cls, client: Optional[str] = "danone") -> List[Dict[str, Any]]:
+    def get_segments(cls, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @classmethod
-    def _get_segment_info(cls, segment: str, client: Optional[str] = "danone") -> Dict[str, Any]:
+    def _get_segment_info(cls, segment: str, client: Optional[str] = None) -> Dict[str, Any]:
         all_segs = get_segments(client)
         for s in all_segs:
             if s["id"] == segment:
@@ -203,19 +221,19 @@ class ReviewRatingModule:
         }
 
     @classmethod
-    def get_kpis_for_segment(cls, segment: str, client: Optional[str] = "danone") -> List[Dict[str, Any]]:
+    def get_kpis_for_segment(cls, segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return KPIS
 
     @classmethod
-    def get_kpis(cls, segment: str, client: Optional[str] = "danone") -> List[Dict[str, Any]]:
+    def get_kpis(cls, segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return KPIS
 
     # -----------------------------------------------------------------------
     # STEP 1: API Layer Verification
     # -----------------------------------------------------------------------
     @classmethod
-    def step1_fetch(cls, segment: str, period: Any, client: Optional[str] = "danone") -> Dict[str, Optional[float]]:
-        norm_client = (client or "danone").lower().strip()
+    def step1_fetch(cls, segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
+        norm_client = (client or "drl").lower().strip()
         cid = resolve_company_id(norm_client)
         seg_info = cls._get_segment_info(segment, client=norm_client)
         platform = seg_info.get("platform", "all")
@@ -278,8 +296,8 @@ class ReviewRatingModule:
     # STEP 2: Logic Layer Verification (Direct ClickHouse)
     # -----------------------------------------------------------------------
     @classmethod
-    def step2_logic(cls, segment: str, period: Any, client: Optional[str] = "danone") -> Dict[str, Optional[float]]:
-        norm_client = (client or "danone").lower().strip()
+    def step2_logic(cls, segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
+        norm_client = (client or "").lower().strip()
         cid = resolve_company_id(norm_client)
         seg_info = cls._get_segment_info(segment, client=norm_client)
         platform = seg_info.get("platform", "all")
@@ -289,7 +307,13 @@ class ReviewRatingModule:
 
         plat_filter = f"AND ilike(platform, '{platform}')" if platform and platform != "all" else ""
 
-        if norm_client in ("danone", "drl"):
+        client_tables = []
+        try:
+            client_tables = [r[0] for r in ch.query(f"SELECT name FROM system.tables WHERE database = '{norm_client}'").result_rows]
+        except Exception:
+            pass
+
+        if "rb_review_olap" in client_tables:
             # OLAP Controller logic on {client}.rb_review_olap
             rev_sql = f"""
                 SELECT
@@ -394,11 +418,11 @@ class ReviewRatingModule:
         driver: webdriver.Chrome,
         segment: str,
         period: Any,
-        client: Optional[str] = "danone",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        norm_client = (client or "danone").lower().strip()
+        norm_client = (client or "drl").lower().strip()
         target_url = f"{FRONTEND_URL}/review-rating"
 
         if on_live_step:
@@ -409,7 +433,7 @@ class ReviewRatingModule:
             show_live_step_banner(driver, f"⭐ DS Tester: Authenticating Review & Rating for {norm_client}...")
 
         ensure_authenticated(driver, target_url, client=norm_client)
-        time.sleep(2.0)
+        time.sleep(0.2)
         wait_for_loading_complete(driver, timeout=25)
 
         seg_info = cls._get_segment_info(segment, client=norm_client)
@@ -428,7 +452,7 @@ class ReviewRatingModule:
                 const advBtn = btns.find(b => b.innerText.includes('Advanced Filters'));
                 if (advBtn) advBtn.click();
             """)
-            time.sleep(1.0)
+            time.sleep(0.1)
 
             # Click matching platform button inside modal
             driver.execute_script(f"""
@@ -444,7 +468,7 @@ class ReviewRatingModule:
                 const applyBtn = btns.find(b => b.innerText.trim() === 'Apply Filters');
                 if (applyBtn) applyBtn.click();
             """)
-            time.sleep(2.0)
+            time.sleep(0.2)
             wait_for_loading_complete(driver, timeout=20)
 
         # Highlight headline chips
@@ -467,7 +491,7 @@ class ReviewRatingModule:
                 }
             }
         """)
-        time.sleep(1.0)
+        time.sleep(0.1)
 
         # Scrape exact chip values
         chips = driver.execute_script("""

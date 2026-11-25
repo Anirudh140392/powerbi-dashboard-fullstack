@@ -2307,23 +2307,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
 
         // Process Market Share Data
-        const tier1Cities = [
-            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
-            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
-        ];
-        let hasTier23 = false;
-        if (locationArr && locationArr.length > 0) {
-            hasTier23 = locationArr.some(loc => {
-                const lowerLoc = String(loc).trim().toLowerCase();
-                if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
-                return !tier1Cities.includes(lowerLoc);
-            });
-        }
-
         const marketShareChart = weekBuckets.map(b => {
-            if (hasTier23) {
-                return { label: b.label, value: 0 };
-            }
             const bStart = dayjs(b.date).startOf('isoWeek');
             const bEnd = dayjs(b.date).endOf('isoWeek');
             let sumMs = 0, count = 0;
@@ -2338,12 +2322,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         });
 
         let totalMarketShare = totalMarketShareResult?.avg_market_share !== undefined && totalMarketShareResult?.avg_market_share !== null ? parseFloat(totalMarketShareResult.avg_market_share) : null;
-        if (hasTier23) totalMarketShare = null;
         const formattedMarketShare = totalMarketShare !== null ? totalMarketShare.toFixed(2) + "%" : "N/A";
 
         const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
-        const marketShareChange = (totalMarketShare !== null && !hasTier23) ? totalMarketShare - prevMarketShareVal : 0;
-        const marketShareTrendStr = (totalMarketShare !== null && !hasTier23) ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
+        const marketShareChange = totalMarketShare !== null ? totalMarketShare - prevMarketShareVal : 0;
+        const marketShareTrendStr = totalMarketShare !== null ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
 
 
         // Process Availability Data
@@ -5038,7 +5021,16 @@ const getChannels = async () => {
         const channelCol = resolveColumn(cols, 'channel');
         const query = `SELECT DISTINCT ${channelCol} AS channel FROM rb_pdp_olap WHERE ${channelCol} IS NOT NULL AND ${channelCol} != '' ORDER BY channel`;
         const results = await queryClickHouse(query);
-        return results.map(r => r.channel).filter(Boolean).sort();
+        const seen = new Set();
+        const deduped = [];
+        for (const r of results) {
+            const ch = r.channel;
+            if (ch && !seen.has(ch.toLowerCase())) {
+                seen.add(ch.toLowerCase());
+                deduped.push(ch);
+            }
+        }
+        return deduped.sort();
     } catch (error) {
         console.error("Error fetching channels from rb_pdp_olap:", error);
         return [];
@@ -7958,12 +7950,12 @@ const getCategoryOverview = async (filters) => {
     ] = await Promise.all([
         // Query 1: Distinct categories
         queryClickHouse(`
-            SELECT DISTINCT ${src.isAgg ? 'category' : src.f.category} as category
+            SELECT DISTINCT lower(${src.isAgg ? 'category' : src.f.category}) as category
             FROM ${src.table}
             WHERE ${buildCatConds(startDate, endDate)} AND ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} != 'Others'
         `),
         // Metrics
-        queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
+        queryClickHouse(`SELECT lower(${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL}) as Category,
             SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
@@ -7978,7 +7970,7 @@ const getCategoryOverview = async (filters) => {
             AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
-        queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
+        queryClickHouse(`SELECT lower(${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL}) as Category,
             SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,

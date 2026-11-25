@@ -262,6 +262,18 @@ export default function RetailerWiseAnalysis({
     });
   }, [dailyRawData, selectedRetailers]);
 
+  useEffect(() => {
+    try {
+      window.__retailerWiseAnalysisData = {
+        availableRetailers,
+        selectedRetailers,
+        chartData,
+        dailyRawData,
+        loading,
+      };
+    } catch (e) {}
+  }, [availableRetailers, selectedRetailers, chartData, dailyRawData, loading]);
+
   return (
     <Card
       sx={{

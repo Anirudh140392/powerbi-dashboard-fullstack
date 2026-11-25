@@ -728,6 +728,22 @@ export default function PrimarySummary() {
     return "0 Total";
   }, [quarterData, metricType]);
 
+  useEffect(() => {
+    try {
+      window.__primarySummaryData = {
+        dynamicKpis,
+        kpisData,
+        displayMomData,
+        tableRows,
+        monthsHeaders,
+        allMonthsHeaders,
+        loading,
+        timeStart: timeStart ? (dayjs.isDayjs(timeStart) ? timeStart.format("YYYY-MM-DD") : String(timeStart)) : "",
+        timeEnd: timeEnd ? (dayjs.isDayjs(timeEnd) ? timeEnd.format("YYYY-MM-DD") : String(timeEnd)) : "",
+      };
+    } catch (e) {}
+  }, [dynamicKpis, kpisData, displayMomData, tableRows, monthsHeaders, allMonthsHeaders, loading, timeStart, timeEnd]);
+
   return (
     <Box sx={{ mt: 0, width: "100%", display: "flex", flexDirection: "column", gap: 3.5 }}>
       {/* ========================================================================= */}

@@ -358,6 +358,16 @@ export function GainersAndDrainers({ tableRows = [], monthsHeaders = [], allMont
     };
   }, [tableRows, monthsHeaders, allMonthsHeaders, metricType]);
 
+  useEffect(() => {
+    try {
+      window.__primaryGainersDrainersData = {
+        dynamicGainers,
+        dynamicDrainers,
+        loading,
+      };
+    } catch (e) {}
+  }, [dynamicGainers, dynamicDrainers, loading]);
+
   return (
     <Card
       sx={{
@@ -634,6 +644,17 @@ export default function PrimaryPlanVsAchieved() {
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
+
+  useEffect(() => {
+    try {
+      window.__primaryPlanVsAchievedData = {
+        dynamicMonthsData,
+        dynamicCurrentVsLyData,
+        liveMomData,
+        loading: loadingChart,
+      };
+    } catch (e) {}
+  }, [dynamicMonthsData, dynamicCurrentVsLyData, liveMomData, loadingChart]);
 
   return (
     <Box sx={{ mt: 3.5, width: "100%", display: "flex", flexDirection: "column", gap: 3.5 }}>

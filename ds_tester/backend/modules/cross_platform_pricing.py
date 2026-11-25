@@ -16,12 +16,12 @@ from ..step3_selenium import (
 )
 
 
-def get_tier1_cities_for_client(client: Optional[str] = "boat") -> List[Dict[str, str]]:
+def get_tier1_cities_for_client(client: Optional[str] = None) -> List[Dict[str, str]]:
     """
     Dynamically fetches distinct Tier-1 cities from ClickHouse rb_location_darkstore for this client.
     Ensures newly added darkstore locations appear automatically without code changes.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         query = f"""
             SELECT DISTINCT location 
@@ -48,7 +48,7 @@ def get_tier1_cities_for_client(client: Optional[str] = "boat") -> List[Dict[str
 
     # If rb_location_darkstore has no tier column, query distinct locations from rb_pdp_olap
     try:
-        query = f"SELECT DISTINCT Location FROM {db_name}.rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' LIMIT 10"
+        query = f"SELECT DISTINCT Location FROM {db_name}.rb_pdp_olap WHERE Location IS NOT NULL AND Location != ''"
         rows = execute_select_query(query, database=db_name)
         if rows:
             return [{"name": str(r[0]).strip().capitalize(), "rawName": str(r[0]).strip().lower()} for r in rows if r and r[0]]
@@ -58,7 +58,7 @@ def get_tier1_cities_for_client(client: Optional[str] = "boat") -> List[Dict[str
     return []
 
 
-def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Returns the two primary segments for Cross Platform Pricing:
     1. City Breach Overview (Tier-1 Summary): Validates the top city summary pills and monitored cities.
@@ -275,13 +275,13 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[
 # Step 1: API
 # ---------------------------------------------------------------------------
 
-def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 1: API. Fetch cross-platform pricing data from Express endpoint GET /api/watchtower/cross-platform-pricing.
     """
     info = _get_segment_info(segment, client=client)
     section = info["section"]
-    db_name = client or "boat"
+    db_name = client or "drl"
 
     if section == "city_overview":
         data = call_platform_api(
@@ -380,13 +380,13 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 # Step 2: Logic (ClickHouse Raw OLAP SQL)
 # ---------------------------------------------------------------------------
 
-def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 2: Logic. Calculates cross-platform pricing and guardrail metrics directly against ClickHouse OLAP.
     """
     info = _get_segment_info(segment, client=client)
     section = info["section"]
-    db_name = client or "boat"
+    db_name = client or "drl"
     start_date, end_date = period_to_date_range(period)
 
     # Dynamic column casing resolution
@@ -599,7 +599,7 @@ def step3_ui(
     driver: Any,
     segment: str,
     period: Any,
-    client: Optional[str] = "boat",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
@@ -610,7 +610,7 @@ def step3_ui(
     info = _get_segment_info(segment, client=client)
     section = info["section"]
     target_url = f"{FRONTEND_URL}/cross-platform-pricing"
-    target_client_label = (client or "boat").capitalize()
+    target_client_label = (client or "drl").capitalize()
 
     if on_live_step:
         on_live_step(f"Opening Cross Platform Pricing dashboard for {target_client_label}...")
@@ -621,7 +621,7 @@ def step3_ui(
     if not headless:
         bring_chrome_to_top(driver)
         show_live_step_banner(driver, f"Connected to {target_client_label} Workspace (Cross Platform Pricing)")
-        time.sleep(1.0)
+        time.sleep(0.1)
 
     # 1. Apply Time Period in UI
     start_str = period.get("startDate") if isinstance(period, dict) else str(period)
@@ -634,7 +634,7 @@ def step3_ui(
     apply_dashboard_period(driver, period)
 
     if not headless:
-        time.sleep(1.0)
+        time.sleep(0.1)
 
     # 2. If a specific city is targeted, select that city pill
     if info.get("city"):
@@ -662,7 +662,7 @@ def step3_ui(
             return false;
         """, city_target)
 
-        time.sleep(1.5)
+        time.sleep(0.15)
         wait_for_loading_complete(driver, timeout=20)
 
     # 3. Read section values
@@ -748,7 +748,7 @@ def step3_ui(
             results["active_platforms"] = str(int(platform_count))
 
         # Initial settle after date period application before city tour
-        time.sleep(2.0)
+        time.sleep(0.2)
         wait_for_loading_complete(driver, timeout=25)
 
         for idx, c in enumerate(cities):
@@ -779,7 +779,7 @@ def step3_ui(
                 }
             """, city_name)
 
-            time.sleep(1.5)
+            time.sleep(0.15)
             wait_for_loading_complete(driver, timeout=20)
 
             # Ensure active_platforms is captured
@@ -822,7 +822,7 @@ def step3_ui(
                 }
             """)
 
-            time.sleep(1.5)
+            time.sleep(0.15)
             wait_for_loading_complete(driver, timeout=20)
 
             breaches_footer = driver.execute_script("""
@@ -838,7 +838,7 @@ def step3_ui(
             c_b = _extract_sku_count(breaches_footer)
             # Guard against reading unchanged footer before table filter applied
             if c_b is not None and c_tot is not None and c_b == c_tot:
-                time.sleep(1.2)
+                time.sleep(0.12)
                 wait_for_loading_complete(driver, timeout=10)
                 breaches_footer = driver.execute_script("""
                     const footerEl = Array.from(document.querySelectorAll("p, span, div")).find(el => 
@@ -874,7 +874,7 @@ def step3_ui(
                     pill.style.outline = '3px solid #22c55e';
                 }
             """, city_name)
-            time.sleep(1.2)
+            time.sleep(0.12)
             wait_for_loading_complete(driver, timeout=15)
 
             time.sleep(0.4)
@@ -947,7 +947,7 @@ def step3_ui(
         """)
 
         if btn_clicked:
-            time.sleep(1.2)
+            time.sleep(0.12)
             wait_for_loading_complete(driver, timeout=15)
             breaches_footer = driver.execute_script("""
                 const footerEl = Array.from(document.querySelectorAll("p, span, div")).find(el => 
@@ -981,7 +981,7 @@ def step3_ui(
             show_live_step_banner(driver, "✅ Live Verification Complete! Cross-Platform Values Verified")
             if on_live_step:
                 on_live_step("Verification complete! Closing Chrome window...")
-            time.sleep(2.5)
+            time.sleep(0.25)
         except Exception:
             pass
 
@@ -992,7 +992,7 @@ class CrossPlatformPricingModule:
     name = "cross_platform_pricing"
 
     @staticmethod
-    def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
@@ -1000,15 +1000,15 @@ class CrossPlatformPricingModule:
         return _get_segment_info(segment, client=client)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client=client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client=client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client=client)
 
     @staticmethod
@@ -1016,7 +1016,7 @@ class CrossPlatformPricingModule:
         driver: Any,
         segment: str,
         period: Any,
-        client: Optional[str] = "boat",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

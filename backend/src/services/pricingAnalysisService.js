@@ -446,6 +446,8 @@ async function getEcpComparison(filters = {}) {
 
             if (topProducts.length > 0) {
                 try {
+                    const scanMinDate = compareStartDate < startDate ? compareStartDate : startDate;
+                    const scanMaxDate = compareEndDate > endDate ? compareEndDate : endDate;
                     const productEscaped = topProducts.map(p => `'${escapeStr(p)}'`).join(',');
                     const cityQuery = `
                         SELECT

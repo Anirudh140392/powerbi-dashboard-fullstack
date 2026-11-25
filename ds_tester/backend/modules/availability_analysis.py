@@ -24,12 +24,12 @@ METRO_CITIES = [
 ]
 
 
-def get_tier1_cities_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_tier1_cities_for_client(client: Optional[str] = None) -> List[str]:
     """
     Dynamically queries rb_location_darkstore for Tier-1 cities in this client database.
     Guarantees no static lists across diverse client workspaces.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         rows = execute_select_query(
             f"SELECT DISTINCT location FROM {db_name}.rb_location_darkstore WHERE lower(tier) = 'tier 1' OR lower(tier) LIKE '%tier 1%' OR lower(tier) = '1'",
@@ -44,12 +44,12 @@ def get_tier1_cities_for_client(client: Optional[str] = "boat") -> List[str]:
     return METRO_CITIES
 
 
-def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """
     Dynamically discovers valid platforms for this client workspace and its active channel.
     Matches /api/watchtower/platforms so matrix columns and platform filters align 100%.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     channel = get_default_channel_for_client(db_name)
     try:
         data = call_platform_api("/api/watchtower/platforms", params={"channel": channel}, db_name=db_name)
@@ -84,13 +84,13 @@ def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
     return ["Amazon", "Blinkit", "Instamart", "Zepto"]
 
 
-def get_default_channel_for_client(client: Optional[str] = "boat") -> Optional[str]:
+def get_default_channel_for_client(client: Optional[str] = None) -> Optional[str]:
     """
     Returns the default channel selected by FilterContext for this client workspace.
     Mirrors AvailablityAnalysis & FilterContext: checks if quickcomm is present in rca_sku_dim,
     defaults to Quickcomm, otherwise Ecommerce.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         cols = execute_select_query(
             f"SELECT DISTINCT channel FROM {db_name}.rca_sku_dim WHERE channel IS NOT NULL AND channel != ''",
@@ -129,7 +129,7 @@ def get_channel_for_platform(client: Optional[str], platform: str) -> Optional[s
     Dynamically queries ClickHouse to find which channel a platform belongs to for this client workspace.
     Zero hardcoding.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     plat_norm = (platform or "").lower().strip()
     if not plat_norm or plat_norm == "all":
         return get_default_channel_for_client(db_name)
@@ -143,14 +143,14 @@ def get_channel_for_platform(client: Optional[str], platform: str) -> Optional[s
     return get_default_channel_for_client(db_name)
 
 
-def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Returns available verification segments for Availability Analysis:
     1. Availability Overview (Main / Default Platform)
     2. Dynamic per-platform overview segments (e.g. Blinkit, Instamart, Zepto, Amazon)
     3. Platform KPI Matrix (Cross-Platform Table)
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     platforms = get_platforms_for_client(db_name)
     channel = (get_default_channel_for_client(db_name) or "ecommerce").lower()
     is_quickcom = "quick" in channel
@@ -183,7 +183,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
 
 def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str, Any]:
     seg_clean = segment_id.lower().strip()
-    db_name = client or "boat"
+    db_name = client or "drl"
     platforms = get_platforms_for_client(db_name)
     channel = (get_default_channel_for_client(db_name) or "ecommerce").lower()
     is_quickcom = "quick" in channel
@@ -224,7 +224,7 @@ def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str
     }
 
 
-def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Returns KPI definitions for the targeted segment dynamically conditioned on client channel.
     Quickcomm displays: OSA, DOI, Metro City OSA.
@@ -232,7 +232,7 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> Lis
     """
     info = _get_segment_info(segment_id, client=client)
     section = info["section"]
-    db_name = client or "boat"
+    db_name = client or "drl"
     channel = (get_default_channel_for_client(db_name) or "ecommerce").lower()
     is_quickcom = "quick" in channel
 
@@ -351,13 +351,13 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> Lis
 # Step 1: API (Live Express Endpoints)
 # ---------------------------------------------------------------------------
 
-def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 1: API. Calls live Express endpoints under /api/availability-analysis/absolute-osa.
     """
     info = _get_segment_info(segment, client=client)
     section = info["section"]
-    db_name = client or "boat"
+    db_name = client or "drl"
     channel = get_default_channel_for_client(db_name) or "Ecommerce"
     is_quickcom = "quick" in channel.lower()
 
@@ -467,13 +467,13 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 # Step 2: Logic (ClickHouse Raw OLAP SQL)
 # ---------------------------------------------------------------------------
 
-def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 2: Logic. Calculates availability and inventory metrics directly against ClickHouse OLAP.
     """
     info = _get_segment_info(segment, client=client)
     section = info["section"]
-    db_name = client or "boat"
+    db_name = client or "drl"
     start_date, end_date = period_to_date_range(period)
     channel = get_default_channel_for_client(db_name) or "Ecommerce"
     is_quickcom = "quick" in channel.lower()
@@ -702,7 +702,7 @@ def step3_ui(
     driver: Any,
     segment: str,
     period: Any,
-    client: Optional[str] = "boat",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
@@ -713,7 +713,7 @@ def step3_ui(
     info = _get_segment_info(segment, client=client)
     section = info["section"]
     target_url = f"{FRONTEND_URL}/availability-analysis"
-    target_client_label = (client or "boat").capitalize()
+    target_client_label = (client or "drl").capitalize()
 
     if on_live_step:
         on_live_step(f"Opening Availability Analysis dashboard for {target_client_label}...")
@@ -724,7 +724,7 @@ def step3_ui(
     if not headless:
         bring_chrome_to_top(driver)
         show_live_step_banner(driver, f"Connected to {target_client_label} Workspace (Availability Analysis)")
-        time.sleep(1.0)
+        time.sleep(0.1)
 
     # 1. Switch channel & platform if segment specifies a platform
     plat = info.get("platform")
@@ -747,7 +747,7 @@ def step3_ui(
         if not success:
             return {"_platform_unavailable": True, "_platform_name": plat.capitalize()}
 
-        time.sleep(1.5)
+        time.sleep(0.15)
         wait_for_loading_complete(driver, timeout=20)
 
     # 2. Apply Time Period in UI
@@ -759,9 +759,9 @@ def step3_ui(
         show_live_step_banner(driver, f"Applying Period: {start_str} to {end_str}...")
 
     apply_dashboard_period(driver, period)
-    time.sleep(2.0)
+    time.sleep(0.2)
     wait_for_loading_complete(driver, timeout=25)
-    time.sleep(1.5)
+    time.sleep(0.15)
 
     # 3. Scrape section values from the live DOM
     if on_live_step:
@@ -825,7 +825,8 @@ def step3_ui(
             if (!table) return {};
 
             table.style.outline = '3px solid #22c55e';
-            const headers = Array.from(table.querySelectorAll("thead th, thead td, tr:first-child th, tr:first-child td")).map(c => c.innerText.trim().toLowerCase());
+            const headerCells = Array.from(table.querySelectorAll("thead tr:first-child th, thead tr:first-child td"));
+            const headers = headerCells.map(c => (c.innerText || '').split('\n')[0].trim().toLowerCase());
             const rows = Array.from(table.querySelectorAll("tbody tr"));
             const res = {};
 
@@ -836,7 +837,9 @@ def step3_ui(
                     headers.forEach((h, idx) => {
                         if (idx > 0 && idx < cells.length) {
                             const cleanH = h.replace(/[^a-z0-9]/g, '');
-                            const cellVal = cells[idx].split('\n')[0].trim();
+                            const cellEls = Array.from(r.querySelectorAll("th, td"));
+                            const numSpan = cellEls[idx] ? (cellEls[idx].querySelector("span.font-mono") || cellEls[idx].querySelector("span") || cellEls[idx]) : null;
+                            const cellVal = (numSpan ? numSpan.innerText : cells[idx]).split('\n')[0].trim();
                             if (rowKpi === 'OSA') {
                                 res[cleanH + '_osa'] = cellVal;
                             } else if (rowKpi === 'DOI') {
@@ -860,7 +863,7 @@ def step3_ui(
             show_live_step_banner(driver, "Live Verification Complete! Availability Values Verified")
             if on_live_step:
                 on_live_step("Verification complete! Closing Chrome window...")
-            time.sleep(2.0)
+            time.sleep(0.2)
         except Exception:
             pass
 
@@ -871,7 +874,7 @@ class AvailabilityAnalysisModule:
     name = "availability_analysis"
 
     @staticmethod
-    def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
@@ -879,7 +882,7 @@ class AvailabilityAnalysisModule:
         return get_channel_for_platform(client, platform)
 
     @staticmethod
-    def get_default_channel_for_client(client: Optional[str] = "boat") -> Optional[str]:
+    def get_default_channel_for_client(client: Optional[str] = None) -> Optional[str]:
         return get_default_channel_for_client(client)
 
     @staticmethod
@@ -887,15 +890,15 @@ class AvailabilityAnalysisModule:
         return _get_segment_info(segment, client=client)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client=client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client=client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client=client)
 
     @staticmethod
@@ -903,7 +906,7 @@ class AvailabilityAnalysisModule:
         driver: Any,
         segment: str,
         period: Any,
-        client: Optional[str] = "boat",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

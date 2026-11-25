@@ -10,6 +10,10 @@ from .pds_score import PdsScoreModule
 from .market_share import MarketShareModule
 from .performance_marketing import PerformanceMarketingModule
 from .review_rating import ReviewRatingModule
+from .primary_summary import PrimarySummaryModule
+from .secondary_summary import SecondarySummaryModule
+from .geo_intelligence import GeoIntelligenceModule
+from .insights import InsightsModule
 
 MODULES: Dict[str, Any] = {
     "business_overview": BusinessOverviewModule,
@@ -23,6 +27,10 @@ MODULES: Dict[str, Any] = {
     "market_share": MarketShareModule,
     "performance_marketing": PerformanceMarketingModule,
     "review_rating": ReviewRatingModule,
+    "primary_summary": PrimarySummaryModule,
+    "secondary_summary": SecondarySummaryModule,
+    "geo_intelligence": GeoIntelligenceModule,
+    "insights": InsightsModule,
 }
 
 

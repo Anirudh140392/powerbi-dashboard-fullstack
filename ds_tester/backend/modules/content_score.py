@@ -127,9 +127,9 @@ DETAIL_VIEW_KPIS = [
 PLATFORMS_SUPPORTING_RATINGS = {"bigbasket", "flipkart", "amazon"}
 
 
-def has_product_verify_table(client: Optional[str] = "mars") -> bool:
+def has_product_verify_table(client: Optional[str] = None) -> bool:
     """Checks if rb_product_verify exists for the given client in ClickHouse."""
-    db_name = client or "mars"
+    db_name = client or "drl"
     try:
         query = f"SELECT count() FROM system.tables WHERE database = '{db_name}' AND name = 'rb_product_verify'"
         rows = execute_select_query(query, database=db_name)
@@ -140,9 +140,9 @@ def has_product_verify_table(client: Optional[str] = "mars") -> bool:
     return False
 
 
-def get_platforms_for_client(client: Optional[str] = "mars") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """Dynamically queries ClickHouse for distinct platforms in rb_product_verify."""
-    db_name = client or "mars"
+    db_name = client or "drl"
     if not has_product_verify_table(db_name):
         return []
 
@@ -189,7 +189,7 @@ def get_channel_for_platform(client: Optional[str], platform: str) -> str:
     return "All Channels"
 
 
-def get_segments(client: Optional[str] = "mars") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Dynamically returns the list of segments for this client:
     1. Content Analysis Overview (All Platforms + each available platform)
@@ -320,9 +320,9 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[
 def run_step1_api(
     segment: str,
     period: Any,
-    client: Optional[str] = "mars",
+    client: Optional[str] = None,
 ) -> Dict[str, Any]:
-    db_name = client or "mars"
+    db_name = client or "drl"
     info = _get_segment_info(segment, client=db_name)
     section = info.get("section", "content_overview")
     plat = info.get("platform", "all")
@@ -465,9 +465,9 @@ def run_step1_api(
 def run_step2_logic(
     segment: str,
     period: Any,
-    client: Optional[str] = "mars",
+    client: Optional[str] = None,
 ) -> Dict[str, Any]:
-    db_name = client or "mars"
+    db_name = client or "drl"
     info = _get_segment_info(segment, client=db_name)
     section = info.get("section", "content_overview")
     plat = info.get("platform", "all")
@@ -691,11 +691,11 @@ def run_step3_ui(
     driver: Any,
     segment: str,
     period: Any,
-    client: Optional[str] = "mars",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
-    db_name = client or "mars"
+    db_name = client or "drl"
     info = _get_segment_info(segment, client=db_name)
     section = info.get("section", "content_overview")
     plat = info.get("platform", "all")
@@ -715,14 +715,14 @@ def run_step3_ui(
         apply_segment_platform(driver, plat)
     else:
         apply_segment_platform(driver, "all")
-    time.sleep(1.0)
+    time.sleep(0.1)
     wait_for_loading_complete(driver)
 
     # 1. Apply Date Range
     if on_live_step:
         on_live_step(f"Setting date filter: {period.get('startDate')} to {period.get('endDate')}...")
     apply_dashboard_period(driver, period)
-    time.sleep(2.5)
+    time.sleep(0.25)
     wait_for_loading_complete(driver)
 
     if on_live_step:
@@ -897,7 +897,7 @@ def run_step3_ui(
         try:
             bring_chrome_to_top(driver)
             show_live_step_banner(driver, f"Live Verification Complete! {info.get('label')} Verified")
-            time.sleep(1.5)
+            time.sleep(0.15)
         except Exception:
             pass
 
@@ -914,17 +914,17 @@ class ContentScoreModule:
     has_date = True
 
     @staticmethod
-    def get_segments(client: Optional[str] = "mars") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "mars") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client=client)
 
     get_kpis_for_segment = get_kpis
 
     @staticmethod
-    def _get_segment_info(segment: str, client: Optional[str] = "mars") -> Dict[str, Any]:
+    def _get_segment_info(segment: str, client: Optional[str] = None) -> Dict[str, Any]:
         return _get_segment_info(segment, client=client)
 
     @staticmethod
@@ -932,11 +932,11 @@ class ContentScoreModule:
         return get_channel_for_platform(client, platform)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Any]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Any]:
         return run_step1_api(segment, period, client=client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Any]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Any]:
         return run_step2_logic(segment, period, client=client)
 
     @staticmethod
@@ -944,7 +944,7 @@ class ContentScoreModule:
         driver: Any,
         segment: str,
         period: Any,
-        client: Optional[str] = "mars",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

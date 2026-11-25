@@ -1307,6 +1307,18 @@ export default function PricingAnalysisData() {
   const [pricingKpiData, setPricingKpiData] = useState(null);
   const [pricingKpiLoading, setPricingKpiLoading] = useState(true);
 
+  useEffect(() => {
+    try {
+      window.__pricingData = {
+        kpiData: pricingKpiData,
+        loading: pricingKpiLoading,
+        platform: filters.platform || globalPlatform,
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      };
+    } catch (_) {}
+  }, [pricingKpiData, pricingKpiLoading, filters.platform, globalPlatform, filters.startDate, filters.endDate]);
+
   // Discount Trend state
   const [discountTrendData, setDiscountTrendData] = useState([]);
   const [discountTrendLoading, setDiscountTrendLoading] = useState(true);

@@ -124,7 +124,7 @@ def _extract_year_from_period(period: Any) -> str:
         return "2026"
 
 
-def resolve_period_dates(period: Any, year: str = "2026", client: str = "mars") -> Tuple[str, str]:
+def resolve_period_dates(period: Any, year: str = "2026", client: Optional[str] = None) -> Tuple[str, str]:
     """
     Dynamically resolves start and end dates from po_v_periods for the given Mars period.
     Supports Period 1 - Period 6 as on dashboard, or any period cycle.
@@ -146,8 +146,8 @@ def resolve_period_dates(period: Any, year: str = "2026", client: str = "mars") 
     return f"{year}-01-01", f"{year}-01-25"
 
 
-def get_segments(client: Optional[str] = "mars") -> List[Dict[str, Any]]:
-    db_name = client or "mars"
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
+    db_name = client or "drl"
     try:
         query = f"SELECT DISTINCT platform_name FROM {db_name}.rb_sku_platform WHERE is_pds = 1"
         rows = execute_select_query(query, database=db_name)
@@ -185,8 +185,8 @@ def _extract_platform_from_segment(segment_id: str) -> str:
     return "blinkit"
 
 
-def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
-    db_name = client or "mars"
+def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
+    db_name = client or "drl"
     seg_plat = _extract_platform_from_segment(segment)
     platform = normalize_platform_key(seg_plat)
     year = _extract_year_from_period(period)
@@ -236,8 +236,8 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Di
     }
 
 
-def step2_logic(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
-    db_name = client or "mars"
+def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
+    db_name = client or "drl"
     seg_plat = _extract_platform_from_segment(segment)
     platform = normalize_platform_key(seg_plat)
     year = _extract_year_from_period(period)
@@ -372,20 +372,20 @@ def step3_selenium(
     driver: webdriver.Chrome,
     segment: str,
     period: Any,
-    client: Optional[str] = "mars",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
     url = f"{FRONTEND_URL}/pds-score"
     if on_live_step:
-        on_live_step(f"Authenticating session for {client or 'mars'}...")
+        on_live_step(f"Authenticating session for {client or 'drl'}...")
     ensure_authenticated(driver, url, client=client)
 
     if not headless:
         bring_chrome_to_top(driver)
         show_live_step_banner(driver, "🔍 DS Tester: Loading PDS Scorecard...")
 
-    time.sleep(1.0)
+    time.sleep(0.1)
     wait_for_loading_complete(driver, timeout=20)
 
     seg_plat = _extract_platform_from_segment(segment)
@@ -414,7 +414,7 @@ def step3_selenium(
             const match = items.find(i => (i.innerText || '').toLowerCase().includes(target));
             if (match) match.click();
         """, target_platform)
-        time.sleep(1.0)
+        time.sleep(0.1)
     except Exception as e:
         print(f"[pds_score] Platform select note: {e}")
 
@@ -437,7 +437,7 @@ def step3_selenium(
             const match = items.find(i => (i.innerText || '').trim() === target);
             if (match) match.click();
         """, target_year)
-        time.sleep(1.0)
+        time.sleep(0.1)
     except Exception as e:
         print(f"[pds_score] Year select note: {e}")
 
@@ -460,12 +460,12 @@ def step3_selenium(
             const match = items.find(i => (i.innerText || '').toLowerCase().trim() === target.trim());
             if (match) match.click();
         """, target_period)
-        time.sleep(1.5)
+        time.sleep(0.15)
         wait_for_loading_complete(driver, timeout=15)
     except Exception as e:
         print(f"[pds_score] Period select note: {e}")
 
-    time.sleep(1.0)
+    time.sleep(0.1)
     if not headless:
         bring_chrome_to_top(driver)
         show_live_step_banner(driver, "Scraping Live Achievement, Target & Levers...")
@@ -565,7 +565,7 @@ class PdsScoreModule:
     kpis = KPIS
 
     @staticmethod
-    def get_segments(client: Optional[str] = "mars") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
@@ -577,11 +577,11 @@ class PdsScoreModule:
         return get_kpis_for_segment(segment_id, client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "mars") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client)
 
     @staticmethod
@@ -589,7 +589,7 @@ class PdsScoreModule:
         driver: webdriver.Chrome,
         segment: str,
         period: Any,
-        client: Optional[str] = "mars",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:
@@ -600,7 +600,7 @@ class PdsScoreModule:
         driver: webdriver.Chrome,
         segment: str,
         period: Any,
-        client: Optional[str] = "mars",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

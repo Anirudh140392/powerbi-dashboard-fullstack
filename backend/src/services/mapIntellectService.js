@@ -161,6 +161,15 @@ async function getMsGeoSource() {
 
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+const getChannelSubquery = (channel) => {
+    if (!channel || channel === 'All') return '';
+    const chL = channel.toLowerCase();
+    const cond = (chL.includes('quick') || chL.includes('qcomm'))
+        ? "lower(channel) LIKE '%quick%'"
+        : (chL.includes('ecom') ? "lower(channel) LIKE '%ecom%'" : `lower(channel) = '${escapeStr(chL)}'`);
+    return `SELECT DISTINCT platform FROM rca_sku_dim WHERE ${cond}`;
+};
+
 const normalizeFilterArray = (value) => {
     if (!value) return null;
     if (value === 'All') return null;
@@ -197,7 +206,7 @@ const getDynamicMaxDate = async (platform, channel, category, brand, metric) => 
         const list = platform.split(',').map(p => p.trim().toLowerCase());
         conds.push(`lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`);
     } else if (channel && channel !== 'All') {
-        conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
+        conds.push(`${src.f.platform} IN (${getChannelSubquery(channel)})`);
     }
     if (category && category !== 'All') {
         conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
@@ -284,7 +293,7 @@ const getMapIntellectData = async (filters) => {
             const list = platform.split(',').map(p => p.trim().toLowerCase());
             conds.push(`lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`);
         } else if (channel && channel !== 'All') {
-            conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
+            conds.push(`${src.f.platform} IN (${getChannelSubquery(channel)})`);
         }
         if (category && category !== 'All') {
             conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
@@ -387,7 +396,7 @@ const getMapIntellectData = async (filters) => {
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
-                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) IN (${platform.split(',').map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(',')})` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')` : '')}
+                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) IN (${platform.split(',').map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(',')})` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (${getChannelSubquery(channel)})` : '')}
                   ${category && category !== 'All' ? `AND lower(${msSrc.f.category}) = '${escapeStr(category.toLowerCase())}'` : ''}
                 GROUP BY location
             `;
@@ -520,7 +529,7 @@ const getMapIntellectCategories = async (metric, platform, channel) => {
         const list = platform.split(',').map(p => p.trim().toLowerCase());
         query += ` AND lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
     } else if (channel && channel !== 'All') {
-        query += ` AND ${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
+        query += ` AND ${src.f.platform} IN (${getChannelSubquery(channel)})`;
     }
 
     query += ` ORDER BY category`;
@@ -548,7 +557,7 @@ const getMapIntellectBrands = async (platform, channel, metric) => {
             const list = platform.split(',').map(p => p.trim().toLowerCase());
             query += ` AND lower(platform) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
         } else if (channel && channel !== 'All') {
-            query += ` AND platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
+            query += ` AND platform IN (${getChannelSubquery(channel)})`;
         }
         query += ` LIMIT 100`;
     } else {
@@ -558,7 +567,7 @@ const getMapIntellectBrands = async (platform, channel, metric) => {
             const list = platform.split(',').map(p => p.trim().toLowerCase());
             query += ` AND lower(Platform) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
         } else if (channel && channel !== 'All') {
-            query += ` AND Platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
+            query += ` AND Platform IN (${getChannelSubquery(channel)})`;
         }
         query += ` LIMIT 100`;
     }

@@ -39,13 +39,9 @@ const safeLower = (val) => {
     return String(val).toLowerCase();
 };
 
-const isEcomChannel = (chan) => {
-    const s = safeLower(chan);
-    return s.includes('ecom') || s.includes('e-commerce');
-};
-
 // Platform classification helpers for KPI visibility
 const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce', 'amazon now', 'now'];
+
 const isQcomPlatform = (name) => {
     if (!name) return false;
     const n = safeLower(name);
@@ -73,7 +69,7 @@ const BrandLogo = ({ name, src, className, imgClassName }) => {
 
     if (error || !src) {
         return (
-            <div className={cn("flex items-center justify-center font-bold text-white uppercase", className)}
+            <div className={cn("flex items-center justify-center font-bold text-white uppercase", className, imgClassName)}
                 style={{ fontSize: '10px' }}>
                 {name?.slice(0, 1) || '?'}
             </div>
@@ -84,7 +80,7 @@ const BrandLogo = ({ name, src, className, imgClassName }) => {
         <img
             src={src}
             alt={name}
-            className={cn(className, "object-contain")}
+            className={cn(className, imgClassName, "object-contain")}
             onError={() => setError(true)}
         />
     );
@@ -259,7 +255,58 @@ const DIMENSION_API_MAP = {
 }
 
 // Color palette for dynamically created entities
-const ENTITY_COLORS = ['#6366f1', '#8b5cf6', '#f97316', '#14b8a6', '#e11d48', '#06b6d4', '#0ea5e9', '#22c55e', '#eab308', '#ec4899', '#a855f7', '#f43f5e']
+const ENTITY_COLORS = ['#6366f1', '#8b5cf6', '#f97316', '#14b8a6', '#e11d48', '#06b6d4', '#0ea5e9', '#22c55e', '#eab308', '#ec4899', '#a855f7', '#f43f5e'];
+
+const KPIS = [
+    { key: 'offtakes', label: 'Offtakes' },
+    { key: 'quantitySold', label: 'Qty Sold' },
+    { key: 'spend', label: 'Spend' },
+    { key: 'inorgSales', label: 'Inorganic Sales' },
+    { key: 'aov', label: 'AOV' },
+    { key: 'cpm', label: 'CPM' },
+    { key: 'cpc', label: 'CPC' },
+    { key: 'tacos', label: 'TACoS' },
+    { key: 'availability', label: 'OSA' },
+    { key: 'wtOsa', label: 'Wt OSA' },
+    { key: 'wtDiscount', label: 'Wt Discount' },
+    { key: 'asp', label: 'ASP' },
+    { key: 'listingPercent', label: 'Listing %' },
+    { key: 'ad_sov', label: 'Ad SOS' },
+    { key: 'organic_sov', label: 'Organic SOS' },
+    { key: 'shareOfVolume', label: 'SOS' },
+    { key: 'marketShare', label: 'Mkt Share' },
+    { key: 'categorySize', label: 'Cat Size' },
+    { key: 'roas_x', label: 'ROAS' },
+    { key: 'conversion', label: 'Conversion' },
+    { key: 'buyBoxPct', label: 'Buy Box %' },
+    { key: 'deliveryTime', label: 'Delivery Time' },
+];
+
+// Static dimension metadata (icons, logos for known platforms)
+const DIMENSION_META = {
+    platform: { label: 'Platform', icon: Monitor },
+    location: { label: 'City', icon: MapPin },
+    brand: { label: 'Brand', icon: Tag },
+    month: { label: 'Month', icon: Calendar },
+    category: { label: 'Category', icon: Grid3X3 },
+    sku: { label: 'SKU', icon: Package },
+};
+
+// Known platform logos for enriching API data
+const PLATFORM_LOGOS = {
+    'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
+    'instamart': '/instamart_photo.png',
+    'swiggy instamart': '/instamart_photo.png',
+    'swiggy': '/instamart_photo.png',
+    'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
+    'flipkart': FlipkartLogo,
+    'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+};
+
+const PLATFORM_COLORS = {
+    'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316', 'swiggy': '#f97316',
+    'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
+};
 
 const PlatformOverviewNew = ({
     onViewTrends = () => { },
@@ -267,12 +314,9 @@ const PlatformOverviewNew = ({
 }) => {
     const {
         platform: globalPlatform,
-        setPlatform,
         selectedBrand,
-        setSelectedBrand,
         brands: globalBrands,
         selectedCategory,
-        setSelectedCategory,
         categories: globalCategories,
         selectedLocation,
         selectedChannel,
@@ -281,37 +325,9 @@ const PlatformOverviewNew = ({
         timeEnd,
         compareStart,
         compareEnd,
-        datesFetched,
-        platformsFetched,
         selectedMsl,
-        setSelectedMsl,
         selectedSubBrand
     } = useContext(FilterContext);
-
-    const kpis = [
-        { key: 'offtakes', label: 'Offtakes' },
-        { key: 'quantitySold', label: 'Qty Sold' },
-        { key: 'spend', label: 'Spend' },
-        { key: 'inorgSales', label: 'Inorganic Sales' },
-        { key: 'aov', label: 'AOV' },
-        { key: 'cpm', label: 'CPM' },
-        { key: 'cpc', label: 'CPC' },
-        { key: 'tacos', label: 'TACoS' },
-        { key: 'availability', label: 'OSA' },
-        { key: 'wtOsa', label: 'Wt OSA' },
-        { key: 'wtDiscount', label: 'Wt Discount' },
-        { key: 'asp', label: 'ASP' },
-        { key: 'listingPercent', label: 'Listing %' },
-        { key: 'ad_sov', label: 'Ad SOS' },
-        { key: 'organic_sov', label: 'Organic SOS' },
-        { key: 'shareOfVolume', label: 'SOS' },
-        { key: 'marketShare', label: 'Mkt Share' },
-        { key: 'categorySize', label: 'Cat Size' },
-        { key: 'roas_x', label: 'ROAS' },
-        { key: 'conversion', label: 'Conversion' },
-        { key: 'buyBoxPct', label: 'Buy Box %' },
-        { key: 'deliveryTime', label: 'Delivery Time' },
-    ]
     const { user } = useAuth();
     const isDrl = useMemo(() => {
         try {
@@ -323,7 +339,7 @@ const PlatformOverviewNew = ({
         }
     }, [user]);
 
-    const [drlSource, setDrlSource] = useState('rk'); // 'rk' | 'buymore' | 'all'
+    const [drlSource, setDrlSource] = useState('all'); // 'all' (Combined - default for DRL) | 'rk' | 'buymore'
 
     const handleDrlSourceChange = (newSource) => {
         if (newSource === drlSource) return;
@@ -389,6 +405,7 @@ const PlatformOverviewNew = ({
             return rowObj;
         });
 
+        const workbook = XLSX.utils.book_new();
         const worksheet = XLSX.utils.json_to_sheet(excelRows);
         const sheetName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview`.slice(0, 31);
         XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -440,7 +457,6 @@ const PlatformOverviewNew = ({
 
     // For SKU dimension: determine if selected platform is qcom
     const isSkuQcom = dimension === 'sku' && activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
-    const isSkuEcom = dimension === 'sku' && activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
 
     const isPidilite = useMemo(() => {
         try {
@@ -453,7 +469,7 @@ const PlatformOverviewNew = ({
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
-        let baseKpis = kpis;
+        let baseKpis = KPIS;
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
@@ -570,12 +586,12 @@ const PlatformOverviewNew = ({
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
-    const [pageSize, setPageSize] = useState(50)
+    const pageSize = 50
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
-    const [productOptions, setProductOptions] = useState([])
+    const [productOptions] = useState([])
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -662,34 +678,7 @@ const PlatformOverviewNew = ({
                 return next;
             });
         }
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
-
-
-
-    // Static dimension metadata (icons, logos for known platforms)
-    const dimensionMeta = {
-        platform: { label: 'Platform', icon: Monitor },
-        location: { label: 'City', icon: MapPin },
-        brand: { label: 'Brand', icon: Tag },
-        month: { label: 'Month', icon: Calendar },
-        category: { label: 'Category', icon: Grid3X3 },
-        sku: { label: 'SKU', icon: Package },
-    }
-
-    // Known platform logos for enriching API data
-    const platformLogos = {
-        'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
-        'instamart': '\instamart_photo.png',
-        'swiggy instamart': '\instamart_photo.png',
-        'swiggy': '\instamart_photo.png',
-        'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
-        'flipkart': FlipkartLogo,
-        'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
-    }
-    const platformColors = {
-        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316', 'swiggy': '#f97316',
-        'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
-    }
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const filterKey = useMemo(() => {
         let reqPlatform;
@@ -796,7 +785,7 @@ const PlatformOverviewNew = ({
                 setApiLoading(false)
             }
         }
-    }, [dimension, filterKey, compareStart, compareEnd]);
+    }, [dimension, filterKey, compareStart, compareEnd, isDrl]);
 
     // Use a ref so the effect doesn't re-fire when fetchDimensionData is recreated
     const fetchDimensionDataRef = useRef(fetchDimensionData);
@@ -864,7 +853,7 @@ const PlatformOverviewNew = ({
         advancedFilters.msl === '1',
     ].filter(Boolean).length
 
-    const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
+    const currentDimension = DIMENSION_META[dimension] || DIMENSION_META.platform
     // Get selected KPIs in order
     const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
@@ -879,8 +868,8 @@ const PlatformOverviewNew = ({
             result = rawApiEntities.map((apiEntity, idx) => {
                 const key = (apiEntity.key || apiEntity.label || `entity-${idx}`).toLowerCase()
                 const name = apiEntity.label || apiEntity.key || `Entity ${idx + 1}`
-                const logoSrc = apiEntity.logo || platformLogos[key] || null
-                const color = platformColors[key] || ENTITY_COLORS[idx % ENTITY_COLORS.length]
+                const logoSrc = apiEntity.logo || PLATFORM_LOGOS[key] || null
+                const color = PLATFORM_COLORS[key] || ENTITY_COLORS[idx % ENTITY_COLORS.length]
                 return {
                     key,
                     name,
@@ -902,7 +891,7 @@ const PlatformOverviewNew = ({
             hasRestrictedPlatforms = Object.keys(tabPerms).some(
                 key => key.startsWith('platform_') && tabPerms[key] === false
             );
-        } catch (_) { /* ignore */ }
+        } catch { /* ignore */ }
 
         // When dimension is 'platform' and a specific platform is selected,
         // only show the selected platform rows (remove the 'All' row)
@@ -989,7 +978,7 @@ const PlatformOverviewNew = ({
         }
 
         return result
-    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter, sortConfig])
+    }, [apiData, dimension, globalPlatform, sortConfig])
 
 
     // Pagination logic
@@ -1003,7 +992,6 @@ const PlatformOverviewNew = ({
         icon: Icon,
         children,
         className = '',
-        chip,
         headerRight
     }) => {
         return (
@@ -1144,7 +1132,7 @@ const PlatformOverviewNew = ({
 
                             {/* Dimension Tabs */}
                             <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
-                                {Object.entries(dimensionMeta).map(([key, dim]) => {
+                                {Object.entries(DIMENSION_META).map(([key, dim]) => {
                                     const isSelected = dimension === key
                                     const DimIcon = dim.icon
                                     return (

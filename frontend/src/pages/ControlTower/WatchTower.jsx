@@ -591,6 +591,15 @@ export default function WatchTower() {
     }];
   }, [categoryOverview, categoryDataLoading]);
 
+  // Expose category data on window for DS Tester and automated verification
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.__categoryRows = FORMAT_ROWS;
+      window.__categoryDataLoading = categoryDataLoading;
+      window.__categoryOverview = categoryOverview;
+    }
+  }, [FORMAT_ROWS, categoryDataLoading, categoryOverview]);
+
 
   const [fetchError, setFetchError] = useState(null);
   const [categoryPlatform, setCategoryPlatform] = useState("All");

@@ -3292,6 +3292,17 @@ const InsightsSignalHub = () => {
 
     const [fetchedInsights, setFetchedInsights] = useState([]);
     const [fetchedFilterOptions, setFetchedFilterOptions] = useState({ categories: [], productLines: [], geographies: [], platforms: [], brands: [] });
+    const [overrideFilters, setOverrideFilters] = useState(null);
+
+    useEffect(() => {
+        const handleCustomFilters = (e) => {
+            if (e && e.detail) {
+                setOverrideFilters(e.detail);
+            }
+        };
+        window.addEventListener('trailytics:setInsightsFilters', handleCustomFilters);
+        return () => window.removeEventListener('trailytics:setInsightsFilters', handleCustomFilters);
+    }, []);
     const [loading, setLoading] = useState(false);
 
     const [selectedId, setSelectedId] = useState(null);
@@ -3425,14 +3436,21 @@ const InsightsSignalHub = () => {
                     return Array.isArray(val) ? val.join(",") : val;
                 };
 
+                const effPlat = (overrideFilters?.platform && overrideFilters.platform !== "All") ? overrideFilters.platform : platform;
+                const effCat = (overrideFilters?.category && overrideFilters.category !== "All") ? overrideFilters.category : selectedCategory;
+                const effBrand = (overrideFilters?.brand && overrideFilters.brand !== "All") ? overrideFilters.brand : selectedBrand;
+                const effLoc = (overrideFilters?.city && overrideFilters.city !== "All") ? overrideFilters.city : selectedLocation;
+                const effStart = overrideFilters?.startDate ? dayjs(overrideFilters.startDate) : (timeStart || dayjs().subtract(30, 'day'));
+                const effEnd = overrideFilters?.endDate ? dayjs(overrideFilters.endDate) : (timeEnd || dayjs());
+
                 const apiPayload = {
-                    platform: formatArray(platform, "All platforms"),
-                    category: formatArray(selectedCategory, "All categories"),
-                    brand: formatArray(selectedBrand, "All brands"),
-                    city: formatArray(selectedLocation, "All cities"),
+                    platform: formatArray(effPlat, "All platforms"),
+                    category: formatArray(effCat, "All categories"),
+                    brand: formatArray(effBrand, "All brands"),
+                    city: formatArray(effLoc, "All cities"),
                     type: "All signals",
-                    startDate: timeStart?.format("YYYY-MM-DD") || dayjs().subtract(30, 'day').format("YYYY-MM-DD"),
-                    endDate: timeEnd?.format("YYYY-MM-DD") || dayjs().format("YYYY-MM-DD"),
+                    startDate: effStart?.format ? effStart.format("YYYY-MM-DD") : String(effStart),
+                    endDate: effEnd?.format ? effEnd.format("YYYY-MM-DD") : String(effEnd),
                     ...(compareStart ? { compareStartDate: compareStart.format("YYYY-MM-DD") } : {}),
                     ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
@@ -3461,7 +3479,7 @@ const InsightsSignalHub = () => {
             }
         };
         loadInsights();
-    }, [platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+    }, [platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, overrideFilters]);
 
 
 
@@ -3502,6 +3520,24 @@ const InsightsSignalHub = () => {
     const selected = useMemo(() => allInsights.find((x) => x.id === selectedId) ?? null, [allInsights, selectedId]);
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
     const activeSignals = filteredInsights.filter((i) => !i.id.startsWith("empty_")).length;
+
+    const activeStartDate = overrideFilters?.startDate || (timeStart?.format ? timeStart.format("YYYY-MM-DD") : String(timeStart || ''));
+    const activeEndDate = overrideFilters?.endDate || (timeEnd?.format ? timeEnd.format("YYYY-MM-DD") : String(timeEnd || ''));
+
+    useEffect(() => {
+        try {
+            window.__insightsLoading = loading;
+            window.__insightsData = {
+                totalImpact,
+                activeSignals,
+                insights: filteredInsights,
+                loading,
+                startDate: activeStartDate,
+                endDate: activeEndDate,
+                dbName: user?.dbName || sessionStorage.getItem('activeWorkspaceDb') || ''
+            };
+        } catch (e) {}
+    }, [totalImpact, activeSignals, filteredInsights, loading, user?.dbName, activeStartDate, activeEndDate]);
 
     // ── Co-Relations handlers ──
     const fetchCorrelationsDataLocally = useCallback(async (start, end) => {

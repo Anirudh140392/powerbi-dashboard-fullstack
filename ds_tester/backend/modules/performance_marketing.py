@@ -157,9 +157,9 @@ KPIS_BY_SECTION = {
 }
 
 
-def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """Dynamically fetches distinct platforms from ClickHouse rb_pm_olap for this client."""
-    db_name = (client or "boat").strip().lower()
+    db_name = (client or "drl").strip().lower()
 
     # Performance Marketing is explicitly hidden in the live dashboard for 'boat' and 'mamaearth'
     # Reference: frontend/src/components/CommonLayout/Sidebar.jsx (hideForDb: ['mamaearth', 'boat'])
@@ -177,9 +177,9 @@ def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
     return []
 
 
-def get_channels_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_channels_for_client(client: Optional[str] = None) -> List[str]:
     """Dynamically fetches distinct channels from ClickHouse rb_pm_olap for this client."""
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         query = f"SELECT DISTINCT lower(channel) FROM {db_name}.rb_pm_olap WHERE channel IS NOT NULL AND channel != '' ORDER BY lower(channel)"
         rows = execute_select_query(query, database=db_name)
@@ -191,9 +191,9 @@ def get_channels_for_client(client: Optional[str] = "boat") -> List[str]:
     return []
 
 
-def get_platform_channel_map(client: Optional[str] = "boat") -> Dict[str, str]:
+def get_platform_channel_map(client: Optional[str] = None) -> Dict[str, str]:
     """Maps platform -> channel from ClickHouse rb_pm_olap."""
-    db_name = client or "boat"
+    db_name = client or "drl"
     mapping = {}
     try:
         query = f"SELECT DISTINCT lower(Platform), lower(channel) FROM {db_name}.rb_pm_olap WHERE Platform IS NOT NULL AND Platform != ''"
@@ -223,7 +223,7 @@ def format_platform_label(plat: str) -> str:
     return " ".join(capitalized)
 
 
-def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Dynamically returns the list of segments for the given client workspace.
     Only returns segments if the client database actually contains rb_pm_olap with data.
@@ -232,7 +232,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
     - Campaign Quadrants (Q1–Q4): All Platforms, Quick Commerce, E-Commerce, and individual platforms
     - Keyword Type Performance: All Platforms, Quick Commerce, E-Commerce, and individual platforms
     """
-    db_name = (client or "boat").strip().lower()
+    db_name = (client or "drl").strip().lower()
 
     # Performance Marketing is explicitly hidden in the live dashboard for 'boat' and 'mamaearth'
     # Reference: frontend/src/components/CommonLayout/Sidebar.jsx (hideForDb: ['mamaearth', 'boat'])
@@ -261,29 +261,7 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
 
     segs = []
     for sec_id, sec_label in sections:
-        # 1. All Platforms (removed)
-
-        # 2. Quick Commerce (if present)
-        if has_quickcomm:
-            segs.append({
-                "id": f"pm_{sec_id}_quickcomm",
-                "label": f"{sec_label} (Quick Commerce)",
-                "section": sec_id,
-                "channel": "quickcomm",
-                "platform": "all",
-            })
-
-        # 3. E-Commerce (if present)
-        if has_ecommerce:
-            segs.append({
-                "id": f"pm_{sec_id}_ecommerce",
-                "label": f"{sec_label} (E-Commerce)",
-                "section": sec_id,
-                "channel": "ecommerce",
-                "platform": "all",
-            })
-
-        # 4. Individual Platforms
+        # Individual Platforms (live WatchTower Performance Marketing is platform-specific)
         for p in platforms:
             p_clean = p.lower().strip()
             p_slug = p_clean.replace(" ", "_")
@@ -305,11 +283,11 @@ class PerformanceMarketingModule:
     segments: List[Dict[str, Any]] = CORE_SECTIONS
 
     @classmethod
-    def get_segments(cls, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_segments(cls, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @classmethod
-    def _get_segment_info(cls, segment: str, client: Optional[str] = "boat") -> Dict[str, Any]:
+    def _get_segment_info(cls, segment: str, client: Optional[str] = None) -> Dict[str, Any]:
         all_segs = get_segments(client)
         for s in all_segs:
             if s["id"] == segment:
@@ -347,25 +325,25 @@ class PerformanceMarketingModule:
         }
 
     @classmethod
-    def get_kpis_for_segment(cls, segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis_for_segment(cls, segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         info = cls._get_segment_info(segment, client)
         sec = info.get("section", "overview")
         return KPIS_BY_SECTION.get(sec, KPIS_BY_SECTION["overview"])
 
     @classmethod
-    def get_kpis(cls, segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis(cls, segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return cls.get_kpis_for_segment(segment, client=client)
 
     # -----------------------------------------------------------------------
     # STEP 1: API Layer Verification
     # -----------------------------------------------------------------------
     @classmethod
-    def step1_fetch(cls, segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step1_fetch(cls, segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         info = cls._get_segment_info(segment, client)
         sec = info.get("section", "overview")
         plat = info.get("platform") or "all"
         chan = info.get("channel") or "all"
-        target_db = client or "boat"
+        target_db = client or "drl"
         api_plat = "All" if plat.lower() == "all" else plat
         api_chan = "All" if chan.lower() == "all" else chan
 
@@ -428,7 +406,9 @@ class PerformanceMarketingModule:
                 vals = r.get("values", [])
                 spend_raw = float(vals[0]) if vals and len(vals) > 0 and vals[0] is not None else 0.0
                 spend_lakh = round(spend_raw / 100_000.0, 2)
-                if "brand" in lbl:
+                if "branded" in lbl:
+                    kpis["branded_spend"] = spend_lakh
+                elif "brand" in lbl and not kpis.get("branded_spend"):
                     kpis["branded_spend"] = spend_lakh
                 elif "generic" in lbl:
                     kpis["generic_spend"] = spend_lakh
@@ -442,12 +422,12 @@ class PerformanceMarketingModule:
     # STEP 2: Logic Layer Verification (ClickHouse direct calculation)
     # -----------------------------------------------------------------------
     @classmethod
-    def step2_logic(cls, segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step2_logic(cls, segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         info = cls._get_segment_info(segment, client)
         sec = info.get("section", "overview")
         plat = info.get("platform") or "all"
         chan = info.get("channel") or "all"
-        target_db = client or "boat"
+        target_db = client or "drl"
         start_date, end_date = period_to_date_range(period)
 
         def build_filter_conditions(s_date: str, e_date: str) -> List[str]:
@@ -599,7 +579,7 @@ class PerformanceMarketingModule:
         driver: webdriver.Chrome,
         segment: str,
         period: Any,
-        client: Optional[str] = "boat",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Any]:
@@ -607,7 +587,7 @@ class PerformanceMarketingModule:
         sec = info.get("section", "overview")
         plat = info.get("platform") or "all"
         chan = info.get("channel") or "all"
-        target_db = client or "boat"
+        target_db = client or "drl"
         client_label = target_db.replace("_", " ").title()
 
         if on_live_step:
@@ -620,11 +600,11 @@ class PerformanceMarketingModule:
             bring_chrome_to_top(driver)
             show_live_step_banner(driver, f"📊 DS Tester: Loading Performance Marketing ({client_label})...")
 
-        time.sleep(1.0)
+        time.sleep(0.1)
         wait_for_loading_complete(driver, timeout=25)
 
         # 1. Reset all filters if checking All Platforms / All Channels
-        if chan.lower() == "all" and plat.lower() == "all":
+        if plat.lower() == "all":
             if on_live_step:
                 on_live_step("Resetting filters to All Platforms / All Channels...")
             try:
@@ -634,7 +614,7 @@ class PerformanceMarketingModule:
                     );
                     if (resetBtn) resetBtn.click();
                 """)
-                time.sleep(1.0)
+                time.sleep(0.1)
                 wait_for_loading_complete(driver, timeout=20)
             except Exception:
                 pass
@@ -663,7 +643,7 @@ class PerformanceMarketingModule:
                     clickable.click();
                 }
             """, is_qc, is_ecom)
-            time.sleep(1.5)
+            time.sleep(0.15)
             wait_for_loading_complete(driver, timeout=20)
 
         # 3. Apply platform filter
@@ -672,7 +652,7 @@ class PerformanceMarketingModule:
                 on_live_step(f"Selecting platform filter ({plat.capitalize()})...")
 
             apply_segment_platform(driver, plat)
-            time.sleep(1.5)
+            time.sleep(0.15)
             wait_for_loading_complete(driver, timeout=25)
 
         # 4. Apply period filter
@@ -680,7 +660,7 @@ class PerformanceMarketingModule:
             on_live_step("Applying period filter...")
 
         apply_dashboard_period(driver, period)
-        time.sleep(2.0)
+        time.sleep(0.2)
         wait_for_loading_complete(driver, timeout=25)
 
         # 5. Scrape section-specific data
@@ -701,7 +681,7 @@ class PerformanceMarketingModule:
                     card.style.boxShadow = '0 0 20px #16a34a';
                 }
             """)
-            time.sleep(1.0)
+            time.sleep(0.1)
 
             cards = driver.execute_script("""
                 const res = {};
@@ -745,7 +725,7 @@ class PerformanceMarketingModule:
                     container.style.boxShadow = '0 0 20px #16a34a';
                 }
             """)
-            time.sleep(1.0)
+            time.sleep(0.1)
 
             res = driver.execute_script("""
                 const quads = {};
@@ -812,7 +792,7 @@ class PerformanceMarketingModule:
                     container.style.boxShadow = '0 0 20px #16a34a';
                 }
             """)
-            time.sleep(1.0)
+            time.sleep(0.1)
 
             res = driver.execute_script("""
                 const allTables = document.querySelectorAll('table');
@@ -829,13 +809,24 @@ class PerformanceMarketingModule:
                 }
                 const kpis = {};
                 if (!targetTable) return kpis;
+
+                // Dynamically find current period Spend column index from table header
+                let spendColIdx = 1;
+                const ths = Array.from(targetTable.querySelectorAll('thead th')).map(th => (th.innerText || '').toLowerCase().trim());
+                const sIdx = ths.findIndex(h => h.startsWith('spend') && !h.includes('m-1') && !h.includes('m-2') && !h.includes('prev'));
+                if (sIdx !== -1) {
+                    spendColIdx = sIdx;
+                }
+
                 const trs = targetTable.querySelectorAll('tbody tr');
                 for (const tr of trs) {
                     const cells = Array.from(tr.querySelectorAll('td, th')).map(c => c.innerText.trim());
-                    if (cells.length >= 4) {
+                    if (cells.length > spendColIdx) {
                         const lbl = cells[0].toLowerCase();
-                        const spendVal = cells[3];
-                        if (lbl.includes('brand') && !kpis.branded_spend) {
+                        const spendVal = cells[spendColIdx];
+                        if (lbl === 'branded' || lbl.includes('branded')) {
+                            kpis.branded_spend = spendVal;
+                        } else if (lbl.includes('brand') && !kpis.branded_spend) {
                             kpis.branded_spend = spendVal;
                         } else if (lbl.includes('generic') && !kpis.generic_spend) {
                             kpis.generic_spend = spendVal;

@@ -661,6 +661,18 @@ export function AggregatedViewTable() {
         fetchData();
     }, [fetchData]);
 
+    useEffect(() => {
+        try {
+            window.__performanceBreakdownData = {
+                totals,
+                data,
+                loading,
+                startDate: filters.dateStart,
+                endDate: filters.dateEnd
+            };
+        } catch (_) {}
+    }, [totals, data, loading, filters.dateStart, filters.dateEnd]);
+
     const isQuickcommPlatform = (platformName, channelName) => {
         const c = String(channelName || '').toLowerCase();
         if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return true;

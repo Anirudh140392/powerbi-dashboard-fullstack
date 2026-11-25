@@ -155,12 +155,12 @@ KPIS_BY_SECTION = {
 }
 
 
-def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """
     Dynamically fetches distinct platforms from ClickHouse rb_ms_olap for this client.
     Ensures that any platform present in client data is detected automatically without hardcoding.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         query = f"SELECT DISTINCT platform FROM {db_name}.rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform"
         rows = execute_select_query(query, database=db_name)
@@ -202,7 +202,7 @@ def get_channel_for_platform(client: str, platform: str) -> Optional[str]:
     Dynamically returns the channel ('quickcomm' or 'ecommerce' or 'epharm') associated
     with the given platform for the specified client.
     """
-    db_name = client or "boat"
+    db_name = client or "drl"
     plat_clean = platform.strip().lower()
     try:
         query = f"SELECT DISTINCT channel FROM {db_name}.rca_sku_dim WHERE lower(platform) = '{plat_clean}' AND channel IS NOT NULL AND channel != '' LIMIT 1"
@@ -220,7 +220,7 @@ def get_channel_for_platform(client: str, platform: str) -> Optional[str]:
 
 def get_default_channel_for_client(client: str) -> Optional[str]:
     """Dynamically returns the first active channel for the client from rca_sku_dim."""
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         query = f"SELECT DISTINCT channel FROM {db_name}.rca_sku_dim WHERE channel IS NOT NULL AND channel != '' LIMIT 1"
         rows = execute_select_query(query, database=db_name)
@@ -233,7 +233,7 @@ def get_default_channel_for_client(client: str) -> Optional[str]:
 
 def get_own_brands_for_client(client: str) -> List[str]:
     """Dynamically fetches own brand names (comp_flag = 0) from rca_sku_dim for this client."""
-    db_name = client or "boat"
+    db_name = client or "drl"
     try:
         query = f"SELECT DISTINCT brand_name FROM {db_name}.rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''"
         rows = execute_select_query(query, database=db_name)
@@ -256,20 +256,23 @@ def get_own_brands_for_client(client: str) -> List[str]:
     return [db_name]
 
 
-def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Dynamically returns the list of segments for the given client workspace.
     Platforms are discovered from ClickHouse rb_ms_olap.
+    Only returns segments if rb_ms_olap actually exists and has data for this client.
     """
+    db_name = client or "drl"
+    try:
+        cnt = execute_select_query(f"SELECT count() FROM {db_name}.rb_ms_olap", database=db_name)
+        if not cnt or cnt[0][0] == 0:
+            return []
+    except Exception:
+        return []
+
     platforms = get_platforms_for_client(client)
     if not platforms:
-        # Check if rb_ms_olap exists and has data
-        try:
-            cnt = execute_select_query(f"SELECT count() FROM {client}.rb_ms_olap", database=client)
-            if not cnt or cnt[0][0] == 0:
-                return []
-        except Exception:
-            return []
+        return []
 
     segs = []
 
@@ -332,7 +335,7 @@ def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str
     }
 
 
-def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
     info = _get_segment_info(segment_id, client=client)
     sec = info.get("section", "overview")
     return KPIS_BY_SECTION.get(sec, KPIS_BY_SECTION["overview"])
@@ -342,10 +345,10 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> Lis
 # Step 1: API Fetch
 # ---------------------------------------------------------------------------
 
-def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     info = _get_segment_info(segment, client=client)
     sec = info.get("section", "overview")
-    db_name = client or "boat"
+    db_name = client or "drl"
     start_date, end_date = period_to_date_range(period)
 
     if sec == "overview":
@@ -453,10 +456,10 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
 # Step 2: Logic (ClickHouse Direct Calculation)
 # ---------------------------------------------------------------------------
 
-def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     info = _get_segment_info(segment, client=client)
     sec = info.get("section", "overview")
-    db_name = client or "boat"
+    db_name = client or "drl"
     start_date, end_date = period_to_date_range(period)
 
     # 1. Fetch own brands dynamically from rca_sku_dim
@@ -519,27 +522,46 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Di
             subcat_rows = execute_select_query(f"SELECT count(DISTINCT category) FROM {db_name}.rb_ms_olap WHERE toDate(created_on) BETWEEN '{start_date}' AND '{end_date}'", database=db_name)
             subcat_count = float(subcat_rows[0][0] or 0) if subcat_rows else 0.0
 
-        # Query top own brand share
-        query = f"""
+        # Query top own brand share dynamically
+        top_brand_query = f"""
         SELECT 
-            sum(toFloat64OrZero(toString(sales))) as total_category_sales,
-            sum(if(lower(group_brand) IN ({brands_sql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
+            lower(group_brand) as brand,
+            sum(toFloat64OrZero(toString(sales))) as brand_sales,
+            (SELECT sum(toFloat64OrZero(toString(sales))) FROM {db_name}.rb_ms_olap WHERE toDate(created_on) BETWEEN '{start_date}' AND '{end_date}') as total_category_sales
         FROM {db_name}.rb_ms_olap
         WHERE toDate(created_on) BETWEEN '{start_date}' AND '{end_date}'
+          AND lower(group_brand) IN ({brands_sql})
+        GROUP BY brand
+        ORDER BY brand_sales DESC
+        LIMIT 1
         """
-        rows = execute_select_query(query, database=db_name)
-        total_cat = float(rows[0][0] or 0) if rows else 0.0
-        our_sales = float(rows[0][1] or 0) if rows else 0.0
-        share = round((our_sales / total_cat) * 100.0, 2) if total_cat > 0 else 0.0
+        top_rows = execute_select_query(top_brand_query, database=db_name)
+        if top_rows:
+            top_brand = top_rows[0][0]
+            brand_sales = float(top_rows[0][1] or 0)
+            total_cat = float(top_rows[0][2] or 0)
+            share = round((brand_sales / total_cat) * 100.0, 2) if total_cat > 0 else 0.0
+        else:
+            top_brand = own_brands[0] if own_brands else ""
+            share = 0.0
 
-        # Query SOV from rb_kw_olap
+        # Query SOV for that top own brand from rb_kw_olap filtered by subcategories (matching WatchTower logic)
         try:
+            subcat_rows = execute_select_query(
+                f"SELECT DISTINCT category FROM {db_name}.rb_ms_olap WHERE toDate(created_on) BETWEEN '{start_date}' AND '{end_date}' AND category IS NOT NULL AND category != ''",
+                database=db_name,
+            )
+            subcats = [r[0].lower() for r in subcat_rows if r and r[0]]
+            subcat_sql = ', '.join(f"'{c}'" for c in subcats) if subcats else ''
+            subcat_cond = f"AND lower(keyword_category) IN ({subcat_sql})" if subcat_sql else ''
+
             sov_query = f"""
             SELECT 
                 sum(toInt32(overall)) as total_overall,
-                sum(if(lower(brand_name_th) IN ({brands_sql}), toInt32(overall), 0)) as our_overall
+                sum(if(lower(brand_name_th) = '{top_brand}', toInt32(overall), 0)) as our_overall
             FROM {db_name}.rb_kw_olap
             WHERE toDate(DATE) BETWEEN '{start_date}' AND '{end_date}'
+              {subcat_cond}
             """
             sov_rows = execute_select_query(sov_query, database=db_name)
             tot_ov = float(sov_rows[0][0] or 0) if sov_rows else 0.0
@@ -585,12 +607,13 @@ def step3_ui(
     driver: webdriver.Chrome,
     segment: str,
     period: Any,
-    client: Optional[str] = "boat",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
     target_url = f"{FRONTEND_URL}/market-share"
-    client_label = (client or "boat").capitalize()
+    client_label = (client or "drl").capitalize()
+    db_name = client or "drl"
     info = _get_segment_info(segment, client=client)
     sec = info.get("section", "overview")
 
@@ -602,7 +625,7 @@ def step3_ui(
         bring_chrome_to_top(driver)
         show_live_step_banner(driver, f"🔍 DS Tester: Loading Market Share ({client_label})...")
 
-    time.sleep(1.0)
+    time.sleep(0.1)
     wait_for_loading_complete(driver, timeout=25)
 
     # 1. Apply segment platform filter FIRST for all segments
@@ -610,14 +633,14 @@ def step3_ui(
     if on_live_step:
         on_live_step(f"Selecting platform filter ({plat_filter.capitalize()})...")
     apply_segment_platform(driver, plat_filter)
-    time.sleep(1.5)
+    time.sleep(0.15)
     wait_for_loading_complete(driver, timeout=20)
 
     # 2. THEN apply period filter
     if on_live_step:
         on_live_step("Applying period filter...")
     apply_dashboard_period(driver, period)
-    time.sleep(2.0)
+    time.sleep(0.2)
     wait_for_loading_complete(driver, timeout=25)
 
     if sec == "overview":
@@ -640,7 +663,7 @@ def step3_ui(
                 }
             }
         """)
-        time.sleep(1.5)
+        time.sleep(0.15)
 
         res = driver.execute_script("""
             const cards = document.querySelectorAll(".MuiCard-root, div.rounded-2xl, div[class*='rounded-2xl']");
@@ -685,7 +708,7 @@ def step3_ui(
                 }
             }
         """)
-        time.sleep(1.5)
+        time.sleep(0.15)
 
         res = driver.execute_script("""
             const results = {};
@@ -730,11 +753,12 @@ def step3_ui(
         driver.execute_script("""
             window.scrollTo({ top: 700, behavior: 'smooth' });
         """)
-        time.sleep(1.5)
+        time.sleep(0.15)
 
+        own_brands = get_own_brands_for_client(db_name)
         res = driver.execute_script("""
             const results = {};
-            const subCatH2 = Array.from(document.querySelectorAll('h2')).find(h => h.innerText.includes('KPI Matrix'));
+            const subCatH2 = Array.from(document.querySelectorAll('h2')).find(h => (h.innerText || '').includes('KPI Matrix'));
             const container = subCatH2 ? (subCatH2.closest('.bg-white') || subCatH2.parentElement) : document;
 
             // 1. Extract active subcategories count from dropdown button text
@@ -743,30 +767,62 @@ def step3_ui(
             const plusMatch = catText.match(/\\+(\\d+)/);
             if (plusMatch) {
                 results.active_subcats = String(parseInt(plusMatch[1], 10) + 1);
+            } else if (catText.includes('Select') || !catText) {
+                results.active_subcats = "0";
             } else {
-                results.active_subcats = "9";
+                results.active_subcats = "1";
             }
 
-            // 2. Extract brand market share and overall SOV from first row of matrix
+            // 2. Extract brand market share and overall SOV for client's OWN BRAND (not competitor)
             const rows = container.querySelectorAll("table tbody tr");
+            const ownBrands = (arguments[0] || []).map(b => (b || '').toLowerCase().trim()).filter(Boolean);
             let topShare = null;
             let topSov = null;
+            let maxMs = -1;
+
             for (const r of rows) {
                 const cells = r.querySelectorAll("td");
                 if (cells.length >= 3) {
-                    const txtMs = cells[1].innerText || '';
-                    const matchMs = txtMs.match(/([0-9.]+)%/);
-                    if (matchMs && !topShare) topShare = matchMs[0];
+                    const brandName = (cells[0].innerText || '').toLowerCase().trim();
+                    const isOwnBrand = ownBrands.length > 0 && ownBrands.some(b => brandName === b || brandName.split(' ')[0] === b || brandName.startsWith(b));
+                    if (isOwnBrand) {
+                        const txtMs = cells[1].innerText || '';
+                        const matchMs = txtMs.match(/([0-9.]+)%/);
+                        const msVal = matchMs ? parseFloat(matchMs[1]) : 0;
 
-                    const txtSov = cells[2].innerText || '';
-                    const matchSov = txtSov.match(/([0-9.]+)%/);
-                    if (matchSov && !topSov) topSov = matchSov[0];
+                        const txtSov = cells[2].innerText || '';
+                        const matchSov = txtSov.match(/([0-9.]+)%/);
+                        const sovVal = matchSov ? matchSov[0] : '0.00%';
+
+                        if (msVal > maxMs) {
+                            maxMs = msVal;
+                            topShare = matchMs ? matchMs[0] : (msVal + '%');
+                            topSov = sovVal;
+                        }
+                    }
                 }
             }
-            results.top_subcat_share = topShare || "25.23%";
+
+            // Fallback only if no own brand was identified at all:
+            if (!topShare && rows.length > 0) {
+                for (const r of rows) {
+                    const firstCells = r.querySelectorAll("td");
+                    if (firstCells.length >= 3) {
+                        const m1 = (firstCells[1].innerText || '').match(/([0-9.]+)%/);
+                        const m2 = (firstCells[2].innerText || '').match(/([0-9.]+)%/);
+                        if (m1) {
+                            topShare = m1[0];
+                            topSov = m2 ? m2[0] : '0.00%';
+                            break;
+                        }
+                    }
+                }
+            }
+
+            results.top_subcat_share = topShare || "0.00%";
             results.top_subcat_sov = topSov || "0.00%";
             return results;
-        """)
+        """, own_brands)
         return res or {}
 
     elif sec == "product_drilldown":
@@ -779,42 +835,61 @@ def step3_ui(
         driver.execute_script("""
             window.scrollTo({ top: 1400, behavior: 'smooth' });
         """)
-        time.sleep(1.5)
+        time.sleep(0.15)
 
         res = driver.execute_script("""
             const results = {};
-            const drillH3 = Array.from(document.querySelectorAll('h3')).find(h => h.innerText.includes('Product Market Share Drilldown'));
+            const drillH3 = Array.from(document.querySelectorAll('h3')).find(h => (h.innerText || '').includes('Product Market Share Drilldown'));
             const container = drillH3 ? (drillH3.closest('.rounded-3xl') || drillH3.parentElement) : document;
 
-            // 1. Extract exact active platform count from drilldown select options (e.g. "All Platforms (1)")
-            let platCount = 1;
-            const platSelect = container.querySelector('select');
-            if (platSelect) {
-                const allOpt = Array.from(platSelect.options).find(o => o.text && o.text.includes('All Platforms'));
-                if (allOpt) {
-                    const match = allOpt.text.match(/All Platforms\\s*\\(([0-9]+)\\)/i);
-                    if (match) platCount = parseInt(match[1], 10);
-                }
+            function parseValToCr(str) {
+                if (!str || str.includes('-')) return 0;
+                const clean = str.replace(/,/g, '');
+                const m = clean.match(/([0-9.]+)\s*(Cr|Lac|L|K)?/i);
+                if (!m) return 0;
+                const num = parseFloat(m[1]);
+                const unit = (m[2] || '').toLowerCase();
+                if (unit === 'cr') return num;
+                if (unit === 'lac' || unit === 'l') return num / 100;
+                if (unit === 'k') return num / 10000;
+                return num / 10000000;
             }
-            results.platform_count = String(platCount);
 
-            // 2. Extract drilldown own brand sales and category size
             const rows = container.querySelectorAll("table tbody tr");
-            let ownSales = null;
-            let catSize = null;
+            let totalOwnSalesCr = 0;
+            let totalCatSizeCr = 0;
+            let platCount = 0;
+
             for (const r of rows) {
-                const text = r.innerText || '';
-                if (text.includes('PLATFORM') || text.includes('Instamart') || text.includes('Blinkit')) {
-                    const matchSales = text.match(/₹\\s*([0-9.]+)\\s*(Cr|Lac|L|K)/g);
-                    if (matchSales && matchSales.length >= 2) {
-                        ownSales = matchSales[0];
-                        catSize = matchSales[1];
-                        break;
+                const cells = r.querySelectorAll("td");
+                if (cells.length >= 7) {
+                    const badges = Array.from(cells[0]?.querySelectorAll('span') || []);
+                    const isPlatRow = badges.some(s => (s.innerText || '').trim().toLowerCase() === 'platform');
+                    if (isPlatRow) {
+                        platCount++;
+                        const ownText = cells[5]?.innerText || '';
+                        const catText = cells[6]?.innerText || '';
+                        totalOwnSalesCr += parseValToCr(ownText);
+                        totalCatSizeCr += parseValToCr(catText);
                     }
                 }
             }
-            results.total_drill_sales = ownSales || "₹ 10.88 Cr";
-            results.total_drill_category = catSize || "₹ 43.12 Cr";
+
+            // Fallback for platform select if not expanded
+            if (platCount === 0) {
+                const platSelect = container.querySelector('select');
+                if (platSelect) {
+                    const allOpt = Array.from(platSelect.options).find(o => o.text && o.text.includes('All Platforms'));
+                    if (allOpt) {
+                        const match = allOpt.text.match(/All Platforms\\s*\\(([0-9]+)\\)/i);
+                        if (match) platCount = parseInt(match[1], 10);
+                    }
+                }
+            }
+
+            results.platform_count = String(platCount || 1);
+            results.total_drill_sales = "₹ " + totalOwnSalesCr.toFixed(2) + " Cr";
+            results.total_drill_category = "₹ " + totalCatSizeCr.toFixed(2) + " Cr";
             return results;
         """)
         return res or {}
@@ -833,7 +908,7 @@ class MarketShareModule:
     kpis = KPIS_BY_SECTION["overview"]
 
     @staticmethod
-    def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
@@ -849,15 +924,15 @@ class MarketShareModule:
         return get_default_channel_for_client(client)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client=client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client=client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client=client)
 
     @staticmethod
@@ -865,7 +940,7 @@ class MarketShareModule:
         driver: Any,
         segment: str,
         period: Any,
-        client: Optional[str] = "boat",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

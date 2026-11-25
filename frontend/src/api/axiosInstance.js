@@ -38,7 +38,7 @@ axiosInstance.interceptors.request.use(
                     config.headers["x-qc-user"] = String(qcVal);
                 }
             }
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         
         const token = sessionStorage.getItem("token");
         if (token) {

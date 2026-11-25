@@ -10,7 +10,7 @@ load_dotenv(os.path.join(BASE_DIR, "backend", ".env"))
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 JWT_SECRET = os.getenv("JWT_SECRET", "trailytics_jwt_secret_2026")
-CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "boat")
+CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "drl")
 
 
 def get_auth_token(db_name: Optional[str] = None) -> str:
@@ -52,7 +52,7 @@ def call_platform_api(
     params: Optional[Dict[str, Any]] = None,
     period: Optional[Any] = None,
     db_name: Optional[str] = None,
-    timeout: int = 30,
+    timeout: int = 60,
 ) -> Dict[str, Any]:
     """
     Calls the platform's existing backend API endpoint with proper auth headers and query params.

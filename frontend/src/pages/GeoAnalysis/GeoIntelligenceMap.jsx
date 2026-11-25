@@ -196,6 +196,39 @@ export default function GeoIntelligenceMap() {
         }
     }, [selectedPeriod]);
 
+    // --- DS Tester / Automated Live Sync Listener ---
+    useEffect(() => {
+        const handleSync = (e) => {
+            const detail = (e && e.detail) ? e.detail : (e || {});
+            const { startDate, endDate, metric: m, platform: p, brand: b, category: c, timePeriod: tp } = detail;
+            try {
+                window.__geoIntelligenceLoading = true;
+                window.__geoIntelligencePeriod = null;
+                window.__geoIntelligenceData = null;
+            } catch (_) {}
+            if (startDate && endDate) {
+                const s = dayjs(startDate);
+                const end = dayjs(endDate);
+                setCustomStartDate(s);
+                setCustomEndDate(end);
+                setTimePeriod("Custom");
+                setRangeSelection([{ startDate: s.toDate(), endDate: end.toDate(), key: "selection" }]);
+            } else if (tp) {
+                setTimePeriod(tp);
+            }
+            if (m) setMetric(m);
+            if (p !== undefined) setPlatform(p);
+            if (b) setBrand(b);
+            if (c) setCategory(c);
+        };
+        window.__setGeoFilters = handleSync;
+        window.addEventListener('trailytics:setGeoFilters', handleSync);
+        return () => {
+            window.removeEventListener('trailytics:setGeoFilters', handleSync);
+            try { delete window.__setGeoFilters; } catch (_) {}
+        };
+    }, []);
+
     // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
     useEffect(() => {
         if (globalPlatform && globalPlatform !== 'All') {
@@ -223,7 +256,7 @@ export default function GeoIntelligenceMap() {
                 const res = await axiosInstance.get('/watchtower/platforms');
                 const data = res.data;
                 setPlatforms(data || []);
-                if (data && data.length > 0 && !data.includes(platform)) {
+                if (platform && platform !== 'All' && data && data.length > 0 && !data.includes(platform)) {
                     setPlatform(data[0]);
                 }
             } catch (error) {
@@ -256,6 +289,7 @@ export default function GeoIntelligenceMap() {
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            try { window.__geoIntelligenceLoading = true; } catch (e) {}
             try {
                 // Build time period params
                 let params = `platform=${encodeURIComponent(platform)}`;
@@ -310,16 +344,18 @@ export default function GeoIntelligenceMap() {
                         return name === 'india' || name === 'nation' || name === 'national' || name === 'all india' || name === 'pan india' || name === 'overall';
                     };
 
-                    // If data is present at nation level, show it on nation.
-                    // Otherwise if specific locations are present, show data at those locations.
-                    const hasNationData = citiesData.some(city => isNationLevel(city.name));
-                    if (hasNationData) {
-                        citiesData = citiesData.filter(city => isNationLevel(city.name));
+                    // If specific locations are present, show data at those locations.
+                    // Otherwise if only nation-level data is present, show it on nation.
+                    const specificCities = citiesData.filter(city => !isNationLevel(city.name));
+                    if (specificCities.length > 0) {
+                        citiesData = specificCities;
                     }
 
                     setApiData(citiesData);
+                    try { window.__geoIntelligenceData = citiesData; } catch (e) {}
                 } else {
                     setApiData([]);
+                    try { window.__geoIntelligenceData = []; } catch (e) {}
                 }
                 if (res.data && res.data.period) {
                     setSelectedPeriod(res.data.period);
@@ -332,6 +368,16 @@ export default function GeoIntelligenceMap() {
                 setSelectedPeriod({ startDate: "", endDate: "" });
             } finally {
                 setLoading(false);
+                try {
+                    window.__geoIntelligenceLoading = false;
+                    const startStr = (timePeriod === "Custom" && customStartDate) ? customStartDate.format('YYYY-MM-DD') : (selectedPeriod?.startDate || '');
+                    const endStr = (timePeriod === "Custom" && customEndDate) ? customEndDate.format('YYYY-MM-DD') : (selectedPeriod?.endDate || '');
+                    window.__geoIntelligencePeriod = {
+                        startDate: startStr,
+                        endDate: endStr,
+                        metric: metric
+                    };
+                } catch (e) {}
             }
         };
         fetchData();

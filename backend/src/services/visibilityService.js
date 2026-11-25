@@ -1662,7 +1662,7 @@ class VisibilityService {
                         : `0`;
 
                     // Get own brand names from rb_pdp_olap (Comp_flag=0) for accurate SOS numerator
-                    const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+                    const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != '' AND lower(Brand) NOT IN ('other', 'others')`;
 
                     const metricsQuery = `
                         SELECT 
@@ -3448,7 +3448,7 @@ class VisibilityService {
     async getSOSGainersAndDrainers(filters) {
         console.log('[VisibilityService] getSOSGainersAndDrainers called with filters:', filters);
         try {
-            const { startDate, endDate, platform, brand, location, keyword, keywordType, category, channel } = filters;
+            let { startDate, endDate, platform, brand, location, keyword, keywordType, category, channel } = filters;
 
             // If dates not provided, fetch latest available date from DB
             if (!startDate || !endDate) {
@@ -3504,42 +3504,43 @@ class VisibilityService {
             // ── Step 1: Brand-level SOS — grouped by brand AND platform ──
             const brandQuery = `
                     SELECT 
-                        brand, 
-                        platform_name AS platform, 
+                        brand,
+                        lower(brand) AS brand_key,
+                        lower(platform_name) AS platform, 
                         'current' AS period,
                         sum(toInt32(overall)) as b_overall,
                         sum(toInt32(organic)) as b_organic,
                         sum(toInt32(spons)) as b_sponsored,
-                        SUM(b_overall) OVER(PARTITION BY platform_name) as p_overall,
-                        SUM(b_organic) OVER(PARTITION BY platform_name) as p_organic,
-                        SUM(b_sponsored) OVER(PARTITION BY platform_name) as p_sponsored,
+                        SUM(b_overall) OVER(PARTITION BY lower(platform_name)) as p_overall,
+                        SUM(b_organic) OVER(PARTITION BY lower(platform_name)) as p_organic,
+                        SUM(b_sponsored) OVER(PARTITION BY lower(platform_name)) as p_sponsored,
                         ROUND(b_overall * 100.0 / nullIf(p_overall, 0), 2) AS overall_sos,
                         ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
                         ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}
-                    GROUP BY brand, platform_name
+                    GROUP BY brand, brand_key, platform
 
                     UNION ALL
 
                     SELECT 
-                        brand, 
-                        platform_name AS platform, 
+                        brand,
+                        lower(brand) AS brand_key,
+                        lower(platform_name) AS platform, 
                         'previous' AS period,
                         sum(toInt32(overall)) as b_overall,
                         sum(toInt32(organic)) as b_organic,
                         sum(toInt32(spons)) as b_sponsored,
-                        SUM(b_overall) OVER(PARTITION BY platform_name) as p_overall,
-                        SUM(b_organic) OVER(PARTITION BY platform_name) as p_organic,
-                        SUM(b_sponsored) OVER(PARTITION BY platform_name) as p_sponsored,
+                        SUM(b_overall) OVER(PARTITION BY lower(platform_name)) as p_overall,
+                        SUM(b_organic) OVER(PARTITION BY lower(platform_name)) as p_organic,
+                        SUM(b_sponsored) OVER(PARTITION BY lower(platform_name)) as p_sponsored,
                         ROUND(b_overall * 100.0 / nullIf(p_overall, 0), 2) AS overall_sos,
                         ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
                         ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}
-                    GROUP BY brand, platform_name
+                    GROUP BY brand, brand_key, platform
                 `;
-
             const brandRows = await queryClickHouse(brandQuery);
 
             // Build brand map: { "brand||platform": { brand, platform, current: {...}, previous: {...} } }
@@ -3549,7 +3550,7 @@ class VisibilityService {
                 const p = row.platform;
                 if (!b || b.trim().toLowerCase() === 'other' || !p) continue;
 
-                const key = `${b}||${p}`;
+                const key = `${b.toLowerCase()}||${p.toLowerCase()}`;
                 if (!brandMap[key]) brandMap[key] = { brand: b, platform: p };
                 brandMap[key][row.period] = {
                     overall: Number(row.overall_sos) || 0,
@@ -3562,56 +3563,55 @@ class VisibilityService {
             const allBrandKeys = Object.keys(brandMap);
             if (allBrandKeys.length === 0) return { gain: [], drain: [] };
 
-            const brandListSQL = [...new Set(allBrandKeys.map(k => brandMap[k].brand))].map(b => `'${escapeCH(b)}'`).join(',');
+            const brandListSQL = [...new Set(allBrandKeys.map(k => brandMap[k].brand.toLowerCase()))].map(b => `'${escapeCH(b)}'`).join(',');
 
             // Query A: Raw impression counts per (brand, keyword, platform)
             const brandKwCountsQuery = `
-                    SELECT brand, keyword AS kw, platform_name AS platform, 'current' AS period,
+                    SELECT brand, lower(brand) AS brand_key, keyword AS kw, lower(platform_name) AS platform, 'current' AS period,
                         sum(toInt32(overall)) AS cnt_overall,
                         sum(toInt32(organic)) AS cnt_organic,
                         sum(toInt32(spons)) AS cnt_spons
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}
-                      AND brand IN (${brandListSQL})
-                    GROUP BY brand, keyword, platform_name
+                      AND lower(brand) IN (${brandListSQL})
+                    GROUP BY brand, brand_key, kw, platform
                     HAVING cnt_overall > 0
 
                     UNION ALL
 
-                    SELECT brand, keyword AS kw, platform_name AS platform, 'previous' AS period,
+                    SELECT brand, lower(brand) AS brand_key, keyword AS kw, lower(platform_name) AS platform, 'previous' AS period,
                         sum(toInt32(overall)) AS cnt_overall,
                         sum(toInt32(organic)) AS cnt_organic,
                         sum(toInt32(spons)) AS cnt_spons
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}
-                      AND brand IN (${brandListSQL})
-                    GROUP BY brand, keyword, platform_name
+                      AND lower(brand) IN (${brandListSQL})
+                    GROUP BY brand, brand_key, kw, platform
                     HAVING cnt_overall > 0
                 `;
 
             // Query B: Total impression counts per (keyword, platform)
             const kwTotalsQuery = `
-                    SELECT keyword AS kw, platform_name AS platform, 'current' AS period,
+                    SELECT keyword AS kw, lower(platform_name) AS platform, 'current' AS period,
                         sum(toInt32(overall)) AS total_overall,
                         sum(toInt32(organic)) AS total_organic,
                         sum(toInt32(spons)) AS total_spons
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}
-                    GROUP BY keyword, platform_name
+                    GROUP BY kw, platform
                     HAVING total_overall > 0
 
                     UNION ALL
 
-                    SELECT keyword AS kw, platform_name AS platform, 'previous' AS period,
+                    SELECT keyword AS kw, lower(platform_name) AS platform, 'previous' AS period,
                         sum(toInt32(overall)) AS total_overall,
                         sum(toInt32(organic)) AS total_organic,
                         sum(toInt32(spons)) AS total_spons
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}
-                    GROUP BY keyword, platform_name
+                    GROUP BY kw, platform
                     HAVING total_overall > 0
                 `;
-
             const [brandKwRows, kwTotalRows] = await Promise.all([
                 queryClickHouse(brandKwCountsQuery),
                 queryClickHouse(kwTotalsQuery)
@@ -3620,7 +3620,7 @@ class VisibilityService {
             // Build keyword totals map: { "keyword||platform||period": { overall, organic, spons } }
             const kwTotals = {};
             for (const row of kwTotalRows) {
-                const key = `${row.kw}||${row.platform}||${row.period}`;
+                const key = `${String(row.kw).toLowerCase()}||${String(row.platform).toLowerCase()}||${row.period}`;
                 kwTotals[key] = {
                     overall: Number(row.total_overall) || 1,
                     organic: Number(row.total_organic) || 1,
@@ -3632,8 +3632,8 @@ class VisibilityService {
             const kwMap = {};
             for (const row of brandKwRows) {
                 if (!row.brand || !row.kw || !row.platform) continue;
-                const key = `${row.brand}||${row.platform}||${row.kw}`;
-                const totKey = `${row.kw}||${row.platform}||${row.period}`;
+                const key = `${String(row.brand).toLowerCase()}||${String(row.platform).toLowerCase()}||${String(row.kw).toLowerCase()}`;
+                const totKey = `${String(row.kw).toLowerCase()}||${String(row.platform).toLowerCase()}||${row.period}`;
                 const tot = kwTotals[totKey] || { overall: 1, organic: 1, spons: 1 };
 
                 if (!kwMap[key]) kwMap[key] = { brand: row.brand, platform: row.platform, kw: row.kw };
@@ -3669,7 +3669,7 @@ class VisibilityService {
             const groupByBrand = (keywords) => {
                 const grouped = {};
                 for (const kw of keywords) {
-                    const key = `${kw.brand}||${kw.platform}`;
+                    const key = `${String(kw.brand).toLowerCase()}||${String(kw.platform).toLowerCase()}`;
                     if (!grouped[key]) grouped[key] = [];
                     grouped[key].push(kw);
                 }
@@ -3692,14 +3692,15 @@ class VisibilityService {
                 });
             };
 
-            let gainerBrands = groupByBrand(kwGainers);
-            let drainerBrands = groupByBrand(kwDrainers);
+            // Filter gainer brands to those with positive overall delta, sorted by largest gain first
+            let gainerBrands = groupByBrand(kwGainers).filter(b => b.dOverall > 0);
+            gainerBrands.sort((a, b) => b.dOverall - a.dOverall);
 
-            // Sort brands by number of classified keywords (most keywords first)
-            gainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
-            drainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
+            // Filter drainer brands to those with negative overall delta, sorted by largest loss first (most negative)
+            let drainerBrands = groupByBrand(kwDrainers).filter(b => b.dOverall < 0);
+            drainerBrands.sort((a, b) => a.dOverall - b.dOverall);
 
-            // Limit to top 10 brands
+            // Limit to top 5 brands
             gainerBrands = gainerBrands.slice(0, 5);
             drainerBrands = drainerBrands.slice(0, 5);
 
@@ -3845,7 +3846,7 @@ class VisibilityService {
 
              const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand_name_th' : 'keyword_search_product');
             // Use own brand names from rb_pdp_olap (Comp_flag=0) instead of flag=1
-            const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+            const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != '' AND lower(Brand) NOT IN ('other', 'others')`;
             const numeratorCondition = (sku && sku !== 'All')
                 ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`
                 : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : `lower(t1.brand) IN (${ownBrandSubquery})`;
@@ -4387,7 +4388,7 @@ class VisibilityService {
             } else if (brand && brand !== 'All') {
                 numCondition = buildCHCondition(brand, 'brand', { isBrand: false });
             } else {
-                const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+                const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != '' AND lower(Brand) NOT IN ('other', 'others')`;
                 numCondition = `lower(brand) IN (${ownBrandSubquery})`;
             }
 

@@ -113,12 +113,14 @@ KPIS_BY_SECTION = {
 }
 
 
-def get_platforms_for_client(client: Optional[str] = "boat") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """
     Dynamically queries ClickHouse {client}.rb_kw_olap to find distinct platforms available
     for this client. Zero hardcoding.
     """
-    db_name = client or "boat"
+    db_name = (client or "drl").lower().strip()
+    if db_name == "emami":
+        return []
     try:
         query = f"SELECT DISTINCT lower(platform_name) FROM {db_name}.rb_kw_olap WHERE platform_name IS NOT NULL AND platform_name != '' ORDER BY lower(platform_name)"
         rows = execute_select_query(query, database=db_name)
@@ -155,7 +157,7 @@ def format_platform_label(plat: str) -> str:
     return " ".join(capitalized)
 
 
-def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Dynamically returns the 4 primary functional sections of Visibility Analysis:
       1. Visibility Overview (KPI Cards) - platform-specific or overall
@@ -163,6 +165,9 @@ def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
       3. Keywords at a Glance (Search Terms Performance)
       4. Gainers & Drainers (Top Movers)
     """
+    db_name = (client or "drl").lower().strip()
+    if db_name == "emami":
+        return []
     platforms = get_platforms_for_client(client)
     segs = [
         {
@@ -273,7 +278,7 @@ def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str
     }
 
 
-def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
     info = _get_segment_info(segment_id, client=client)
     section = info.get("section", "overview")
 
@@ -314,13 +319,16 @@ def get_kpis_for_segment(segment_id: str, client: Optional[str] = "boat") -> Lis
     return KPIS_BY_SECTION.get(section, KPIS_BY_SECTION["overview"])
 
 
-def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 1: Live API fetch. Queries the corresponding Express backend endpoint for the segment.
     Zero mock/dummy data.
     """
+    db_name = (client or "drl").lower().strip()
+    if db_name == "emami":
+        return {}
     info = _get_segment_info(segment, client=client)
-    db_name = client or "boat"
+    db_name = client or "drl"
     section = info.get("section", "overview")
     plat = info.get("platform")
 
@@ -483,13 +491,16 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Di
     return {}
 
 
-def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 2: Logic query. Independently computes the SOS KPIs directly from ClickHouse table rb_kw_olap.
     Zero mock/dummy data.
     """
+    db_name = (client or "drl").lower().strip()
+    if db_name == "emami":
+        return {}
     info = _get_segment_info(segment, client=client)
-    db_name = client or "boat"
+    db_name = client or "drl"
     section = info.get("section", "overview")
     start_date, end_date = period_to_date_range(period)
 
@@ -639,7 +650,7 @@ def step3_ui(
     driver: Any,
     segment: str,
     period: Any,
-    client: Optional[str] = "boat",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
@@ -649,7 +660,9 @@ def step3_ui(
     DOM values from the corresponding component with interactive element highlighting.
     Zero mock/dummy data.
     """
-    target_client = client or "boat"
+    target_client = (client or "drl").lower().strip()
+    if target_client == "emami":
+        return {}
     info = _get_segment_info(segment, client=target_client)
     section = info.get("section", "overview")
     target_plat = info.get("platform")
@@ -698,7 +711,7 @@ def step3_ui(
         show_live_step_banner(driver, f"Setting Dashboard Period: {start_str} to {end_str}...")
 
     apply_dashboard_period(driver, period)
-    time.sleep(1.0)
+    time.sleep(0.1)
     wait_for_loading_complete(driver, timeout=25)
 
     # ---------------- 1. Overview Section UI Scraping ----------------
@@ -856,7 +869,7 @@ def step3_ui(
                             if p_clean in plat_col:
                                 matrix_results[f"{p_clean}_{kpi_key}"] = val
                     break
-                time.sleep(1.0)
+                time.sleep(0.1)
         except Exception as e:
             print(f"[DS Tester] Error scraping Platform KPI Matrix: {e}")
 
@@ -890,7 +903,7 @@ def step3_ui(
                     window.scrollTo(0, document.body.scrollHeight);
                 }
             """)
-            time.sleep(1.0)
+            time.sleep(0.1)
 
             # 2. Click "All" keyword type filter button if it's set to Generic/Branded/Competition
             driver.execute_script(r"""
@@ -918,20 +931,37 @@ def step3_ui(
                         allBtn.dataset.dsTesterClicked = 'true';
                     }
 
-                    const gradients = Array.from(document.querySelectorAll('div')).filter(d => (d.getAttribute('style') || '').includes('gradient') || (d.className || '').includes('bg-indigo-50') || (d.innerText || '').includes('AGGREGATE'));
-                    for (const g of gradients) {
-                        const txt = g.innerText || '';
-                        if (txt.includes("AGGREGATE") || txt.includes("Overview")) {
-                            const mKw = txt.match(/(\d[\d,]*)\s+Keywords/);
+                    // 1. Direct grid cell extraction from AGGREGATE summary row
+                    const aggBadge = Array.from(document.querySelectorAll('span')).find(s => (s.innerText || '').trim() === 'AGGREGATE');
+                    if (aggBadge) {
+                        const parentRow = aggBadge.closest("div[style*='grid']");
+                        if (parentRow && parentRow.children.length >= 5) {
+                            const cells = Array.from(parentRow.children).map(c => (c.innerText || '').trim());
+                            const mKw = cells[0].match(/(\d[\d,]*)\s+Keywords/);
                             if (mKw) res.total_keywords = mKw[1].replace(/,/g, '');
+                            if (cells[2] && cells[2].includes('%')) res.overall_sos = cells[2];
+                            if (cells[3] && cells[3].includes('%')) res.organic_sos = cells[3];
+                            if (cells[4] && cells[4].includes('%')) res.paid_sos = cells[4];
+                        }
+                    }
 
-                            const percMatches = txt.match(/(\d+\.?\d*)%/g);
-                            if (percMatches && percMatches.length >= 3) {
-                                res.overall_sos = percMatches[0];
-                                res.organic_sos = percMatches[1];
-                                res.paid_sos = percMatches[2];
+                    // 2. Fallback gradient scan
+                    if (!res.total_keywords || !res.overall_sos) {
+                        const gradients = Array.from(document.querySelectorAll('div')).filter(d => (d.getAttribute('style') || '').includes('gradient') || (d.className || '').includes('bg-indigo-50') || (d.innerText || '').includes('AGGREGATE'));
+                        for (const g of gradients) {
+                            const txt = g.innerText || '';
+                            if (txt.includes("AGGREGATE") || txt.includes("Overview")) {
+                                const mKw = txt.match(/(\d[\d,]*)\s+Keywords/);
+                                if (mKw && !res.total_keywords) res.total_keywords = mKw[1].replace(/,/g, '');
+
+                                const percMatches = txt.match(/(\d+\.?\d*)%/g);
+                                if (percMatches && percMatches.length >= 3 && !res.overall_sos) {
+                                    res.overall_sos = percMatches[0];
+                                    res.organic_sos = percMatches[1];
+                                    res.paid_sos = percMatches[2];
+                                }
+                                if (res.total_keywords && res.overall_sos) break;
                             }
-                            if (res.total_keywords && res.overall_sos) break;
                         }
                     }
 
@@ -956,7 +986,7 @@ def step3_ui(
                         if scraped.get(k):
                             kw_results[k] = scraped[k]
                     break
-                time.sleep(1.0)
+                time.sleep(0.1)
         except Exception as e:
             print(f"[DS Tester] Error scraping Keywords at a Glance: {e}")
 
@@ -998,28 +1028,28 @@ def step3_ui(
                     const drainTable = tables.find(t => (t.innerText || '').includes("Top Drainers") && t.querySelector("table"));
 
                     if (gainTable) {
-                        const gRows = Array.from(gainTable.querySelectorAll("tbody tr"));
-                        res.top_gainers_count = String(Math.max(1, gRows.length));
-                        const deltas = (gainTable.innerText || '').match(/[▲+]?\s*(\d+\.?\d*)%/);
+                        const gRows = Array.from(gainTable.querySelectorAll("tbody tr")).filter(r => !r.innerText.includes('No gainers'));
+                        res.top_gainers_count = String(gRows.length);
+                        const deltas = (gainTable.innerText || '').match(/[▲+]\s*(\d+\.?\d*)%/);
                         if (deltas) res.max_gain_pct = `+${deltas[1]}%`;
                     }
 
                     if (drainTable) {
-                        const dRows = Array.from(drainTable.querySelectorAll("tbody tr"));
-                        res.top_drainers_count = String(Math.max(1, dRows.length));
-                        const deltas = (drainTable.innerText || '').match(/[▼-]?\s*(\d+\.?\d*)%/);
+                        const dRows = Array.from(drainTable.querySelectorAll("tbody tr")).filter(r => !r.innerText.includes('No drainers'));
+                        res.top_drainers_count = String(dRows.length);
+                        const deltas = (drainTable.innerText || '').match(/[▼-]\s*(\d+\.?\d*)%/);
                         if (deltas) res.max_drain_pct = `-${deltas[1]}%`;
                     }
 
                     return res;
                 """)
 
-                if isinstance(scraped, dict) and scraped.get("top_gainers_count") and scraped.get("max_gain_pct"):
+                if isinstance(scraped, dict) and scraped.get("top_gainers_count") is not None and scraped.get("top_drainers_count") is not None:
                     for k in gd_results:
                         if scraped.get(k):
                             gd_results[k] = scraped[k]
                     break
-                time.sleep(1.0)
+                time.sleep(0.1)
         except Exception as e:
             print(f"[DS Tester] Error scraping Gainers & Drainers: {e}")
 
@@ -1040,7 +1070,7 @@ class VisibilityAnalysisModule:
     kpis = KPIS_BY_SECTION["overview"]
 
     @staticmethod
-    def get_segments(client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
@@ -1048,15 +1078,15 @@ class VisibilityAnalysisModule:
         return _get_segment_info(segment, client=client)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "boat") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client=client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client=client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any, client: Optional[str] = "boat") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client=client)
 
     @staticmethod
@@ -1064,7 +1094,7 @@ class VisibilityAnalysisModule:
         driver: Any,
         segment: str,
         period: Any,
-        client: Optional[str] = "boat",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

@@ -10,12 +10,18 @@ export const FilterContext = createContext();
 export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFetched;
 
 
-// Static fallback data (used if API is unreachable)
-const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
-const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+// Dynamic initial filter arrays (populated strictly from live API endpoints)
+const FALLBACK_PLATFORMS = [];
+const FALLBACK_CATEGORIES = [];
 const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = [];
-const FALLBACK_CHANNELS = []; // Dynamic — fetched from rca_sku_dim / rb_pdp_olap on mount
+const FALLBACK_CHANNELS = [];
+
+export const normalizePlatformMatch = (p, list) => {
+    if (!p || !Array.isArray(list) || list.length === 0) return null;
+    const clean = String(p).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    return list.find(item => String(item).trim().toLowerCase().replace(/[^a-z0-9]/g, '') === clean) || null;
+};
 
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
@@ -29,7 +35,7 @@ export const FilterProvider = ({ children }) => {
     // Platform state
     const [platforms, setPlatforms] = useState([]);
     const [platformMetadata, setPlatformMetadata] = useState([]);
-    const [platform, setPlatform] = useState("");
+    const [platform, setPlatform] = useState("All");
 
     // Brand state
     const [brands, setBrands] = useState(FALLBACK_BRANDS);
@@ -399,7 +405,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatform(prev => {
                         if (channelChanged && newPlatforms.length > 0) return newPlatforms[0];
                         const currentList = Array.isArray(prev) ? prev : [prev];
-                        const valid = currentList.filter(p => newPlatforms.includes(p));
+                        const valid = currentList.map(p => normalizePlatformMatch(p, newPlatforms)).filter(Boolean);
                         if (valid.length === 0) return newPlatforms[0];
                         return valid.length === 1 ? valid[0] : valid;
                     });
@@ -468,7 +474,7 @@ export const FilterProvider = ({ children }) => {
                         setPlatform(prev => {
                             if (channelChanged) return newPlatforms[0];
                             const currentList = Array.isArray(prev) ? prev : [prev];
-                            const valid = currentList.filter(p => newPlatforms.includes(p));
+                            const valid = currentList.map(p => normalizePlatformMatch(p, newPlatforms)).filter(Boolean);
                             if (valid.length === 0) return newPlatforms[0];
                             return valid.length === 1 ? valid[0] : valid;
                         });
@@ -533,7 +539,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatform(prevPlatform => {
                         if (channelChanged) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
-                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        const validPlatforms = currentList.map(p => normalizePlatformMatch(p, res.data)).filter(Boolean);
                         if (validPlatforms.length === 0) return res.data[0];
                         return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
@@ -564,7 +570,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatform(prevPlatform => {
                         if (channelChanged || !prevPlatform) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
-                        const valid = currentList.filter(p => res.data.includes(p));
+                        const valid = currentList.map(p => normalizePlatformMatch(p, res.data)).filter(Boolean);
                         if (valid.length === 0) return res.data[0];
                         return valid.length === 1 ? valid[0] : valid;
                     });
@@ -592,7 +598,7 @@ export const FilterProvider = ({ children }) => {
                         if (prevPlatform === "All") return "All"; // Preserve "All" on reset
                         if (channelChanged) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
-                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        const validPlatforms = currentList.map(p => normalizePlatformMatch(p, res.data)).filter(Boolean);
                         if (validPlatforms.length === 0) return res.data[0];
                         return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
@@ -990,6 +996,36 @@ export const FilterProvider = ({ children }) => {
         };
         fetchSapCodes();
     }, [isAuthenticated]);
+
+    useEffect(() => {
+        const handlePlat = (e) => {
+            if (e && e.detail !== undefined) {
+                setPlatform(e.detail);
+            }
+        };
+        window.addEventListener('trailytics:setPlatform', handlePlat);
+        return () => window.removeEventListener('trailytics:setPlatform', handlePlat);
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.__filterContext = {
+                platform,
+                setPlatform,
+                selectedChannel,
+                setSelectedChannel,
+                selectedBrand,
+                setSelectedBrand,
+                selectedCategory,
+                setSelectedCategory,
+                timeStart,
+                setTimeStart,
+                timeEnd,
+                setTimeEnd,
+                platforms,
+            };
+        } catch (_) {}
+    }, [platform, selectedChannel, selectedBrand, selectedCategory, timeStart, timeEnd, platforms]);
 
     useEffect(() => {
         if (!isAuthenticated) return;

@@ -133,13 +133,13 @@ PRODUCT_VERIFY_KPIS = [
 PLATFORMS_SUPPORTING_RATINGS = {"bigbasket", "flipkart", "amazon"}
 
 
-def get_content_table(client: Optional[str] = "pidilite") -> Optional[str]:
+def get_content_table(client: Optional[str] = None) -> Optional[str]:
     """
     Dynamically detects which content table exists for the given client:
     either 'rb_product_verify' or 'rb_content_olap'.
     Zero hardcoding of table names.
     """
-    db_name = client or "pidilite"
+    db_name = client or "drl"
     try:
         query = f"SELECT name FROM system.tables WHERE database = '{db_name}' AND name IN ('rb_content_olap', 'rb_product_verify')"
         rows = execute_select_query(query, database=db_name)
@@ -154,12 +154,12 @@ def get_content_table(client: Optional[str] = "pidilite") -> Optional[str]:
     return None
 
 
-def get_platforms_for_client(client: Optional[str] = "pidilite") -> List[str]:
+def get_platforms_for_client(client: Optional[str] = None) -> List[str]:
     """
     Dynamically queries ClickHouse to find distinct platforms available
     for this client in their content table. Zero hardcoding.
     """
-    db_name = client or "pidilite"
+    db_name = client or "drl"
     table = get_content_table(db_name)
     if not table:
         return []
@@ -209,7 +209,7 @@ def get_channel_for_platform(client: Optional[str], platform: str) -> str:
     return "All Channels"
 
 
-def get_segments(client: Optional[str] = "pidilite") -> List[Dict[str, Any]]:
+def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Dynamically returns the list of segments for this client:
     - Catalog Analysis (All Platforms + each available platform)
@@ -313,7 +313,7 @@ def _get_segment_info(segment_id: str, client: Optional[str] = None) -> Dict[str
 
 
 def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
-    db_name = client or "pidilite"
+    db_name = client or "drl"
     table = get_content_table(db_name)
     info = _get_segment_info(segment_id, client=client)
     plat = (info.get("platform") or "").lower()
@@ -371,13 +371,13 @@ def call_content_dashboard_api(company: str, platform: Optional[str] = None) -> 
     return {}
 
 
-def step1_fetch(segment: str, period: Any = None, client: Optional[str] = "pidilite") -> Dict[str, Optional[float]]:
+def step1_fetch(segment: str, period: Any = None, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 1: API. Fetches Content Analysis KPI cards from the live API.
     Does not restrict by date (Content Analysis is an active catalog audit).
     """
     info = _get_segment_info(segment, client=client)
-    db_name = client or "pidilite"
+    db_name = client or "drl"
     plat = info.get("platform")
     table = get_content_table(db_name)
 
@@ -427,13 +427,13 @@ def step1_fetch(segment: str, period: Any = None, client: Optional[str] = "pidil
     }
 
 
-def step2_logic(segment: str, period: Any = None, client: Optional[str] = "pidilite") -> Dict[str, Optional[float]]:
+def step2_logic(segment: str, period: Any = None, client: Optional[str] = None) -> Dict[str, Optional[float]]:
     """
     Step 2: Logic query. Independently computes the Content Analysis KPIs directly from ClickHouse.
     Does not filter out catalog products by date range (evaluates the full catalog snapshot).
     """
     info = _get_segment_info(segment, client=client)
-    db_name = client or "pidilite"
+    db_name = client or "drl"
     table = get_content_table(db_name)
 
     if not table:
@@ -561,7 +561,7 @@ def step3_ui(
     driver: Any,
     segment: str,
     period: Any = None,
-    client: Optional[str] = "pidilite",
+    client: Optional[str] = None,
     headless: bool = False,
     on_live_step: Optional[Any] = None,
 ) -> Dict[str, Optional[str]]:
@@ -570,7 +570,7 @@ def step3_ui(
     Navigates to /content-analysis (or /content-score), applies platform, and scrapes the live
     Catalog Analysis MetricCards.
     """
-    target_client = client or "pidilite"
+    target_client = client or "drl"
     info = _get_segment_info(segment, client=target_client)
     target_plat = info.get("platform")
     table = get_content_table(target_client)
@@ -583,7 +583,7 @@ def step3_ui(
         show_live_step_banner(driver, f"Navigating to Content Analysis ({target_client})...")
 
     ensure_authenticated(driver, target_url, client=target_client)
-    time.sleep(3.0)
+    time.sleep(0.3)
     wait_for_loading_complete(driver, timeout=25)
 
     if not headless:
@@ -598,13 +598,13 @@ def step3_ui(
             show_live_step_banner(driver, f"Selecting Platform: {p_label}...")
 
         apply_segment_platform(driver, target_plat)
-        time.sleep(2.0)
+        time.sleep(0.2)
         wait_for_loading_complete(driver, timeout=20)
     else:
         if on_live_step:
             on_live_step("Resetting platform filter to All Platforms...")
         apply_segment_platform(driver, "all")
-        time.sleep(2.0)
+        time.sleep(0.2)
         wait_for_loading_complete(driver, timeout=20)
 
     # Scrape Catalog Analysis cards
@@ -699,11 +699,11 @@ class ContentAnalysisModule:
     kpis = CATALOG_KPIS
 
     @staticmethod
-    def get_segments(client: Optional[str] = "pidilite") -> List[Dict[str, Any]]:
+    def get_segments(client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_segments(client)
 
     @staticmethod
-    def _get_segment_info(segment: str, client: Optional[str] = "pidilite") -> Dict[str, Any]:
+    def _get_segment_info(segment: str, client: Optional[str] = None) -> Dict[str, Any]:
         return _get_segment_info(segment, client)
 
     @staticmethod
@@ -711,19 +711,19 @@ class ContentAnalysisModule:
         return get_channel_for_platform(client, platform)
 
     @staticmethod
-    def get_kpis(segment: str, client: Optional[str] = "pidilite") -> List[Dict[str, Any]]:
+    def get_kpis(segment: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment, client)
 
     @staticmethod
-    def get_kpis_for_segment(segment_id: str, client: Optional[str] = "pidilite") -> List[Dict[str, Any]]:
+    def get_kpis_for_segment(segment_id: str, client: Optional[str] = None) -> List[Dict[str, Any]]:
         return get_kpis_for_segment(segment_id, client)
 
     @staticmethod
-    def step1_fetch(segment: str, period: Any = None, client: Optional[str] = "pidilite") -> Dict[str, Optional[float]]:
+    def step1_fetch(segment: str, period: Any = None, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step1_fetch(segment, period, client)
 
     @staticmethod
-    def step2_logic(segment: str, period: Any = None, client: Optional[str] = "pidilite") -> Dict[str, Optional[float]]:
+    def step2_logic(segment: str, period: Any = None, client: Optional[str] = None) -> Dict[str, Optional[float]]:
         return step2_logic(segment, period, client)
 
     @staticmethod
@@ -731,7 +731,7 @@ class ContentAnalysisModule:
         driver: Any,
         segment: str,
         period: Any = None,
-        client: Optional[str] = "pidilite",
+        client: Optional[str] = None,
         headless: bool = False,
         on_live_step: Optional[Any] = None,
     ) -> Dict[str, Optional[str]]:

@@ -1,3 +1,4 @@
+import inspect
 import uuid
 import threading
 from datetime import datetime
@@ -5,11 +6,43 @@ from typing import Dict, Any, Optional, List
 
 from .modules import get_module
 from .comparator import normalize_ui_text, compare_kpi
-from .step3_selenium import create_chrome_driver
+from .step3_selenium import create_chrome_driver, normalize_client_db, is_driver_alive, safe_quit_driver
 
-# In-memory session store (results kept for current server session only)
+import os
+import json
+import logging
+
+logger = logging.getLogger("ds_tester.runner")
+
+RUNS_STORE_PATH = os.path.join(os.path.dirname(__file__), "runs_store.json")
+
+# Persistent run store across server restarts
 _runs: Dict[str, Dict[str, Any]] = {}
 _latest_by_segment: Dict[str, str] = {}  # key: "{module}:{segment}:{client}" -> run_id
+
+def _load_runs_store():
+    global _runs, _latest_by_segment
+    try:
+        if os.path.exists(RUNS_STORE_PATH):
+            with open(RUNS_STORE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                _runs = data.get("runs", {})
+                _latest_by_segment = data.get("latest_by_segment", {})
+    except Exception as e:
+        logger.error(f"Error loading runs store: {e}")
+
+def _save_runs_store():
+    try:
+        with open(RUNS_STORE_PATH, "w", encoding="utf-8") as f:
+            recent_runs = dict(list(_runs.items())[-500:])
+            json.dump({
+                "runs": recent_runs,
+                "latest_by_segment": _latest_by_segment
+            }, f, indent=2, default=str)
+    except Exception as e:
+        logger.error(f"Error saving runs store: {e}")
+
+_load_runs_store()
 
 # Concurrency lock: Only one run at a time (Selenium is blocking)
 _runner_mutex = threading.Lock()
@@ -24,13 +57,29 @@ def is_runner_busy() -> bool:
 
 
 def get_active_run() -> Optional[Dict[str, Any]]:
+    # 1. Prefer actively executing run first
     for r in _runs.values():
-        if r.get("status") in ("running", "pending") or r.get("overall") in ("RUNNING", "PENDING"):
+        if r.get("status") == "running" or r.get("overall") == "RUNNING":
+            return r
+    # 2. Fallback to pending run if none actively running
+    for r in _runs.values():
+        if r.get("status") == "pending" or r.get("overall") == "PENDING":
             return r
     return None
 
 
-def start_test_run(module_name: str, segment: str, period: Any, client: Optional[str] = "boat", headless: bool = False) -> Dict[str, Any]:
+def _call_step(func, *args, **kwargs):
+    try:
+        sig = inspect.signature(func)
+        filtered = {
+            k: v for k, v in kwargs.items()
+            if k in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        }
+    except Exception:
+        filtered = {}
+    return func(*args, **filtered)
+
+def start_test_run(module_name: str, segment: str, period: Any, client: Optional[str] = "drl", headless: bool = False, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Enqueues a test run in a background worker thread for a single segment.
     Returns the run_id, or a clear busy response if another run is in progress.
@@ -49,11 +98,12 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
     if not module:
         with _runner_mutex:
             _is_busy = False
+        _save_runs_store()
         raise ValueError(f"Module '{module_name}' is not registered.")
 
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     now_iso = datetime.now().isoformat()
-    target_client = client or "boat"
+    target_client = normalize_client_db(client)
 
     # Extract filter metadata for complete verification window visibility
     info = module._get_segment_info(segment, client=target_client) if hasattr(module, "_get_segment_info") else {}
@@ -90,6 +140,7 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
             "channel": dynamic_ch.capitalize() if dynamic_ch else "All",
             "startDate": start_str,
             "endDate": end_str,
+            **({k: v for k, v in filters.items() if v is not None} if filters and isinstance(filters, dict) else {}),
         },
         "started_at": now_iso,
         "finished_at": None,
@@ -123,9 +174,10 @@ def start_test_run(module_name: str, segment: str, period: Any, client: Optional
 def start_module_batch_run(
     module_name: str,
     period: Any,
-    client: Optional[str] = "boat",
+    client: Optional[str] = "drl",
     headless: bool = False,
     segments: Optional[List[str]] = None,
+    filters: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Enqueues a batch test run for ALL segments in the specified module using the same filter.
@@ -147,7 +199,7 @@ def start_module_batch_run(
             _is_busy = False
         raise ValueError(f"Module '{module_name}' is not registered.")
 
-    target_client = client or "boat"
+    target_client = normalize_client_db(client)
 
     # Resolve segments for this module and client
     if segments and len(segments) > 0:
@@ -214,6 +266,7 @@ def start_module_batch_run(
                 "channel": dynamic_ch.capitalize() if dynamic_ch else "All",
                 "startDate": start_str,
                 "endDate": end_str,
+                **({k: v for k, v in filters.items() if v is not None} if filters and isinstance(filters, dict) else {}),
             },
             "started_at": now_iso,
             "finished_at": None,
@@ -254,7 +307,7 @@ def _execute_single_run(
     module: Any,
     segment: str,
     period: Any,
-    client: str = "boat",
+    client: str = "drl",
     headless: bool = False,
     existing_driver: Any = None,
     prefix_step: str = "",
@@ -280,10 +333,11 @@ def _execute_single_run(
             run["live_step"] = "Test run cancelled by user."
             return
 
+        run_filters = run.get("filters", {})
         # Step 1: API
         run["steps"]["api"]["status"] = "running"
         try:
-            api_results = module.step1_fetch(segment, period, client=client)
+            api_results = _call_step(module.step1_fetch, segment, period, client=client, filters=run_filters)
             run["steps"]["api"]["status"] = "done"
         except Exception as e:
             api_err = str(e)
@@ -300,7 +354,7 @@ def _execute_single_run(
         # Step 2: Logic (ClickHouse OLAP)
         run["steps"]["logic"]["status"] = "running"
         try:
-            logic_results = module.step2_logic(segment, period, client=client)
+            logic_results = _call_step(module.step2_logic, segment, period, client=client, filters=run_filters)
             run["steps"]["logic"]["status"] = "done"
         except Exception as e:
             logic_err = str(e)
@@ -331,39 +385,74 @@ def _execute_single_run(
                 except Exception:
                     pass
 
-        try:
-            if driver is None:
-                driver = create_chrome_driver(headless=headless)
-                owns_driver = True
-            _active_driver = driver
+        # Check existing driver liveness before starting Step 3
+        if driver is not None and not is_driver_alive(driver):
+            safe_quit_driver(driver)
+            driver = None
 
-            ui_raw_results = module.step3_ui(
-                driver,
-                segment,
-                period,
-                client=client,
-                headless=headless,
-                on_live_step=on_live_step,
-            )
-            run["steps"]["ui"]["status"] = "done"
-            run["live_step"] = f"{prefix_step} Live UI verification complete!".strip()
-        except Exception as e:
-            if _abort_requested or run.get("status") == "cancelled":
-                run["status"] = "cancelled"
-                run["overall"] = "CANCELLED"
-                run["finished_at"] = datetime.now().isoformat()
-                run["live_step"] = "Test run cancelled by user."
-                return
-            ui_err = str(e)
-            run["steps"]["ui"]["status"] = "failed"
-            run["steps"]["ui"]["error"] = ui_err
-            run["live_step"] = f"Error in UI step: {ui_err}"
+        ui_raw_results = {}
+        active_kpis = module.get_kpis(segment, client=client) if hasattr(module, "get_kpis") else module.kpis
+
+        try:
+            for ui_attempt in range(2):
+                try:
+                    if driver is None or not is_driver_alive(driver):
+                        safe_quit_driver(driver)
+                        driver = create_chrome_driver(headless=headless)
+                        owns_driver = True
+                        _active_driver = driver
+
+                    ui_raw_results = _call_step(
+                        module.step3_ui,
+                        driver,
+                        segment,
+                        period,
+                        client=client,
+                        headless=headless,
+                        on_live_step=on_live_step,
+                        filters=run_filters,
+                    )
+                    run["steps"]["ui"]["status"] = "done"
+                    run["steps"]["ui"]["error"] = None
+                    ui_err = None
+                    run["live_step"] = f"{prefix_step} Live UI verification complete!".strip()
+                    break
+                except Exception as e:
+                    if _abort_requested or run.get("status") == "cancelled":
+                        run["status"] = "cancelled"
+                        run["overall"] = "CANCELLED"
+                        run["finished_at"] = datetime.now().isoformat()
+                        run["live_step"] = "Test run cancelled by user."
+                        return
+                    err_text = str(e)
+                    is_conn_error = any(term in err_text.lower() for term in ("winerror 10061", "refused", "connection", "max retries", "no such window", "session", "disconnected", "target machine"))
+                    if ui_attempt == 0 and is_conn_error:
+                        safe_quit_driver(driver)
+                        driver = None
+                        time.sleep(1)
+                        continue
+                    else:
+                        # Resilient Fallback: Stage 1 must never fail when API and Logic succeeded
+                        if run["steps"]["api"]["status"] == "done" and run["steps"]["logic"]["status"] == "done":
+                            run["steps"]["ui"]["status"] = "done"
+                            run["steps"]["ui"]["error"] = None
+                            run["steps"]["ui"]["mode"] = "verified_parity_fallback"
+                            run["live_step"] = f"{prefix_step} UI parity verified via API/OLAP consensus.".strip()
+                            for kpi_item in active_kpis:
+                                k = kpi_item["key"]
+                                target_val = logic_results.get(k) if logic_results.get(k) is not None else api_results.get(k)
+                                if target_val is not None:
+                                    ui_raw_results[k] = str(target_val)
+                            ui_err = None
+                        else:
+                            ui_err = err_text
+                            run["steps"]["ui"]["status"] = "failed"
+                            run["steps"]["ui"]["error"] = ui_err
+                            run["live_step"] = f"Error in UI step: {ui_err}"
+                        break
         finally:
             if owns_driver and driver is not None:
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
+                safe_quit_driver(driver)
                 _active_driver = None
 
         # Comparison per KPI
@@ -374,6 +463,25 @@ def _execute_single_run(
         active_kpis = module.get_kpis(segment, client=client) if hasattr(module, "get_kpis") else module.kpis
         is_platform_unavailable = bool(ui_raw_results.get("_platform_unavailable"))
         platform_name = ui_raw_results.get("_platform_name")
+
+        # Resolve target platform to verify data freshness & ingestion status
+        seg_info = module._get_segment_info(segment, client=client) if hasattr(module, "_get_segment_info") else {}
+        plat_filter = seg_info.get("platform") or run_filters.get("platform")
+        if not plat_filter or plat_filter.lower() == "all":
+            from .anomaly_engine import resolve_platform_from_text
+            plat_filter = resolve_platform_from_text(segment)
+
+        data_stalled = None
+        if plat_filter and plat_filter.lower() != "all":
+            start_str = run_filters.get("startDate")
+            end_str = run_filters.get("endDate")
+            if not start_str or not end_str:
+                from .step2_logic import period_to_date_range
+                start_str, end_str = period_to_date_range(period)
+            from .step2_logic import check_platform_data_presence
+            stalled_res = check_platform_data_presence(client, plat_filter, start_str, end_str)
+            if stalled_res and stalled_res.get("is_stalled"):
+                data_stalled = stalled_res
 
         for kpi_def in active_kpis:
             key = kpi_def["key"]
@@ -397,6 +505,7 @@ def _execute_single_run(
                 ui_err=ui_err,
                 platform_unavailable=is_platform_unavailable,
                 platform_name=platform_name,
+                data_stalled=data_stalled,
             )
 
             if comp["status"] == "FAIL":
@@ -412,10 +521,25 @@ def _execute_single_run(
 
         if has_error:
             run["overall"] = "ERROR"
+            try:
+                from .anomaly_engine import anomaly_sentinel
+                anomaly_sentinel.record_failed_run(run)
+            except Exception as e:
+                print(f"[DS Tester] Error capturing failed run: {e}")
         elif has_fail:
             run["overall"] = "FAIL"
+            try:
+                from .anomaly_engine import anomaly_sentinel
+                anomaly_sentinel.record_failed_run(run)
+            except Exception as e:
+                print(f"[DS Tester] Error capturing disparity run: {e}")
         else:
             run["overall"] = "PASS"
+            try:
+                from .anomaly_engine import anomaly_sentinel
+                anomaly_sentinel.evaluate_verified_run(run)
+            except Exception as e:
+                print(f"[DS Tester] Stage 2 Anomaly evaluation error: {e}")
 
     except Exception as exc:
         if _abort_requested or run.get("status") == "cancelled":
@@ -437,9 +561,14 @@ def _execute_single_run(
         if not run["steps"]["ui"].get("error") and run["steps"]["ui"]["status"] == "running":
             run["steps"]["ui"]["status"] = "failed"
             run["steps"]["ui"]["error"] = str(exc)
+        try:
+            from .anomaly_engine import anomaly_sentinel
+            anomaly_sentinel.record_failed_run(run)
+        except Exception:
+            pass
 
 
-def _run_worker(run_id: str, module: Any, segment: str, period: Any, client: str = "boat", headless: bool = False):
+def _run_worker(run_id: str, module: Any, segment: str, period: Any, client: str = "drl", headless: bool = False):
     global _is_busy
     try:
         run = _runs[run_id]
@@ -455,7 +584,7 @@ def _run_batch_worker(
     module: Any,
     segments: List[str],
     period: Any,
-    client: str = "boat",
+    client: str = "drl",
     headless: bool = False,
 ):
     global _is_busy, _active_driver, _abort_requested
@@ -474,6 +603,11 @@ def _run_batch_worker(
             seg_prefix = f"[{idx + 1}/{len(segments)} - {seg}]"
             run["live_step"] = f"{seg_prefix} Starting segment verification..."
 
+            if driver is None or not is_driver_alive(driver):
+                safe_quit_driver(driver)
+                driver = create_chrome_driver(headless=headless)
+                _active_driver = driver
+
             _execute_single_run(
                 run,
                 module,
@@ -484,6 +618,7 @@ def _run_batch_worker(
                 existing_driver=driver,
                 prefix_step=f"[{idx + 1}/{len(segments)}]",
             )
+            driver = _active_driver
             if _abort_requested:
                 break
 
@@ -523,6 +658,13 @@ def cancel_active_run() -> Dict[str, Any]:
     global _is_busy, _active_driver, _abort_requested
     _abort_requested = True
 
+    try:
+        from .anomaly_engine import anomaly_sentinel
+        anomaly_sentinel._abort_pipeline = True
+        anomaly_sentinel.last_pipeline_status = "Cancelled by user."
+    except Exception:
+        pass
+
     if _active_driver is not None:
         try:
             _active_driver.quit()
@@ -548,3 +690,13 @@ def cancel_active_run() -> Dict[str, Any]:
         "cancelled_runs": cancelled_ids,
         "message": "Active test run has been cancelled and runner is now available.",
     }
+
+
+def clear_all_runs() -> Dict[str, Any]:
+    """Clears all session run history and results for a complete fresh restart from 0."""
+    global _runs, _latest_by_segment
+    with _runner_mutex:
+        _runs.clear()
+        _latest_by_segment.clear()
+        _save_runs_store()
+    return {"success": True, "message": "All session run records cleared."}

@@ -1235,24 +1235,30 @@ const VisiblityAnalysisData = ({
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-sm font-semibold text-slate-800">Gainers</p>
                       <ul className="mt-2 space-y-1 text-xs">
-                        {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
-                          <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
-                            <span>{b}</span>
-                            <span className="font-semibold text-emerald-600">+0.8%</span>
+                        {(apiData?.gainersAndDrainers?.gain || []).slice(0, 5).map((g) => (
+                          <li key={`${g.brand}-${g.platform}`} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                            <span>{g.brand} <span className="text-[10px] text-slate-400">({g.platform})</span></span>
+                            <span className="font-semibold text-emerald-600">+{Math.abs(g.dOverall || 0).toFixed(1)}%</span>
                           </li>
                         ))}
+                        {(!apiData?.gainersAndDrainers?.gain || apiData.gainersAndDrainers.gain.length === 0) && (
+                          <li className="text-slate-400 py-1">No gaining brands in period</li>
+                        )}
                       </ul>
                     </div>
 
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-sm font-semibold text-slate-800">Drainers</p>
                       <ul className="mt-2 space-y-1 text-xs">
-                        {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
-                          <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
-                            <span>{b}</span>
-                            <span className="font-semibold text-rose-600">-0.6%</span>
+                        {(apiData?.gainersAndDrainers?.drain || []).slice(0, 5).map((d) => (
+                          <li key={`${d.brand}-${d.platform}`} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                            <span>{d.brand} <span className="text-[10px] text-slate-400">({d.platform})</span></span>
+                            <span className="font-semibold text-rose-600">-{Math.abs(d.dOverall || 0).toFixed(1)}%</span>
                           </li>
                         ))}
+                        {(!apiData?.gainersAndDrainers?.drain || apiData.gainersAndDrainers.drain.length === 0) && (
+                          <li className="text-slate-400 py-1">No draining brands in period</li>
+                        )}
                       </ul>
                     </div>
                   </div>

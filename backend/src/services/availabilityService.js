@@ -905,8 +905,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 }
             }
 
+            const isPlatformView = vMode === 'platform';
+            const colExpr = isPlatformView ? 'lower(Platform)' : groupColumn;
+            const t1ColExpr = isPlatformView ? 'lower(t1.Platform)' : `t1.${groupColumn}`;
+            const tColExpr = isPlatformView ? 'lower(t.Platform)' : `t.${groupColumn}`;
+
             const distinctQuery = `
-                SELECT DISTINCT ${groupColumn} as value
+                SELECT DISTINCT ${colExpr} as value
                 FROM rb_pdp_olap
                 WHERE ${groupColumn} IS NOT NULL AND ${groupColumn} != ''
                 ${baseFilter}
@@ -916,9 +921,20 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             `;
 
 
-            const columnValues = (await queryClickHouse(distinctQuery))
+            const rawColumnValues = (await queryClickHouse(distinctQuery))
                 .map(r => r.value)
                 .filter(v => v && v.trim());
+
+            // Deduplicate columns case-insensitively while preserving order
+            const seenCols = new Set();
+            const columnValues = [];
+            for (const v of rawColumnValues) {
+                const norm = isPlatformView ? v.toLowerCase() : v;
+                if (!seenCols.has(norm.toLowerCase())) {
+                    seenCols.add(norm.toLowerCase());
+                    columnValues.push(norm);
+                }
+            }
 
 
             if (columnValues.length === 0) {
@@ -972,13 +988,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 WITH daily_stats AS (
                     SELECT 
                         DATE,
-                        ${groupColumn} as col_value,
+                        ${colExpr} as col_value,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      AND ${colExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY DATE, ${groupColumn}
+                    GROUP BY DATE, ${colExpr}
                     HAVING daily_inv > 0
                 ),
                 latest_inv_stats AS (
@@ -990,7 +1006,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value
                 )
                 SELECT 
-                    t1.${groupColumn} as col_value,
+                    ${t1ColExpr} as col_value,
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
@@ -1005,9 +1021,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     any(l.latest_date) as latest_date,
                     avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
-                LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
+                LEFT JOIN latest_inv_stats l ON ${t1ColExpr} = l.col_value
                 WHERE t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                  AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  AND ${t1ColExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                   ${baseFilter}
                 GROUP BY col_value
             `;
@@ -1016,13 +1032,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 WITH daily_stats AS (
                     SELECT 
                         DATE,
-                        ${groupColumn} as col_value,
+                        ${colExpr} as col_value,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      AND ${colExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY DATE, ${groupColumn}
+                    GROUP BY DATE, ${colExpr}
                     HAVING daily_inv > 0
                 ),
                 latest_inv_stats AS (
@@ -1034,7 +1050,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value
                 )
                 SELECT 
-                    t1.${groupColumn} as col_value,
+                    ${t1ColExpr} as col_value,
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
@@ -1049,9 +1065,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     any(l.latest_date) as latest_date,
                     avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
-                LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
+                LEFT JOIN latest_inv_stats l ON ${t1ColExpr} = l.col_value
                 WHERE t1.DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                  AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  AND ${t1ColExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                   ${baseFilter}
                 GROUP BY col_value
             `;
@@ -1062,13 +1078,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 WITH daily_stats AS (
                     SELECT 
                         DATE,
-                        ${groupColumn} as col_value,
+                        ${colExpr} as col_value,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      AND ${colExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY DATE, ${groupColumn}
+                    GROUP BY DATE, ${colExpr}
                     HAVING daily_inv > 0
                 ),
                 latest_dates AS (
@@ -1079,10 +1095,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value
                 )
                 SELECT 
-                    t.${groupColumn} as col_value,
+                    ${tColExpr} as col_value,
                     SUM(ifNull(toFloat64OrZero(toString(t.Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap t
-                INNER JOIN latest_dates ld ON t.${groupColumn} = ld.col_value
+                INNER JOIN latest_dates ld ON ${tColExpr} = ld.col_value
                 WHERE t.DATE BETWEEN dateSub(DAY, 29, ld.latest_date) AND ld.latest_date
                   ${baseFilter}
                 GROUP BY col_value
@@ -1092,13 +1108,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 WITH daily_stats AS (
                     SELECT 
                         DATE,
-                        ${groupColumn} as col_value,
+                        ${colExpr} as col_value,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      AND ${colExpr} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY DATE, ${groupColumn}
+                    GROUP BY DATE, ${colExpr}
                     HAVING daily_inv > 0
                 ),
                 latest_dates AS (
@@ -1109,10 +1125,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value
                 )
                 SELECT 
-                    t.${groupColumn} as col_value,
+                    ${tColExpr} as col_value,
                     SUM(ifNull(toFloat64OrZero(toString(t.Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap t
-                INNER JOIN latest_dates ld ON t.${groupColumn} = ld.col_value
+                INNER JOIN latest_dates ld ON ${tColExpr} = ld.col_value
                 WHERE t.DATE BETWEEN dateSub(DAY, 29, ld.latest_date) AND ld.latest_date
                   ${baseFilter}
                 GROUP BY col_value

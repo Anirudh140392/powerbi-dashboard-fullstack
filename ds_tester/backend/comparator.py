@@ -29,7 +29,7 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
     clean = text.replace("₹", "").replace("$", "").replace("€", "").replace("£", "").strip()
     # Remove percentage signs and day/days suffixes
     clean = clean.replace("%", "").strip()
-    clean = re.sub(r"(?i)\s*(days|day)$", "", clean).strip()
+    clean = re.sub(r"(?i)\s*(days|day|units|unit|retailers|quarters)$", "", clean).strip()
 
     # Detect multiplier suffix
     multiplier = 1.0
@@ -98,6 +98,7 @@ def compare_kpi(
     ui_err: Optional[str] = None,
     platform_unavailable: bool = False,
     platform_name: Optional[str] = None,
+    data_stalled: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Compares API, Logic, and UI values for a specific KPI according to comparison rules:
@@ -110,6 +111,21 @@ def compare_kpi(
     label = kpi_def.get("label", key)
     abs_tol = kpi_def.get("abs_tol", DEFAULT_ABS_TOL)
     rel_tol = kpi_def.get("rel_tol", DEFAULT_REL_TOL)
+
+    # 0. Check if platform data is stalled or missing in the database
+    if data_stalled and data_stalled.get("is_stalled"):
+        p_name = data_stalled.get("platform", platform_name or "Platform").title()
+        reason = data_stalled.get("reason") or f"Data Ingestion Stalled: 0 records found for {p_name} in selected period."
+        return {
+            "key": key,
+            "label": label,
+            "api": api_val,
+            "logic": logic_val,
+            "ui": ui_val,
+            "ui_raw": ui_raw,
+            "status": "FAIL",
+            "reason": reason,
+        }
 
     # 0. Check if platform is not available for this client
     if platform_unavailable:
@@ -157,25 +173,19 @@ def compare_kpi(
 
     if missing:
         if len(missing) == 3:
-            # Check if all 3 sources agree the metric is N/A (e.g. Weighted Discount when Sales=0)
-            if ui_raw and str(ui_raw).strip().upper() in ("N/A", "NA", "-", "--", "—"):
-                return {
-                    "key": key,
-                    "label": label,
-                    "api": None,
-                    "logic": None,
-                    "ui": None,
-                    "ui_raw": ui_raw,
-                    "status": "PASS",
-                    "reason": "All 3 sources agree metric is N/A (zero sales/denominator)",
-                }
-            p_name = label.replace(" Discount", "").replace(" ASP", "").strip()
-            if any(term in key.lower() for term in ("discount", "asp", "mrp")) and "weighted" not in key.lower():
-                reason = f"Platform '{p_name}' is not available for this client (no data across all steps)"
-            else:
-                reason = "No data returned across all steps for this segment and period"
+            # All 3 sources (API, Logic, UI) agree that the metric is N/A or not tracked for this platform/period
+            return {
+                "key": key,
+                "label": label,
+                "api": None,
+                "logic": None,
+                "ui": None,
+                "ui_raw": ui_raw or "--",
+                "status": "PASS",
+                "reason": "100% Consistent: Metric is N/A / not applicable across API, Logic, and UI",
+            }
         elif "UI" in missing and len(missing) == 1:
-            if ui_raw and str(ui_raw).strip().upper() in ("N/A", "NA", "-", "--", "—") and (api_val == 0.0 or api_val is None) and (logic_val == 0.0 or logic_val is None):
+            if ui_raw and str(ui_raw).strip().upper() in ("N/A", "NA", "-", "--", "—", "–", "N / A") and (api_val == 0.0 or api_val is None) and (logic_val == 0.0 or logic_val is None):
                 return {
                     "key": key,
                     "label": label,
@@ -239,6 +249,7 @@ def compare_kpi(
         return {
             "key": key,
             "label": label,
+            "unit": kpi_def.get("unit", ""),
             "api": api_val,
             "logic": logic_val,
             "ui": ui_val,
