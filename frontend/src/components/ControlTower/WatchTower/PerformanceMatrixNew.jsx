@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantConfig'
 import {
     TrendingUp,
     IndianRupee,
@@ -161,7 +162,7 @@ const PerformanceMatrixNew = () => {
         )
     }
 
-    const COMPARISON_KPIS = [
+    const rawComparisonKpis = [
         { id: 'offtake', title: 'Offtakes', value: '₹14.8 Cr', delta: 15.9, deltaLabel: '+₹89.3 lac', icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'], trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] },
         { id: 'availability', title: 'Availability', value: '96.8%', delta: 1.8, deltaLabel: '+1.7%', icon: Layers, gradient: ['#14b8a6', '#06b6d4'], trend: [85, 87, 86, 88, 90, 89, 92, 94, 93, 95, 96, 97] },
         { id: 'promo', title: 'Promo Spends', value: '5.21%', delta: -0.7, deltaLabel: '-0.04%', icon: Percent, gradient: ['#f43f5e', '#ec4899'], trend: [6.2, 6.0, 5.8, 5.5, 5.3, 5.4, 5.2, 5.1, 5.3, 5.2, 5.2, 5.2] },
@@ -171,6 +172,11 @@ const PerformanceMatrixNew = () => {
         { id: 'conversion', title: 'Conversion', value: '1%', delta: 28, deltaLabel: '+0.2%', icon: Target, gradient: ['#06b6d4', '#22d3ee'], trend: [0.7, 0.72, 0.75, 0.78, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98, 1.0] },
         { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: IndianRupee, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
     ]
+
+    const isPrestige = isPrestigeAccount();
+    const COMPARISON_KPIS = isPrestige
+        ? rawComparisonKpis.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.title))
+        : rawComparisonKpis;
     return (
         <div>
             {/* SECTION 1: Comparison Cards (Top) - Wrapped in PowerBI Container */}
@@ -178,7 +184,7 @@ const PerformanceMatrixNew = () => {
 
             {/* Bottom Row: Split Compare Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                {COMPARISON_KPIS.slice(4, 8).map((kpi, idx) => (
+                {(isPrestige ? COMPARISON_KPIS : COMPARISON_KPIS.slice(4, 8)).map((kpi, idx) => (
                     <motion.div
                         key={kpi.id}
                         initial={{ opacity: 0, y: 20 }}

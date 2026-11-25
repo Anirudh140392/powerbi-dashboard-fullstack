@@ -12,6 +12,7 @@ import {
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import { Typography } from "@mui/material";
 import { defaultBrands } from "@/utils/DataCenter";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "@/utils/tenantConfig";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -167,7 +168,12 @@ export default function PerformanceMatric({
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("Metric");
 
-  const activeCard = KPI_CARDS.find((c) => c.id === activeTrendId) || null;
+  const isPrestige = isPrestigeAccount();
+  const visibleCards = isPrestige
+    ? KPI_CARDS.filter((c) => !isPrestigeHiddenKpi(c.id) && !isPrestigeHiddenKpi(c.label))
+    : KPI_CARDS;
+
+  const activeCard = visibleCards.find((c) => c.id === activeTrendId) || null;
 
   return (
     <div
@@ -191,7 +197,7 @@ export default function PerformanceMatric({
           paddingRight: 12,
         }}
       >
-        {KPI_CARDS.map((card) => (
+        {visibleCards.map((card) => (
           <KpiCard
             key={card.id}
             card={card}

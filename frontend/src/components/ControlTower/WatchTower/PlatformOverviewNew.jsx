@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 import { copyToClipboard } from '../../../utils/clipboard'
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantConfig'
 
 /* --- HELPER COMPONENTS & UTILS --- */
 const safeLower = (val) => {
@@ -327,6 +328,7 @@ const PlatformOverviewNew = ({
         { key: 'deliveryTime', label: 'Delivery Time' },
     ]
     const { user } = useAuth();
+    const isPrestige = useMemo(() => isPrestigeAccount(user), [user]);
     const isDrl = useMemo(() => {
         try {
             const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || localStorage.getItem('user') || '{}');
@@ -494,6 +496,10 @@ const PlatformOverviewNew = ({
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
 
+        if (isPrestige) {
+            baseKpis = baseKpis.filter(k => !isPrestigeHiddenKpi(k.key));
+        }
+
         if (dimension === 'location') {
             return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov' && k.key !== 'overall_sov');
         }
@@ -512,7 +518,7 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite, isPrestige]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = [
@@ -533,6 +539,9 @@ const PlatformOverviewNew = ({
             'roas_x',
             'conversion'
         ];
+        if (isPrestige) {
+            base = base.filter(k => !isPrestigeHiddenKpi(k));
+        }
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
@@ -571,26 +580,39 @@ const PlatformOverviewNew = ({
         }
         if (!allowBuyBox) base = base.filter(k => k !== 'buyBoxPct');
         return base;
-    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite, isPrestige]);
 
-    const [glanceKpis, setGlanceKpis] = useState([
-        'offtakes',
-        'quantitySold',
-        'spend',
-        'inorgSales',
-        'availability',
-        'wtOsa',
-        'asp',
-        'listingPercent',
-        'overall_sov',
-        'ad_sov',
-        'organic_sov',
-        'shareOfVolume',
-        'marketShare',
-        'categorySize',
-        'roas_x',
-        'conversion'
-    ])
+    const [glanceKpis, setGlanceKpis] = useState(() => {
+        const initial = [
+            'offtakes',
+            'quantitySold',
+            'spend',
+            'inorgSales',
+            'availability',
+            'wtOsa',
+            'asp',
+            'listingPercent',
+            'overall_sov',
+            'ad_sov',
+            'organic_sov',
+            'shareOfVolume',
+            'marketShare',
+            'categorySize',
+            'roas_x',
+            'conversion'
+        ];
+        return isPrestigeAccount() ? initial.filter(k => !isPrestigeHiddenKpi(k)) : initial;
+    });
+
+    useEffect(() => {
+        if (isPrestige) {
+            setGlanceKpis(prev => prev.filter(k => !isPrestigeHiddenKpi(k)));
+            setAdvancedFilters(prev => ({
+                ...prev,
+                kpis: (prev.kpis || []).filter(k => !isPrestigeHiddenKpi(k))
+            }));
+        }
+    }, [isPrestige]);
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)

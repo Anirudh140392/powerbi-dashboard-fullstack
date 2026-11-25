@@ -25,19 +25,21 @@ import {
   ResponsiveContainer
 } from "recharts";
 import TrendController from "../../../utils/TrendController";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../../utils/tenantConfig";
 
 const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => {
   const theme = useTheme();
+  const isPrestige = isPrestigeAccount();
   const hasRemoteData = Array.isArray(trendData.timeSeries) && trendData.timeSeries.length > 0;
 
   const [selectedPeriod, setSelectedPeriod] = useState('3M');
   const [timeStep, setTimeStep] = useState('Weekly');
   const [selectedMetrics, setSelectedMetrics] = useState({
-    offtake: true,
-    quantitySold: true,
-    estCategoryShare: true,
+    offtake: !isPrestige,
+    quantitySold: !isPrestige,
+    estCategoryShare: !isPrestige,
     osa: true,
-    discount: true,
+    discount: !isPrestige,
     overallSos: false
   });
 
@@ -123,7 +125,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
     return null;
   };
 
-  const metricsList = [
+  const rawMetricsList = [
     { key: 'offtake', label: 'Offtakes', color: theme.palette.error.main },
     { key: 'quantitySold', label: 'Quantity Sold', color: '#0ea5e9' },
     { key: 'estCategoryShare', label: 'Est. Category Share', color: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7' },
@@ -131,6 +133,9 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
     { key: 'discount', label: 'Wt. Discount%', color: theme.palette.primary.main },
     { key: 'overallSos', label: 'Overall SOS', color: theme.palette.info ? theme.palette.info.main : '#ec4899' }
   ];
+  const metricsList = isPrestige
+    ? rawMetricsList.filter(m => !isPrestigeHiddenKpi(m.key) && !isPrestigeHiddenKpi(m.label))
+    : rawMetricsList;
 
   return (
     <Drawer

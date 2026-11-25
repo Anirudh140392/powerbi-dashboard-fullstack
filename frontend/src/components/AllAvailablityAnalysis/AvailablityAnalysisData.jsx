@@ -25,6 +25,7 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 import {
   AvailabilityOverviewSkeleton,
   PlatformKpiMatrixSkeleton,
@@ -185,11 +186,13 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, fi
 
         if (!isMounted) return;
 
+        const isPrestige = isPrestigeAccount();
         const filterRows = (kpiObject) => {
           if (!kpiObject || !Array.isArray(kpiObject.rows)) return kpiObject;
           return {
             ...kpiObject,
             rows: kpiObject.rows.filter(row => {
+              if (isPrestige && isPrestigeHiddenKpi(row.kpi)) return false;
               if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
               return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
             })
@@ -377,10 +380,19 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, fi
     // Debug log to trace what data we are passing into CityKpiTrendShowcase
     console.log("TabbedHeatmapTable platformData:", platformData);
 
+    const isPrestige = isPrestigeAccount();
+    const filterTabDataForTenant = (tabData) => {
+      if (!isPrestige || !tabData?.rows) return tabData;
+      return {
+        ...tabData,
+        rows: tabData.rows.filter(r => !isPrestigeHiddenKpi(r?.kpi))
+      };
+    };
+
     return [
-      { key: "platform", label: "Platform", data: platformData },
-      { key: "format", label: "Category", data: formatData },
-      { key: "city", label: "City", data: cityData },
+      { key: "platform", label: "Platform", data: filterTabDataForTenant(platformData) },
+      { key: "format", label: "Category", data: filterTabDataForTenant(formatData) },
+      { key: "city", label: "City", data: filterTabDataForTenant(cityData) },
     ];
   }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, effectiveApiData]);
 
@@ -1391,6 +1403,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return { osa: osaSeries };
   }, [apiData?.kpiTrends]);
 
+  const isPrestige = isPrestigeAccount();
   const isQuickCom = typeof selectedChannel === 'string'
     ? selectedChannel.toLowerCase().includes('quick')
     : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('quick')));
@@ -1494,6 +1507,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       ];
     }
 
+    if (isPrestige) {
+      cards_config = cards_config.filter(cfg => !isPrestigeHiddenKpi(cfg.key) && !isPrestigeHiddenKpi(cfg.title));
+    }
+
     return cards_config.map((cfg, idx) => {
       const data = cfg.api || getMock(cfg.key);
       const delta = Number(data.delta || 0);
@@ -1585,6 +1602,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
               platformKpi: {
                 ...apiData?.platformKpi,
                 rows: apiData?.platformKpi?.rows?.filter(row => {
+                  if (isPrestige && isPrestigeHiddenKpi(row.kpi)) return false;
                   if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
                   return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
                 }) || []
@@ -1592,6 +1610,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
               formatKpi: {
                 ...apiData?.formatKpi,
                 rows: apiData?.formatKpi?.rows?.filter(row => {
+                  if (isPrestige && isPrestigeHiddenKpi(row.kpi)) return false;
                   if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
                   return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
                 }) || []
@@ -1599,6 +1618,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
               cityKpi: {
                 ...apiData?.cityKpi,
                 rows: apiData?.cityKpi?.rows?.filter(row => {
+                  if (isPrestige && isPrestigeHiddenKpi(row.kpi)) return false;
                   if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
                   return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
                 }) || []

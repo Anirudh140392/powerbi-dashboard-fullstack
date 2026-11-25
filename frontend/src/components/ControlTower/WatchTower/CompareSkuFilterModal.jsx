@@ -15,6 +15,7 @@ import {
     MapPin,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantConfig'
 
 // ========================================
 // KPI Options for Compare SKU
@@ -191,6 +192,7 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
             return false;
         }
     }, []);
+    const isPrestige = useMemo(() => isPrestigeAccount(), []);
 
     // For Compare SKU, dimension is always 'sku'
     const currentDimension = 'sku';
@@ -199,8 +201,20 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
     const kpisToUse = baseKpiOptions.filter(k => {
         if (k.key === 'categorySize') return false;
         if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+        if (isPrestige && (isPrestigeHiddenKpi(k.key) || isPrestigeHiddenKpi(k.label))) return false;
         return true;
     });
+
+    const getDefaultKpis = () => {
+        if (isPrestige) {
+            return ['availability', 'shareOfVolume', 'ad_sov', 'organic_sos'];
+        }
+        return ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'].filter(k => {
+            if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sos') return false;
+            if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+            return true;
+        });
+    };
 
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
@@ -211,11 +225,7 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
         skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'].filter(k => {
-            if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-            if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
-            return true;
-        }),
+        kpis: getDefaultKpis(),
         filterLogic: 'OR',
     })
 
@@ -248,11 +258,7 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
             platforms: [],
             locations: [],
             skus: [],
-            kpis: ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'].filter(k => {
-                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
-                return true;
-            }),
+            kpis: getDefaultKpis(),
             filterLogic: 'OR',
         })
     }

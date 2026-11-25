@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { PlatformKpiMatrixSkeleton } from "../AllAvailablityAnalysis/AvailabilitySkeletons";
 import { formatNumber } from "../../utils/formatters";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 
 function cn(...classes) {
     return classes.filter(Boolean).join(" ");
@@ -252,7 +253,9 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                         </thead>
 
                         <tbody>
-                            {kpis.map((kpi, kIdx) => {
+                            {kpis
+                                .filter(kpi => !isPrestigeAccount() || (!isPrestigeHiddenKpi(kpi.key) && !isPrestigeHiddenKpi(kpi.label)))
+                                .map((kpi, kIdx) => {
                                 return (
                                     <Fragment key={kpi.key}>
                                         {/* Data Row */}

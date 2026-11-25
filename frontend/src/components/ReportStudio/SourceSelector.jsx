@@ -1,16 +1,17 @@
 import React from "react";
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { CheckBox as CheckBoxIcon, CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon } from "@mui/icons-material";
-import { REPORT_SOURCES } from "./reportStudioConfig";
+import { getVisibleReportSources } from "./reportStudioConfig";
 
 export default function SourceSelector({ sources, onToggle }) {
+    const visibleSources = getVisibleReportSources();
     return (
         <Box
             role="group"
             aria-label="Data sources"
-            sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}
+            sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: `repeat(${visibleSources.length}, 1fr)` } }}
         >
-            {REPORT_SOURCES.map((source) => {
+            {visibleSources.map((source) => {
                 const selected = sources.includes(source.id);
                 const Icon = selected ? CheckBoxIcon : CheckBoxOutlineBlankIcon;
                 return (

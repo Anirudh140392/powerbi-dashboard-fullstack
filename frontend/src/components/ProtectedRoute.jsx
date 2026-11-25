@@ -118,6 +118,12 @@ export function isTabPermitted(tabPerms, label) {
  * Check if a specific route path is allowed for the current user
  */
 export function isRouteAllowed(path, user) {
+    // Specifically hide Market Share and Performance Marketing for Prestige client
+    const db = (sessionStorage.getItem('activeWorkspaceDb') || user?.dbName || '').toLowerCase();
+    if (db.includes('prestige') && (path === '/market-share' || path === '/performance-marketing')) {
+        return false;
+    }
+
     // Admin routes and routes without a tab mapping are always allowed
     const tabLabel = ROUTE_TO_TAB_LABEL[path];
     if (!tabLabel) return true;

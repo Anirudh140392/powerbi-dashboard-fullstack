@@ -8,6 +8,7 @@ import {
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 
 function getHeatmapClass(value) {
     // Basic heuristic: >100 or high % is good (green), low is bad (red)
@@ -24,6 +25,7 @@ function getHeatmapClass(value) {
 }
 
 export default function CityDetailedTable({ sku, onClose }) {
+    const isPrestige = isPrestigeAccount();
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [allCities, setAllCities] = useState([]);
@@ -188,12 +190,12 @@ export default function CityDetailedTable({ sku, onClose }) {
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">OSA %</th>
                                     {sku.metricType === 'sales' && (
                                         <>
-                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Offtakes</th>
+                                            {!isPrestige && <th className="px-4 py-3 font-semibold text-center bg-slate-50">Offtakes</th>}
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">Orders</th>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">ASP</th>
                                         </>
                                     )}
-                                    {sku.metricType === 'performance' && (
+                                    {!isPrestige && sku.metricType === 'performance' && (
                                         <>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">ROAS</th>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">CTR</th>
@@ -254,9 +256,11 @@ export default function CityDetailedTable({ sku, onClose }) {
                                         {/* Metrics based on Type */}
                                         {sku.metricType === 'sales' && (
                                             <>
-                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                                    <div className="flex justify-center w-full text-center">{row.offtakes}</div>
-                                                </td>
+                                                {!isPrestige && (
+                                                    <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                        <div className="flex justify-center w-full text-center">{row.offtakes}</div>
+                                                    </td>
+                                                )}
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.orders}</div>
                                                 </td>
@@ -265,7 +269,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                                                 </td>
                                             </>
                                         )}
-                                        {sku.metricType === 'performance' && (
+                                        {!isPrestige && sku.metricType === 'performance' && (
                                             <>
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.roas}</div>

@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { SignalLabVisibility } from "../../components/AllVisiblityAnalysis/SignalLabVisibility";
 import VisibilityLayoutOne from "../../components/AllVisiblityAnalysis/VisibilityLayoutOne";
 import { motion } from "framer-motion";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 
 export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab, isPricing = false }) {
+    const isPrestige = isPrestigeAccount();
     // Use custom tabs if provided, otherwise use default Sales tabs
     const defaultTabs = [
         { key: "availability", label: "OSA" },
@@ -13,8 +15,11 @@ export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab, isPr
         { key: "visibility", label: "Visibility" },
     ];
 
-    const tabOptions = tabs || defaultTabs;
-    const [activeTab, setActiveTab] = useState(defaultTab || tabOptions[0]?.key || "availability");
+    const rawTabs = tabs || defaultTabs;
+    const tabOptions = isPrestige
+        ? rawTabs.filter(t => t.key !== "performance" && t.key !== "sales")
+        : rawTabs;
+    const [activeTab, setActiveTab] = useState(defaultTab && tabOptions.some(t => t.key === defaultTab) ? defaultTab : (tabOptions[0]?.key || "availability"));
 
     return (
         <div className="w-full">

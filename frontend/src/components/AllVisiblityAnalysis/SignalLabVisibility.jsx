@@ -3,6 +3,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import { fetchVisibilitySignals } from "../../api/signalLabService";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 import {
     X,
     SlidersHorizontal,
@@ -1205,6 +1206,7 @@ const SkeletonCard = () => (
 function SignalCard({ sku, metricType, onShowDetails }) {
     const [showAllCities, setShowAllCities] = useState(false);
     const citiesToShow = showAllCities ? sku.topCities : sku.topCities.slice(0, 2);
+    const isPrestige = isPrestigeAccount();
 
     const kpiOrderMap = {
         visibility: visibilityKpiOrder,
@@ -1213,7 +1215,10 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         performance: performanceKpiOrder,
         inventory: inventoryKpiOrder,
     };
-    const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
+    const rawKpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
+    const kpiKeys = isPrestige
+        ? rawKpiKeys.filter(key => !isPrestigeHiddenKpi(key) && !isPrestigeHiddenKpi(KPI_LABELS[key]))
+        : rawKpiKeys;
 
     const PRIMARY_METRICS = {
         visibility: { label: "Overall Sos", key: "overallSos" },
@@ -1223,6 +1228,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const primary = PRIMARY_METRICS[metricType] || { label: "Offtakes", key: "offtakeValue" };
     // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
     const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
+    const showPrimaryMetric = !isPrestige || metricType === "inventory" || (!isPrestigeHiddenKpi(primary.key) && !isPrestigeHiddenKpi(primary.label));
 
     return (
         <div className="flex-none flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-[260px] capitalize">
@@ -1249,14 +1255,16 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 </div>
 
                 <div className="mt-3 flex justify-between items-end text-xs">
-                    <div>
-                        <div className="text-slate-400">
-                            {metricType === "inventory" ? "DOI" : "Offtakes"}
+                    {showPrimaryMetric ? (
+                        <div>
+                            <div className="text-slate-400">
+                                {metricType === "inventory" ? "DOI" : (isPrestige ? primary.label : "Offtakes")}
+                            </div>
+                            <div className="text-base font-semibold">
+                                {metricType === "inventory" ? (sku.kpis?.doi || '-') : (isPrestige ? (sku.kpis[primary.key] || '-') : sku.offtakeValue)}
+                            </div>
                         </div>
-                        <div className="text-base font-semibold">
-                            {metricType === "inventory" ? (sku.kpis?.doi || '-') : sku.offtakeValue}
-                        </div>
-                    </div>
+                    ) : <div />}
                     <ImpactPill value={sku.impact} theme={sku.type} />
                 </div>
 
@@ -1275,7 +1283,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                         ) : null
                     )}
 
-                    {sku.offtakeShare && (
+                    {!isPrestige && sku.offtakeShare && (
                         <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full">
                             <span className="text-slate-500">Offtake Share :</span>
                             <span className="font-semibold text-slate-800 text-[11px]">{sku.offtakeShare}</span>

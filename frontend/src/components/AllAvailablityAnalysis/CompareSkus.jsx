@@ -5,6 +5,7 @@ import {
   Plus,
   ChevronDown
 } from "lucide-react";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 
 // -------------------------------
 // JSON DATA (You can replace with API)
@@ -39,7 +40,14 @@ export default function CompareSKUs() {
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetric, setActiveMetric] = useState("dsl");
 
-  const metricObj = TREND_DATA.metrics.find(m => m.id === activeMetric);
+  const isPrestige = isPrestigeAccount();
+  const visibleMetrics = useMemo(() => (
+    isPrestige
+      ? TREND_DATA.metrics.filter(m => !isPrestigeHiddenKpi(m.id) && !isPrestigeHiddenKpi(m.label))
+      : TREND_DATA.metrics
+  ), [isPrestige]);
+
+  const metricObj = visibleMetrics.find(m => m.id === activeMetric) || visibleMetrics[0];
 
   // ---------------- CHART CONFIG ----------------
   const chartOptions = useMemo(() => ({
@@ -63,11 +71,11 @@ export default function CompareSKUs() {
         smooth: true,
         symbol: "circle",
         symbolSize: 6,
-        lineStyle: { width: 3, color: metricObj.color },
-        itemStyle: { color: metricObj.color },
+        lineStyle: { width: 3, color: metricObj?.color },
+        itemStyle: { color: metricObj?.color },
       }
     ]
-  }), [activeMetric]);
+  }), [activeMetric, metricObj]);
 
   // ---------------------------------------
   // JSX UI
@@ -119,7 +127,7 @@ export default function CompareSKUs() {
 
       {/* METRIC BUTTONS */}
       <div className="flex gap-4 mt-5 flex-wrap">
-        {TREND_DATA.metrics.map(m => (
+        {visibleMetrics.map(m => (
           <button
             key={m.id}
             onClick={() => setActiveMetric(m.id)}

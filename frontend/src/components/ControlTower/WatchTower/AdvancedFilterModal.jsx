@@ -17,6 +17,7 @@ import {
     Hash,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantConfig'
 
 
 
@@ -333,8 +334,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         }
     }, []);
 
+    const isPrestige = useMemo(() => isPrestigeAccount(), []);
+
     // Filter out "Category size" (key: 'categorySize') when on SKU dimension
-    const baseKpiOptions = propKpiOptions || kpiOptions;
+    const rawKpiOptions = propKpiOptions || kpiOptions;
+    const baseKpiOptions = isPrestige ? rawKpiOptions.filter(k => !isPrestigeHiddenKpi(k.key)) : rawKpiOptions;
     const kpisToUse = currentDimension === 'sku'
         ? baseKpiOptions.filter(k => {
             if (k.key === 'categorySize') return false;
@@ -357,6 +361,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         dateTo: '',
         msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+            if (isPrestige && isPrestigeHiddenKpi(k)) return false;
             if (currentDimension === 'sku') {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                 if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
@@ -767,6 +772,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             dateTo: '',
             msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+                if (isPrestige && isPrestigeHiddenKpi(k)) return false;
                 if (currentDimension === 'sku') {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov' || k === 'overall_sov') return false;
                     if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;

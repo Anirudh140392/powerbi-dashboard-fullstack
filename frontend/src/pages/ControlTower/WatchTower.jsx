@@ -75,12 +75,14 @@ import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOv
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
 import { useHelp } from "../../utils/HelpContext";
 import { useAuth } from "../../utils/AuthContext";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 
 
 export default function WatchTower() {
   const { toggleHelp, openHelpWithMenu } = useHelp();
   const { user } = useAuth();
   const isDrl = user?.dbName?.toLowerCase() === "drl";
+  const isPrestige = isPrestigeAccount(user);
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
@@ -440,7 +442,7 @@ export default function WatchTower() {
 
     // If real data available from backend, use it
     if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
-      return topMetrics.map((metric) => {
+      const mappedTopMetrics = topMetrics.map((metric) => {
         const originalTitle = metric.title || metric.name || 'Unknown';
         let normalizedTitle = originalTitle;
         if (originalTitle === 'Inorg Sales') normalizedTitle = 'Inorganic Sales';
@@ -494,10 +496,13 @@ export default function WatchTower() {
           infoTooltip: KPI_INFO_TOOLTIPS[normalizedTitle] || undefined,
         };
       });
+      return isPrestige
+        ? mappedTopMetrics.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.title))
+        : mappedTopMetrics;
     }
 
     // Fallback: mock data
-    return [
+    const fallbackMetrics = [
       {
         id: 'offtake', title: 'Offtakes',
         value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
@@ -542,7 +547,10 @@ export default function WatchTower() {
         trend: getLogicalKpiTrend('osa', context) // Reuse OSA trend for mock variety
       }
     ];
-  }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
+    return isPrestige
+      ? fallbackMetrics.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.title))
+      : fallbackMetrics;
+  }, [dashboardData, selectedChannel, platform, selectedCategory, selectedLocation, timeStart, timeEnd, isPrestige]);
 
   const FORMAT_ROWS = useMemo(() => {
     if (categoryOverview?.length > 0) {
@@ -994,66 +1002,38 @@ export default function WatchTower() {
         </Box> */}
 
           {/* Category / SKU Tabs */}
-          <Box
-            sx={{
-              bgcolor: (theme) => theme.palette.background.paper,
-              borderRadius: 2,
-              boxShadow: 1,
-              mb: 4,
-            }}
-          >
-            {/* Tabs */}
-            {/* <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-            <Box sx={{ display: "flex", gap: 4 }}>
-              <TabButton
-                label="Split by Category"
-                active={activeTab === "Split by Category"}
-                onClick={() => setActiveTab("Split by Category")}
-              />
-
-              <TabButton
-                label="Split by SKUs"
-                active={activeTab === "Split by SKUs"}
-                onClick={() => setActiveTab("Split by SKUs")}
+          {!isPrestige && (
+            <Box
+              sx={{
+                bgcolor: (theme) => theme.palette.background.paper,
+                borderRadius: 2,
+                boxShadow: 1,
+                mb: 4,
+              }}
+            >
+              <FormatPerformanceStudio
+                rows={FORMAT_ROWS}
+                loading={categoryDataLoading}
+                openHelpWithMenu={openHelpWithMenu}
+                pdpPlatforms={pdpPlatforms}
+                categoryPlatform={categoryPlatform}
+                setCategoryPlatform={setCategoryPlatform}
+                hasRestrictedPlatforms={hasRestrictedPlatforms}
               />
             </Box>
-          </Box> */}
-
-            {/* <Box sx={{ p: 3 }}>
-            <CategoryTable
-              categories={
-                activeTab === "Split by Category" ? allCategories : allProducts
-              }
-              activeTab={activeTab}
-            />
-          </Box> */}
-
-            <FormatPerformanceStudio
-              rows={FORMAT_ROWS}
-              loading={categoryDataLoading}
-              openHelpWithMenu={openHelpWithMenu}
-              pdpPlatforms={pdpPlatforms}
-              categoryPlatform={categoryPlatform}
-              setCategoryPlatform={setCategoryPlatform}
-              hasRestrictedPlatforms={hasRestrictedPlatforms}
-            />
-
-            {/* {activeTab === "sku" && (
-            <Box sx={{ p: 3 }}>
-              <SKUTable data={dashboardData.skuTable} />
-            </Box>
-          )} */}
-          </Box>
+          )}
 
           {/* Performance Breakdown Section */}
-          <Box sx={{ mb: 4 }}>
-            <PerformanceBreakdownProvider
-              darkMode={false}
-              filters={perfBreakdownFilters}
-            >
-              <AggregatedViewTable />
-            </PerformanceBreakdownProvider>
-          </Box>
+          {!isPrestige && (
+            <Box sx={{ mb: 4 }}>
+              <PerformanceBreakdownProvider
+                darkMode={false}
+                filters={perfBreakdownFilters}
+              >
+                <AggregatedViewTable />
+              </PerformanceBreakdownProvider>
+            </Box>
+          )}
 
 
         </FilterContext.Provider>

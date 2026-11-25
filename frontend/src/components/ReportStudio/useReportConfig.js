@@ -1,5 +1,5 @@
 import { useMemo, useReducer } from "react";
-import { DEFAULT_CONFIG, FIELD_GROUPS, REPORT_FIELDS, REPORT_SOURCES } from "./reportStudioConfig";
+import { FIELD_GROUPS, REPORT_FIELDS, REPORT_SOURCES, getDefaultReportConfig, getVisibleReportSources, isReportFieldVisible } from "./reportStudioConfig";
 import { isFieldAvailable, validateConfig } from "./reportStudioUtils";
 
 // Required columns (Date) are pinned to the front and can't be removed or moved.
@@ -9,6 +9,8 @@ const SOURCE_ORDER = REPORT_SOURCES.map((s) => s.id);
 export const reportConfigReducer = (state, action) => {
     switch (action.type) {
         case "toggleSource": {
+            const allowedIds = getVisibleReportSources().map((s) => s.id);
+            if (!allowedIds.includes(action.id)) return state;
             const next = state.sources.includes(action.id)
                 ? state.sources.filter((id) => id !== action.id)
                 : [...state.sources, action.id];
@@ -23,7 +25,7 @@ export const reportConfigReducer = (state, action) => {
         }
         case "selectAll": {
             const available = REPORT_FIELDS
-                .filter((f) => f.group !== FIELD_GROUPS.REQUIRED && isFieldAvailable(f, state.sources))
+                .filter((f) => f.group !== FIELD_GROUPS.REQUIRED && isReportFieldVisible(f) && isFieldAvailable(f, state.sources))
                 .map((f) => f.key)
                 .filter((k) => !state.columns.includes(k));
             return { ...state, columns: [...state.columns, ...available] };
@@ -43,15 +45,18 @@ export const reportConfigReducer = (state, action) => {
         }
         case "setBrandScope":
             return { ...state, brandScope: action.scope };
-        case "applyTemplate":
+        case "applyTemplate": {
+            const allowedIds = getVisibleReportSources().map((s) => s.id);
+            const allowedCols = new Set(REPORT_FIELDS.filter((f) => isReportFieldVisible(f)).map((f) => f.key));
             return {
                 // Saved templates carry their brand scope; built-in ones keep the current one.
                 brandScope: action.template.brandScope || state.brandScope,
-                sources: SOURCE_ORDER.filter((id) => action.template.sources.includes(id)),
-                columns: [...REQUIRED_KEYS, ...action.template.columns.filter((k) => !REQUIRED_KEYS.includes(k))],
+                sources: SOURCE_ORDER.filter((id) => allowedIds.includes(id) && action.template.sources.includes(id)),
+                columns: [...REQUIRED_KEYS, ...action.template.columns.filter((k) => !REQUIRED_KEYS.includes(k) && allowedCols.has(k))],
             };
+        }
         case "reset":
-            return DEFAULT_CONFIG;
+            return getDefaultReportConfig();
         default:
             return state;
     }
@@ -59,7 +64,7 @@ export const reportConfigReducer = (state, action) => {
 
 /** Report configuration state: selected sources, ordered columns and brand scope. */
 export default function useReportConfig() {
-    const [config, dispatch] = useReducer(reportConfigReducer, DEFAULT_CONFIG);
+    const [config, dispatch] = useReducer(reportConfigReducer, null, getDefaultReportConfig);
 
     const actions = useMemo(
         () => ({
