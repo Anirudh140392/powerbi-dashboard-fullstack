@@ -443,20 +443,32 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
   };
 
   const chartOption = useMemo(() => {
-    const series = metrics
-      .filter(m => activeMetrics.includes(m.id))
-      .map(m => ({
-        name: m.label,
-        type: 'line',
-        yAxisIndex: m.id === "CategorySize" ? 1 : 0,
-        smooth: true,
-        connectNulls: true,
-        symbol: 'circle',
-        symbolSize: 8,
-        lineStyle: { width: 3 },
-        itemStyle: { color: m.color },
-        data: trendData.map(d => (d[m.id] !== undefined && d[m.id] !== null) ? d[m.id] : null)
-      }));
+    const activeMetricObjs = activeMetrics
+      .map(id => metrics.find(m => m.id === id))
+      .filter(Boolean);
+
+    const leftMetric = activeMetricObjs.length > 0 ? activeMetricObjs[0] : null;
+    const hasRightMetric = activeMetricObjs.length > 1;
+    const rightMetric = hasRightMetric ? activeMetricObjs[1] : null;
+
+    const getAxisFormatter = (metric) => {
+      if (!metric) return '{value}%';
+      if (metric.id === 'CategorySize') return '₹{value}Cr';
+      return '{value}%';
+    };
+
+    const series = activeMetricObjs.map((m, idx) => ({
+      name: m.label,
+      type: 'line',
+      yAxisIndex: idx === 0 ? 0 : 1,
+      smooth: true,
+      connectNulls: true,
+      symbol: 'circle',
+      symbolSize: 8,
+      lineStyle: { width: 3 },
+      itemStyle: { color: m.color },
+      data: trendData.map(d => (d[m.id] !== undefined && d[m.id] !== null) ? d[m.id] : null)
+    }));
 
     return {
       tooltip: {
@@ -486,7 +498,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
           return res;
         }
       },
-      grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+      grid: { left: '3%', right: hasRightMetric ? '4%' : '2%', bottom: '3%', top: '10%', containLabel: true },
       xAxis: {
         type: 'category',
         data: trendData.map(d => d.date),
@@ -497,6 +509,8 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
       yAxis: [
         {
           type: 'value',
+          position: 'left',
+          show: Boolean(leftMetric) || activeMetricObjs.length === 0,
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } },
@@ -504,11 +518,13 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
             color: '#64748b', 
             fontWeight: 600, 
             fontSize: 11,
-            formatter: '{value}%'
+            formatter: getAxisFormatter(leftMetric)
           }
         },
         {
           type: 'value',
+          position: 'right',
+          show: hasRightMetric,
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
@@ -516,7 +532,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
             color: '#64748b', 
             fontWeight: 600, 
             fontSize: 11,
-            formatter: '₹{value}Cr'
+            formatter: getAxisFormatter(rightMetric)
           }
         }
       ],

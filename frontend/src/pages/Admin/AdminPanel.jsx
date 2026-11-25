@@ -30,7 +30,10 @@ import CompanyLogo from "./tabs/CompanyLogo";
 import CustomInsights from "./tabs/CustomInsights";
 import InviteUser from "./tabs/InviteUser";
 import ApiLogsPage from "../ApiLogs/ApiLogsPage";
-import DsTesterPage from "../../../../ds_tester/frontend/DsTesterPage";
+import ErrorBoundary from "../../components/ErrorBoundary";
+
+// Lazy-loaded so a DS Tester failure cannot bring down the admin panel.
+const DsTesterPage = React.lazy(() => import("../../../../ds_tester/frontend/DsTesterPage"));
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -81,7 +84,13 @@ const AdminPanel = () => {
             case "company-logo": return <CompanyLogo />;
             case "custom-insights": return <CustomInsights />;
             case "api-logs": return <ApiLogsPage isEmbedded={true} />;
-            case "ds-tester": return <DsTesterPage isEmbedded={true} />;
+            case "ds-tester": return (
+                <ErrorBoundary title="DS Tester is unavailable">
+                    <React.Suspense fallback={<div className="p-6 text-slate-500">Loading DS Tester…</div>}>
+                        <DsTesterPage isEmbedded={true} />
+                    </React.Suspense>
+                </ErrorBoundary>
+            );
             default: return null;
         }
     };

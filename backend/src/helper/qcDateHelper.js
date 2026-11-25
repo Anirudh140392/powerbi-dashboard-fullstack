@@ -67,6 +67,13 @@ export const applyQcDateFilter = (filters = {}, req) => {
     filters.currentDate = today;
     filters.maxAllowedDate = maxAllowedDate;
 
+    // Darkstore mode: Do not cap dates to maxAllowedDate as rb_pdp_week has its own crawled date boundaries
+    const isDarkstore = filters.dataMode === 'darkstore' || filters.reportType === 'Darkstore Data' ||
+                        req?.query?.dataMode === 'darkstore' || req?.query?.reportType === 'Darkstore Data';
+    if (isDarkstore) {
+        return filters;
+    }
+
     if (!isQc) {
         // Cap endDate to maxAllowedDate (current day - 1)
         if (!filters.endDate || dayjs(filters.endDate).isAfter(dayjs(maxAllowedDate))) {

@@ -9,7 +9,7 @@ import 'dotenv/config';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { queryAdminDB } from '../config/adminClickhouse.js';
+import { queryAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 import { cleanupOldLogs } from '../services/apiLoggerRepository.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -30,11 +30,11 @@ async function main() {
         // 1. Inspect current dates
         const dateRows = await queryAdminDB(`
             SELECT toDate(Date) as d, count(*) as count 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             GROUP BY d 
             ORDER BY d DESC
         `);
-        console.log('[cleanupApiLogs.js] Current dates in admin_master.api_logs:');
+        console.log(`[cleanupApiLogs.js] Current dates in ${ADMIN_DB}.api_logs:`);
         for (const r of dateRows) {
             console.log(`  - Date: ${r.d} | Records: ${r.count}`);
         }
@@ -42,7 +42,7 @@ async function main() {
         // 2. Count rows eligible for deletion (older than yesterday)
         const countRes = await queryAdminDB(`
             SELECT count(*) as delete_count 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             WHERE toDate(Date) < today() - 1
         `);
         const eligibleCount = Number(countRes[0]?.delete_count) || 0;

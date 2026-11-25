@@ -15,6 +15,8 @@ import {
   Chip,
   Select,
   MenuItem,
+  IconButton,
+  Tooltip as MuiTooltip,
 } from "@mui/material";
 import {
   ResponsiveContainer,
@@ -43,7 +45,9 @@ import {
   ChevronDown,
   BarChart2,
   Layers,
+  HelpCircle,
 } from "lucide-react";
+import { useHelp } from "../../../utils/HelpContext";
 import {
   fetchSecondaryFilterOptions,
   fetchSecondaryLatestDate,
@@ -243,6 +247,7 @@ const DarkTooltip = ({ active, payload, labelKey = "label" }) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SecondarySummaryOverview() {
+  const { openHelpWithMenu } = useHelp();
   const filterCtx = useContext(FilterContext) || {};
   const {
     timeStart, setTimeStart, timeEnd, setTimeEnd,
@@ -361,12 +366,35 @@ export default function SecondarySummaryOverview() {
                 "& .MuiChip-label": { px: 1 },
               }} />
             )}
-            {activeFilterCount > 0 && (
-              <Button size="small" onClick={() => setFilters({ seller: [], platformName: [], brand: [], subBrand: [], sku: [], sapCode: [], fiscalYear: [], quarter: [] })}
-                sx={{ fontSize: "0.60rem", fontWeight: 700, color: "#ef4444", textTransform: "none", minWidth: 0, p: "0 4px", ml: "auto" }}>
-                Clear all
-              </Button>
-            )}
+            <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 1 }}>
+              {activeFilterCount > 0 && (
+                <Button size="small" onClick={() => setFilters({ seller: [], platformName: [], brand: [], subBrand: [], sku: [], sapCode: [], fiscalYear: [], quarter: [] })}
+                  sx={{ fontSize: "0.60rem", fontWeight: 700, color: "#ef4444", textTransform: "none", minWidth: 0, p: "0 4px" }}>
+                  Clear all
+                </Button>
+              )}
+              <MuiTooltip title="Secondary Summary Glossary">
+                <IconButton
+                  onClick={() => openHelpWithMenu("Secondary Summary")}
+                  size="small"
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "6px",
+                    bgcolor: "rgba(99, 102, 241, 0.08)",
+                    color: "#6366f1",
+                    border: "1px solid rgba(99, 102, 241, 0.25)",
+                    transition: "all 0.15s ease",
+                    "&:hover": {
+                      bgcolor: "rgba(99, 102, 241, 0.16)",
+                      borderColor: "#6366f1",
+                    },
+                  }}
+                >
+                  <HelpCircle size={14} />
+                </IconButton>
+              </MuiTooltip>
+            </Box>
           </Box>
 
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "flex-end", width: "100%" }}>

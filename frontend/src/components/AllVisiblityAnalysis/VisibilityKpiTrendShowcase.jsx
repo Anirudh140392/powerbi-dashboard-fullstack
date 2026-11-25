@@ -968,7 +968,9 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
       setLoading(true);
       try {
         const params = {
-          brands: selectedItems.join(','),
+          brands: mode === 'brand' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
+          skus: mode === 'sku' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
+          keyword: mode === 'keyword' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
@@ -1281,7 +1283,9 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
       setLoading(true);
       try {
         const params = {
-          brands: selectedItems.join(','),
+          brands: mode === 'brand' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
+          skus: mode === 'sku' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
+          keyword: mode === 'keyword' ? (selectedItems.length > 0 ? JSON.stringify(selectedItems) : undefined) : undefined,
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,

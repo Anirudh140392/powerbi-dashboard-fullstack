@@ -274,6 +274,7 @@ export default (app) => {
      *         description: Successful response with trend points
      */
     app.get('/api/availability-analysis/kpi-trends', getAvailabilityKpiTrends);
+    app.post('/api/availability-analysis/kpi-trends', getAvailabilityKpiTrends);
 
     // ==================== Competition APIs ====================
 

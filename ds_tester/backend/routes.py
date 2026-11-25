@@ -150,7 +150,8 @@ _cached_clients_time: float = 0.0
 
 def get_dynamic_clients() -> List[Dict[str, Any]]:
     """
-    Fetches all active client workspaces dynamically from admin_master.tb_database in ClickHouse.
+    Fetches all active client workspaces dynamically from admin_master.tb_database in ClickHouse,
+    joining admin_master.tb_user on db_id so every workspace is backed by a real database record.
     Caches results in-memory so /clients returns instantly (0.1ms) without remote ClickHouse stalls.
     """
     global _cached_dynamic_clients, _cached_clients_time
@@ -160,7 +161,18 @@ def get_dynamic_clients() -> List[Dict[str, Any]]:
 
     try:
         from .step2_logic import execute_select_query
-        rows = execute_select_query("SELECT DISTINCT db_name FROM admin_master.tb_database WHERE status = 'active' ORDER BY db_name")
+        # Connect to the admin_master database (the 'boat' default DB does not exist on this ClickHouse)
+        rows = execute_select_query(
+            """
+            SELECT d.db_name, d.db_id, any(u.user_name) AS sample_user
+            FROM admin_master.tb_database d
+            LEFT JOIN admin_master.tb_user u ON u.db_id = d.db_id
+            WHERE d.status = 'active'
+            GROUP BY d.db_name, d.db_id
+            ORDER BY d.db_name
+            """,
+            database="admin_master",
+        )
         if rows:
             label_map = {
                 "boat": "boAt",
@@ -182,11 +194,11 @@ def get_dynamic_clients() -> List[Dict[str, Any]]:
             }
             results = []
             for r in rows:
-                db_id = str(r[0]).strip().lower()
-                if not db_id or db_id in ("system", "default", "information_schema", "demo", "testing", "trailytics"):
+                db_name = str(r[0]).strip().lower() if r and r[0] else ""
+                if not db_name or db_name in ("system", "default", "information_schema", "demo", "testing", "trailytics"):
                     continue
-                label = label_map.get(db_id, db_id.replace("_", " ").title())
-                results.append({"id": db_id, "label": label, "category": None})
+                label = label_map.get(db_name, db_name.replace("_", " ").title())
+                results.append({"id": db_name, "label": label, "category": None})
             if results:
                 _cached_dynamic_clients = results
                 _cached_clients_time = now
@@ -447,7 +459,7 @@ def list_modules(client: Optional[str] = "drl"):
     """
     Returns available modules and their selectable segments dynamically for the client.
     100% dynamic: only modules genuinely active and provisioned for that brand in ClickHouse
-    permissions are returned.
+    permissions are returned, and individual failing modules are skipped gracefully.
     """
     target_client = normalize_client_db(client)
     now = time.time()
@@ -465,16 +477,17 @@ def list_modules(client: Optional[str] = "drl"):
         raw_segments = []
         try:
             if hasattr(mod_cls, "get_segments"):
-                raw_segments = mod_cls.get_segments(client=target_client)
-        except Exception:
-            pass
-        if not raw_segments:
-            raw_segments = getattr(mod_cls, "SEGMENTS", getattr(mod_cls, "segments", []))
+                raw_segments = mod_cls.get_segments(client=target_client) or []
+            else:
+                raw_segments = list(getattr(mod_cls, "SEGMENTS", getattr(mod_cls, "segments", [])) or [])
+        except Exception as exc:
+            logger.warning(f"[DsTester] Skipping module '{mod_id}' (get_segments failed for client '{target_client}'): {exc}")
+            continue
 
         segments_list = [
             SegmentInfo(id=s["id"], label=s["label"])
             for s in raw_segments
-            if isinstance(s, dict) and "id" in s and "label" in s
+            if isinstance(s, dict) and s.get("id") and s.get("label")
         ]
         if not segments_list:
             continue

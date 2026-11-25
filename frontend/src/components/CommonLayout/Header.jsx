@@ -56,6 +56,7 @@ const ROUTE_TABLE_MAP = {
   "/volume-cohort": "rb_pdp_olap",
   "/primary-overview": "rb_pdp_olap",
   "/secondary-overview": "rb_pdp_olap",
+  "/review-rating": "rb_review_olap",
 };
 
 function getTableForRoute(pathname) {
@@ -4643,7 +4644,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const tableName = React.useMemo(() => getTableForRoute(location.pathname), [location.pathname]);
 
   const formattedDate = React.useMemo(() => {
-    const socketDate = socketMaxDates?.[tableName];
+    const socketDate = socketMaxDates?.[tableName] || (tableName === "rb_review_olap" && socketMaxDates?.["rb_reviews_olap"]);
     const dateToUse = socketDate || maxDate;
     if (!dateToUse) return "—";
     const d = dayjs(dateToUse);

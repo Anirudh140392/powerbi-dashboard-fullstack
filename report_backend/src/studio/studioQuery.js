@@ -1,6 +1,7 @@
 /**
  * Builds the Report Studio query: one row per Date + selected dimensions, with
- * the selected KPIs aggregated to that grain, for own brands only.
+ * the selected KPIs aggregated to that grain, for own brands only or (brandScope
+ * 'all') own brands and competitors.
  *
  * Each selected source is aggregated on its own, then the sources are stacked
  * with UNION ALL and regrouped on the shared keys, so a key present in only
@@ -23,6 +24,7 @@ const ident = (name) => `\`${name.replace(/`/g, '``')}\``;
 const keyAlias = (key) => `k_${key}`;
 const kpiAlias = (key) => `v_${key}`;
 const kindOf = (key) => STUDIO_KPIS[key].kind || 'plain';
+const BRAND_SCOPES = ['own', 'all'];
 
 /** Validates the request's sources, columns and dates against the registry. */
 export function parseStudioRequest(query) {
@@ -30,6 +32,7 @@ export function parseStudioRequest(query) {
     const sources = list(query.sources);
     const columns = list(query.columns);
     const { startDate, endDate } = query;
+    const brandScope = query.brandScope || 'own';
 
     if (!sources.length) throw new StudioRequestError('Select at least one data source.');
     const badSource = sources.find((s) => !STUDIO_SOURCES[s]);
@@ -40,11 +43,12 @@ export function parseStudioRequest(query) {
     if (!isoDate.test(startDate || '') || !isoDate.test(endDate || '')) {
         throw new StudioRequestError('startDate and endDate must be YYYY-MM-DD.');
     }
+    if (!BRAND_SCOPES.includes(brandScope)) throw new StudioRequestError(`Unknown brandScope: ${brandScope}`);
 
     // Date always leads; the rest keep the order the user arranged.
     const ordered = [DATE_KEY, ...columns.filter((k) => k !== DATE_KEY)];
     const [start, end] = startDate <= endDate ? [startDate, endDate] : [endDate, startDate];
-    return { sources, columns: ordered, startDate: start, endDate: end };
+    return { sources, columns: ordered, startDate: start, endDate: end, brandScope };
 }
 
 /** SQL fragments for one source table's columns; each throws MissingColumnError for a column the tenant lacks. */
@@ -79,6 +83,7 @@ const attempt = (build) => {
 
 function dimensionSql(sourceId, key, c, locationColumns) {
     const dim = STUDIO_DIMENSIONS[key];
+    if (dim.ownFlag) return `if(${OWN_BRAND[sourceId].test(c)}, 'own', 'competitor')`;
     if (dim.lookup) {
         const lookup = dim.lookup[sourceId];
         if (!lookup || !['location', 'region'].every((col) => locationColumns?.has(col))) throw new MissingColumnError(key);
@@ -94,7 +99,7 @@ function dimensionSql(sourceId, key, c, locationColumns) {
  * Resolves the request against the tenant's schema: which sources can be read,
  * the SQL for every key and KPI per source, and which fields are unavailable.
  */
-async function planReport({ sources, columns }) {
+async function planReport({ sources, columns, brandScope }) {
     const dimKeys = columns.filter((k) => STUDIO_DIMENSIONS[k]);
     const kpiKeys = columns.filter((k) => STUDIO_KPIS[k]);
 
@@ -103,33 +108,55 @@ async function planReport({ sources, columns }) {
         dimKeys.includes('region') ? getTableColumns(LOCATION_TABLE) : null,
     ]);
 
+    const ownOnly = brandScope === 'own';
     const sourcePlans = [];
     sources.forEach((id, i) => {
         if (!schemas[i].size) return; // table missing for this tenant
         const c = makeResolver(schemas[i]);
         const dateCol = attempt(() => c.col(STUDIO_SOURCES[id].date));
-        const own = OWN_BRAND[id] || {};
-        const filter = own.filter ? attempt(() => own.filter(c)) : '';
-        const ownRows = own.ownRows ? attempt(() => own.ownRows(c)) : '';
+        const own = OWN_BRAND[id];
+        const ownTest = attempt(() => own.test(c));
         // Without its date or own-brand column a source can't be reported on.
-        if (!dateCol || filter === null || ownRows === null) return;
+        if (!dateCol || ownTest === null) return;
 
         const dims = Object.fromEntries(dimKeys.map((k) => [k, attempt(() => dimensionSql(id, k, c, locationColumns))]));
-        const kpis = Object.fromEntries(
-            kpiKeys
-                .filter((k) => STUDIO_KPIS[k].source === id && STUDIO_KPIS[k].sql)
-                .map((k) => [k, attempt(() => STUDIO_KPIS[k].sql(c))])
-                .filter(([, sql]) => sql)
-        );
-        sourcePlans.push({ id, c, dateCol, filter, ownRows, dims, kpis });
+        sourcePlans.push({
+            id,
+            c,
+            dateCol,
+            ownTest,
+            filter: ownOnly && own.filter ? ownTest : '',
+            ownRows: ownOnly && own.afterShare ? `countIf(${ownTest})` : '',
+            dims,
+        });
     });
 
-    // A dimension must come from every readable source; a KPI from its own.
-    const unavailable = new Set([
-        ...dimKeys.filter((k) => !sourcePlans.length || sourcePlans.some((p) => !p.dims[k])),
-        ...kpiKeys.filter((k) => !sourcePlans.some((p) => p.kpis[k])),
-    ]);
-    return { sourcePlans, kpiKeys, unavailable, keyDims: dimKeys.filter((k) => !unavailable.has(k)) };
+    // A dimension must come from every readable source.
+    const unavailableDims = dimKeys.filter((k) => !sourcePlans.length || sourcePlans.some((p) => !p.dims[k]));
+    const keyDims = dimKeys.filter((k) => !unavailableDims.includes(k));
+    const byItem = keyDims.some((k) => STUDIO_DIMENSIONS[k].item);
+
+    sourcePlans.forEach((plan) => {
+        // A share counts own brands, except when competitors each get their own item row.
+        const shareOwn = ownOnly || !byItem ? plan.ownTest : null;
+        plan.kpis = Object.fromEntries(
+            kpiKeys
+                .filter((k) => STUDIO_KPIS[k].source === plan.id && STUDIO_KPIS[k].sql)
+                .map((k) => {
+                    const sql = attempt(() => STUDIO_KPIS[k].sql(plan.c, shareOwn));
+                    // Not tracked for competitors: blank, not 0, for a group with no own rows.
+                    if (sql && !ownOnly && STUDIO_KPIS[k].ownData) {
+                        return [k, `if(countIf(${plan.ownTest}) > 0, ${sql}, nullIf(${sql}, 0))`];
+                    }
+                    return [k, sql];
+                })
+                .filter(([, sql]) => sql)
+        );
+    });
+
+    // A KPI must come from its own source.
+    const unavailable = new Set([...unavailableDims, ...kpiKeys.filter((k) => !sourcePlans.some((p) => p.kpis[k]))]);
+    return { sourcePlans, kpiKeys, unavailable, keyDims };
 }
 
 /** The aggregated subquery for one source: keys k_*, and KPI values v_* (null for other sources' KPIs). */

@@ -68,11 +68,14 @@ const RolesPermissions = () => {
 
     // These are the tab labels that match the Sidebar menu items
     const tabsList = [
-        "Cross Platform Pricing", "Business Overview", "India Overview", "Insights", "Availability Analysis",
+        "Business Overview", "Report Studio", "Scheduled Reports",
+        "Cross Platform Pricing", "Pricing Analysis", "MOP Analysis",
+        "India Overview", "Insights", "Availability Analysis",
         "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
-        "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Score", "Content Analysis",
-        "Inventory Analysis", "Play it Yourself", "Category RCA",
-        "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Review Rating", "Supply", "Content", "Priority Action", "PDS Score"
+        "Performance Marketing", "Portfolio Analysis", "Content Score", "Content Analysis",
+        "Inventory Analysis", "PDS Score", "Review Rating",
+        "Play it Yourself", "Category RCA", "Priority Action",
+        "Download Report", "Ad Auto", "Rating", "Supply", "Content"
     ];
 
     const [usersData, setUsersData] = useState([]);
@@ -346,9 +349,12 @@ const RolesPermissions = () => {
         return cleaned;
     };
 
-    const handleTabStatusChange = async (userEmail, tabName) => {
-        const user = usersData.find(u => u.email === userEmail);
+    const handleTabStatusChange = async (userEmail, tabName, userDbName = null) => {
+        const user = usersData.find(u => 
+            u.email === userEmail && (!userDbName || (u.dbName || '').toLowerCase() === userDbName.toLowerCase())
+        );
         if (!user) return;
+        const targetDbName = user.dbName || userDbName;
 
         const newTabValue = !user.tabs[tabName];
         const rawTabs = { ...user.tabs, [tabName]: newTabValue };
@@ -356,7 +362,7 @@ const RolesPermissions = () => {
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.email === userEmail) {
+            if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                 return { ...u, tabs: updatedTabs };
             }
             return u;
@@ -367,7 +373,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
-                dbName: user.dbName,
+                dbName: targetDbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -376,7 +382,7 @@ const RolesPermissions = () => {
             console.error('[RolesPermissions] Failed to update tab permissions:', err);
             // Revert on error
             setUsersData(prev => prev.map(u => {
-                if (u.email === userEmail) {
+                if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                     return { ...u, tabs: { ...updatedTabs, [tabName]: !newTabValue } };
                 }
                 return u;
@@ -384,9 +390,12 @@ const RolesPermissions = () => {
         }
     };
 
-    const handlePlatformStatusChange = async (userEmail, platformName) => {
-        const user = usersData.find(u => u.email === userEmail);
+    const handlePlatformStatusChange = async (userEmail, platformName, userDbName = null) => {
+        const user = usersData.find(u => 
+            u.email === userEmail && (!userDbName || (u.dbName || '').toLowerCase() === userDbName.toLowerCase())
+        );
         if (!user) return;
+        const targetDbName = user.dbName || userDbName;
 
         const permKey = `platform_${platformName.toLowerCase()}`;
         const newTabValue = !user.tabs[permKey];
@@ -395,7 +404,7 @@ const RolesPermissions = () => {
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.email === userEmail) {
+            if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                 return { ...u, tabs: updatedTabs };
             }
             return u;
@@ -406,7 +415,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
-                dbName: user.dbName,
+                dbName: targetDbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -415,7 +424,7 @@ const RolesPermissions = () => {
             console.error('[RolesPermissions] Failed to update platform permissions:', err);
             // Revert on error
             setUsersData(prev => prev.map(u => {
-                if (u.email === userEmail) {
+                if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                     return { ...u, tabs: { ...updatedTabs, [permKey]: !newTabValue } };
                 }
                 return u;
@@ -424,9 +433,12 @@ const RolesPermissions = () => {
     };
 
 
-    const handleAllTabsToggle = async (userEmail) => {
-        const user = usersData.find(u => u.email === userEmail);
+    const handleAllTabsToggle = async (userEmail, userDbName = null) => {
+        const user = usersData.find(u => 
+            u.email === userEmail && (!userDbName || (u.dbName || '').toLowerCase() === userDbName.toLowerCase())
+        );
         if (!user) return;
+        const targetDbName = user.dbName || userDbName;
 
         const allActive = tabsList.every(tab => user.tabs[tab]);
         const newValue = !allActive;
@@ -438,7 +450,7 @@ const RolesPermissions = () => {
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.email === userEmail) {
+            if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                 return { ...u, tabs: updatedTabs };
             }
             return u;
@@ -449,7 +461,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
-                dbName: user.dbName,
+                dbName: targetDbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -462,7 +474,7 @@ const RolesPermissions = () => {
                 return acc;
             }, {});
             setUsersData(prev => prev.map(u => {
-                if (u.email === userEmail) {
+                if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                     return { ...u, tabs: { ...user.tabs, ...revertedTabs } };
                 }
                 return u;
@@ -470,15 +482,18 @@ const RolesPermissions = () => {
         }
     };
 
-    const handleDbStatusChange = async (userEmail) => {
-        const user = usersData.find(u => u.email === userEmail);
+    const handleDbStatusChange = async (userEmail, userDbName = null) => {
+        const user = usersData.find(u => 
+            u.email === userEmail && (!userDbName || (u.dbName || '').toLowerCase() === userDbName.toLowerCase())
+        );
         if (!user) return;
+        const targetDbName = user.dbName || userDbName;
 
         const newStatus = !user.dbStatus;
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.email === userEmail) {
+            if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                 return { ...u, dbStatus: newStatus };
             }
             return u;
@@ -489,7 +504,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/db-status`, {
                 email: user.email,
-                dbName: user.dbName,
+                dbName: targetDbName,
                 dbStatus: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -498,7 +513,7 @@ const RolesPermissions = () => {
             console.error('[RolesPermissions] Failed to update db status:', err);
             // Revert on error
             setUsersData(prev => prev.map(u => {
-                if (u.email === userEmail) {
+                if (u.email === userEmail && (!targetDbName || (u.dbName || '').toLowerCase() === targetDbName.toLowerCase())) {
                     return { ...u, dbStatus: !newStatus };
                 }
                 return u;
@@ -812,165 +827,168 @@ const RolesPermissions = () => {
                                 </AnimatePresence>
                             </React.Fragment>
                         )}
-                        {paginatedUsers.map((user) => (
-                            <React.Fragment key={user.email}>
-                                <TableRow
-                                    className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers[user.email] ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
-                                        }`}
-                                    onClick={() => toggleUserExpansion(user.email)}
-                                >
-                                    <TableCell className="pl-4 py-4">
-                                        <div className="text-slate-400 transition-transform duration-200" style={{ transform: expandedUsers[user.email] ? 'rotate(90deg)' : 'none' }}>
-                                            <ChevronRight className="w-4 h-4" />
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-[10px]">
-                                                {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        {paginatedUsers.map((user) => {
+                            const userKey = `${user.email}_${user.dbName}`;
+                            return (
+                                <React.Fragment key={userKey}>
+                                    <TableRow
+                                        className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers[userKey] ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
+                                            }`}
+                                        onClick={() => toggleUserExpansion(userKey)}
+                                    >
+                                        <TableCell className="pl-4 py-4">
+                                            <div className="text-slate-400 transition-transform duration-200" style={{ transform: expandedUsers[userKey] ? 'rotate(90deg)' : 'none' }}>
+                                                <ChevronRight className="w-4 h-4" />
                                             </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-900">{user.name}</p>
-                                                <p className="text-[10px] text-slate-500 font-medium capitalize">{user.role}</p>
+                                        </TableCell>
+                                        <TableCell className="py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-[10px]">
+                                                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-900">{user.name}</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium capitalize">{user.role}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="py-4">
-                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg w-fit">
-                                            <Layout className="w-3 h-3 text-slate-400" />
-                                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                                                Expand for details
-                                            </span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="py-4">
-                                        <p className="text-xs font-medium text-slate-600">{user.email}</p>
-                                    </TableCell>
-                                    <TableCell className="py-4">
-                                        <div className="flex items-center gap-2">
-                                            <Database className="w-3.5 h-3.5 text-slate-400" />
-                                            <span className="text-xs font-semibold text-slate-700">{user.dbName}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${user.dbStatus ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                {user.dbStatus ? 'Active' : 'Inactive'}
-                                            </span>
-                                            <Switch
-                                                checked={user.dbStatus}
-                                                onChange={() => handleDbStatusChange(user.email)}
-                                            />
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
+                                        </TableCell>
+                                        <TableCell className="py-4">
+                                            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg w-fit">
+                                                <Layout className="w-3 h-3 text-slate-400" />
+                                                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                                    Expand for details
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="py-4">
+                                            <p className="text-xs font-medium text-slate-600">{user.email}</p>
+                                        </TableCell>
+                                        <TableCell className="py-4">
+                                            <div className="flex items-center gap-2">
+                                                <Database className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-xs font-semibold text-slate-700">{user.dbName}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${user.dbStatus ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                    {user.dbStatus ? 'Active' : 'Inactive'}
+                                                </span>
+                                                <Switch
+                                                    checked={user.dbStatus}
+                                                    onChange={() => handleDbStatusChange(user.email, user.dbName)}
+                                                />
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
 
-                                <AnimatePresence>
-                                    {expandedUsers[user.email] && (
-                                        <TableRow className="hover:bg-transparent border-none">
-                                            <TableCell colSpan={7} className="p-0">
-                                                <motion.div
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: "auto", opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                                                    className="overflow-hidden bg-slate-50/30"
-                                                >
-                                                    <div className="px-14 py-4 space-y-2">
-                                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                                            {/* All - Master Toggle */}
-                                                            <div
-                                                                className={`flex items-center justify-between p-3 rounded-xl hover:shadow-sm transition-all border-2 ${
-                                                                    tabsList.every(tab => user.tabs[tab])
-                                                                        ? 'bg-indigo-50 border-indigo-300'
-                                                                        : 'bg-white border-indigo-200'
-                                                                }`}
-                                                            >
-                                                                <div className="flex flex-col gap-1">
-                                                                    <span className="text-[11px] font-bold text-indigo-700">All</span>
-                                                                </div>
-                                                                <div className="flex flex-col items-end gap-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${tabsList.every(tab => user.tabs[tab]) ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                                            {tabsList.every(tab => user.tabs[tab]) ? 'Active' : 'Inactive'}
-                                                                        </span>
-                                                                        <Switch
-                                                                            checked={tabsList.every(tab => user.tabs[tab])}
-                                                                            onChange={() => handleAllTabsToggle(user.email)}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            {tabsList.map((tab) => (
+                                    <AnimatePresence>
+                                        {expandedUsers[userKey] && (
+                                            <TableRow className="hover:bg-transparent border-none">
+                                                <TableCell colSpan={7} className="p-0">
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: "auto", opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                        className="overflow-hidden bg-slate-50/30"
+                                                    >
+                                                        <div className="px-14 py-4 space-y-2">
+                                                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                                {/* All - Master Toggle */}
                                                                 <div
-                                                                    key={tab}
-                                                                    className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                    className={`flex items-center justify-between p-3 rounded-xl hover:shadow-sm transition-all border-2 ${
+                                                                        tabsList.every(tab => user.tabs[tab])
+                                                                            ? 'bg-indigo-50 border-indigo-300'
+                                                                            : 'bg-white border-indigo-200'
+                                                                    }`}
                                                                 >
                                                                     <div className="flex flex-col gap-1">
-                                                                        <span className="text-[11px] font-semibold text-slate-600">{tab}</span>
+                                                                        <span className="text-[11px] font-bold text-indigo-700">All</span>
                                                                     </div>
                                                                     <div className="flex flex-col items-end gap-1">
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${user.tabs[tab] ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                                                {user.tabs[tab] ? 'Active' : 'Inactive'}
+                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${tabsList.every(tab => user.tabs[tab]) ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                {tabsList.every(tab => user.tabs[tab]) ? 'Active' : 'Inactive'}
                                                                             </span>
                                                                             <Switch
-                                                                                checked={user.tabs[tab]}
-                                                                                onChange={() => handleTabStatusChange(user.email, tab)}
+                                                                                checked={tabsList.every(tab => user.tabs[tab])}
+                                                                                onChange={() => handleAllTabsToggle(user.email, user.dbName)}
                                                                             />
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                        {(() => {
-                                                            const dbPlats = dbPlatformsMap[(user.dbName || '').toLowerCase()] || [];
-                                                            if (dbPlats.length === 0) return null;
-                                                            return (
-                                                                <>
-                                                                    <div className="pt-4 border-t border-slate-100">
-                                                                        <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">Platform Access</h3>
+                                                                {tabsList.map((tab) => (
+                                                                    <div
+                                                                        key={tab}
+                                                                        className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                    >
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className="text-[11px] font-semibold text-slate-600">{tab}</span>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${user.tabs[tab] ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                    {user.tabs[tab] ? 'Active' : 'Inactive'}
+                                                                                </span>
+                                                                                <Switch
+                                                                                    checked={user.tabs[tab]}
+                                                                                    onChange={() => handleTabStatusChange(user.email, tab, user.dbName)}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                                                        {dbPlats.map((plat) => {
-                                                                            const permKey = `platform_${plat.toLowerCase()}`;
-                                                                            const displayName = plat.charAt(0).toUpperCase() + plat.slice(1);
-                                                                            const isActive = user.tabs[permKey] !== false;
-                                                                            return (
-                                                                                <div
-                                                                                    key={plat}
-                                                                                    className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
-                                                                                >
-                                                                                    <div className="flex flex-col gap-1">
-                                                                                        <span className="text-[11px] font-semibold text-slate-600">{displayName}</span>
-                                                                                    </div>
-                                                                                    <div className="flex flex-col items-end gap-1">
-                                                                                        <div className="flex items-center gap-2">
-                                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${isActive ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                                                                {isActive ? 'Active' : 'Inactive'}
-                                                                                            </span>
-                                                                                            <Switch
-                                                                                                checked={isActive}
-                                                                                                onChange={() => handlePlatformStatusChange(user.email, plat)}
-                                                                                            />
+                                                                ))}
+                                                            </div>
+                                                            {(() => {
+                                                                const dbPlats = dbPlatformsMap[(user.dbName || '').toLowerCase()] || [];
+                                                                if (dbPlats.length === 0) return null;
+                                                                return (
+                                                                    <>
+                                                                        <div className="pt-4 border-t border-slate-100">
+                                                                            <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">Platform Access</h3>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                                            {dbPlats.map((plat) => {
+                                                                                const permKey = `platform_${plat.toLowerCase()}`;
+                                                                                const displayName = plat.charAt(0).toUpperCase() + plat.slice(1);
+                                                                                const isActive = user.tabs[permKey] !== false;
+                                                                                return (
+                                                                                    <div
+                                                                                        key={plat}
+                                                                                        className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                                    >
+                                                                                        <div className="flex flex-col gap-1">
+                                                                                            <span className="text-[11px] font-semibold text-slate-600">{displayName}</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isActive ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                                    {isActive ? 'Active' : 'Inactive'}
+                                                                                                </span>
+                                                                                                <Switch
+                                                                                                    checked={isActive}
+                                                                                                    onChange={() => handlePlatformStatusChange(user.email, plat, user.dbName)}
+                                                                                                />
+                                                                                            </div>
                                                                                         </div>
                                                                                     </div>
-                                                                                </div>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                </>
-                                                            );
-                                                        })()}
-                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
 
-                                                </motion.div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </AnimatePresence>
-                            </React.Fragment>
-                        ))}
+                                                    </motion.div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </AnimatePresence>
+                                </React.Fragment>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             </div>

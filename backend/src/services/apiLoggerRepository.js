@@ -5,7 +5,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
-import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
+import { queryAdminDB, insertAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 
 const RETENTION_DAYS = parseInt(process.env.API_LOGGER_RETENTION_DAYS || '2', 10);
 
@@ -36,7 +36,7 @@ export async function ensureApiLogsSchema() {
     try {
         // 1. Create table if it doesn't already exist
         await queryAdminDB(`
-            CREATE TABLE IF NOT EXISTS admin_master.api_logs (
+            CREATE TABLE IF NOT EXISTS ${ADMIN_DB}.api_logs (
                 id UUID DEFAULT generateUUIDv4(),
                 Date DateTime DEFAULT now(),
                 Page Nullable(String),
@@ -70,18 +70,18 @@ export async function ensureApiLogsSchema() {
 
         for (const col of columnsToAdd) {
             await queryAdminDB(`
-                ALTER TABLE admin_master.api_logs 
+                ALTER TABLE ${ADMIN_DB}.api_logs 
                 ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}
             `).catch(() => {});
         }
 
         // 3. Ensure TTL is configured
         await queryAdminDB(`
-            ALTER TABLE admin_master.api_logs 
+            ALTER TABLE ${ADMIN_DB}.api_logs 
             MODIFY TTL toDate(Date) + toIntervalDay(${RETENTION_DAYS})
         `).catch(() => {});
 
-        console.log('[ApiLoggerRepo] Schema and TTL verified for admin_master.api_logs');
+        console.log(`[ApiLoggerRepo] Schema and TTL verified for ${ADMIN_DB}.api_logs`);
     } catch (err) {
         console.error('[ApiLoggerRepo] Failed during ensureApiLogsSchema:', err.message);
         throw err;
@@ -97,7 +97,7 @@ export async function cleanupOldLogs(retentionDays = RETENTION_DAYS) {
         console.log(`[ApiLoggerRepo] Running explicit cleanup (removing data older than today - ${daysBack} days)...`);
         
         await queryAdminDB(
-            `ALTER TABLE admin_master.api_logs DELETE WHERE toDate(Date) < today() - ${daysBack}`
+            `ALTER TABLE ${ADMIN_DB}.api_logs DELETE WHERE toDate(Date) < today() - ${daysBack}`
         );
         console.log('[ApiLoggerRepo] Cleanup completed successfully');
         return { success: true };
@@ -116,7 +116,7 @@ export async function deleteLogsForDateAndPage(dateStr, pageName, clientDb = '')
         console.log(`[ApiLoggerRepo] Idempotent delete: checking existing records for date=${dateStr}, page=${pageName}, clientDb=${clientDb || 'ANY'}...`);
         const safeDate = String(dateStr).replace(/'/g, "''");
         const safePage = String(pageName).replace(/'/g, "''");
-        let deleteSql = `ALTER TABLE admin_master.api_logs DELETE WHERE toDate(Date) = toDate('${safeDate}') AND Page = '${safePage}'`;
+        let deleteSql = `ALTER TABLE ${ADMIN_DB}.api_logs DELETE WHERE toDate(Date) = toDate('${safeDate}') AND Page = '${safePage}'`;
         if (clientDb) {
             const safeClientDb = String(clientDb).replace(/'/g, "''");
             deleteSql += ` AND client_db = '${safeClientDb}'`;
@@ -152,7 +152,7 @@ export async function insertLogs(rows) {
             created_at: r.created_at || dayjs().format('YYYY-MM-DD HH:mm:ss'),
         }));
 
-        console.log(`[ApiLoggerRepo] Batch inserting ${formattedRows.length} logs into admin_master.api_logs`);
+        console.log(`[ApiLoggerRepo] Batch inserting ${formattedRows.length} logs into ${ADMIN_DB}.api_logs`);
         await insertAdminDB('api_logs', formattedRows);
         return { success: true, inserted: formattedRows.length };
     } catch (err) {
@@ -234,7 +234,7 @@ export async function getLogs({
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     // 1. Fetch total count
-    const countSql = `SELECT count() as total FROM admin_master.api_logs ${whereSql}`;
+    const countSql = `SELECT count() as total FROM ${ADMIN_DB}.api_logs ${whereSql}`;
     const countRows = await queryAdminDB(countSql, params);
     const total = Number(countRows[0]?.total || 0);
 
@@ -255,7 +255,7 @@ export async function getLogs({
             error_message,
             run_id,
             created_at
-        FROM admin_master.api_logs
+        FROM ${ADMIN_DB}.api_logs
         ${whereSql}
         ORDER BY ${safeSortCol} ${safeSortOrder}, id ASC
         LIMIT ${limit} OFFSET ${offset}
@@ -326,7 +326,7 @@ export async function getSummary({ date = '', page = '', clientDb = '', client_d
             round(avg(response_time_ms), 1) as avg_latency_ms,
             max(created_at) as last_run_at,
             toString(max(toDate(Date))) as latest_date
-        FROM admin_master.api_logs
+        FROM ${ADMIN_DB}.api_logs
         ${whereSql}
     `;
 
@@ -368,31 +368,31 @@ export async function getFilterOptions() {
     const [datesRows, pagesRows, segmentsRows, logClientsRows, tbClientsRows] = await Promise.all([
         queryAdminDB(`
             SELECT DISTINCT toString(toDate(Date)) as date 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             WHERE toDate(Date) >= today() - ${daysBack}
             ORDER BY date DESC
         `),
         queryAdminDB(`
             SELECT DISTINCT Page as page 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             WHERE Page IS NOT NULL AND Page != ''
             ORDER BY page ASC
         `),
         queryAdminDB(`
             SELECT DISTINCT segment 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             WHERE segment IS NOT NULL AND segment != ''
             ORDER BY segment ASC
         `),
         queryAdminDB(`
             SELECT DISTINCT client_db 
-            FROM admin_master.api_logs 
+            FROM ${ADMIN_DB}.api_logs 
             WHERE client_db IS NOT NULL AND client_db != ''
             ORDER BY client_db ASC
         `).catch(() => []),
         queryAdminDB(`
             SELECT DISTINCT db_name 
-            FROM admin_master.tb_database 
+            FROM ${ADMIN_DB}.tb_database 
             WHERE status = 'active'
             ORDER BY db_name ASC
         `).catch(() => []),
@@ -453,7 +453,7 @@ export async function getDistribution({ page = '', clientDb = '', client_db = ''
             empty_response,
             client_db,
             error_message
-        FROM admin_master.api_logs
+        FROM ${ADMIN_DB}.api_logs
         ${whereSql}
         ORDER BY response_time_ms DESC, Page ASC, api ASC
     `;

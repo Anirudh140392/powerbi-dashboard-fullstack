@@ -336,6 +336,15 @@ export const getVisibilityCompetition = async (req, res) => {
             location = 'All';
         }
 
+        let skuParam = req.query.sku || req.query.skus || 'All';
+        if (typeof skuParam === 'string' && skuParam.trim().startsWith('[')) {
+            try {
+                skuParam = JSON.parse(skuParam);
+            } catch (e) {
+                // keep as string
+            }
+        }
+
         const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             location,  // Support both 'location' and 'city' params
@@ -345,7 +354,7 @@ export const getVisibilityCompetition = async (req, res) => {
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M',
-            sku: req.query.sku || req.query.skus || 'All',
+            sku: skuParam,
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -377,12 +386,18 @@ export const getVisibilityCompetition = async (req, res) => {
 export const getBrandComparisonTrends = async (req, res) => {
     const startTime = Date.now();
     try {
-        // Parse brands from query - can be comma-separated string or array
+        // Parse brands from query - can be JSON array, comma-separated string, or array
         let brandsParam = req.query.brands;
         let brands = [];
         if (brandsParam) {
             if (Array.isArray(brandsParam)) {
                 brands = brandsParam;
+            } else if (typeof brandsParam === 'string' && brandsParam.trim().startsWith('[')) {
+                try {
+                    brands = JSON.parse(brandsParam);
+                } catch (e) {
+                    brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
+                }
             } else {
                 brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
             }
@@ -393,6 +408,12 @@ export const getBrandComparisonTrends = async (req, res) => {
         if (skusParam) {
             if (Array.isArray(skusParam)) {
                 skus = skusParam;
+            } else if (typeof skusParam === 'string' && skusParam.trim().startsWith('[')) {
+                try {
+                    skus = JSON.parse(skusParam);
+                } catch (e) {
+                    skus = skusParam.split(',').map(s => s.trim()).filter(Boolean);
+                }
             } else {
                 skus = skusParam.split(',').map(s => s.trim()).filter(Boolean);
             }

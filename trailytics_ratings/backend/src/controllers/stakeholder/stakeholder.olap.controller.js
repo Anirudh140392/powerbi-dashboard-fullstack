@@ -13,7 +13,7 @@
 
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
-import { getOlapTableName } from '../../utils/olapResolver.js';
+import { getOlapTableName, buildWebPidCondition } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
@@ -66,7 +66,10 @@ export const getStakeholderDetail = async (req, res) => {
         }
         if (is_competitor === 'true') extraFilters.push(`coalesce(o.is_competitor, 0) = 1`);
         else if (is_competitor === 'false') extraFilters.push(`coalesce(o.is_competitor, 0) = 0`);
-        if (web_pid) { extraFilters.push(`o.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+        if (web_pid) {
+            const cond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
+        }
 
         const sql = `
             SELECT

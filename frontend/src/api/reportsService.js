@@ -152,6 +152,49 @@ export const previewPromoViolationReport = async (params = {}) => {
     }
 };
 
+export const fetchPriceViolationFilters = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/price-violation-filters", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPriceViolationFilters error:", error);
+        throw error;
+    }
+};
+
+export const downloadPriceViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/download-price-violation-report", {
+            params: formatParams(params),
+            responseType: 'blob',
+            timeout: 10 * 60 * 1000,
+        });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
+        return response.data;
+    } catch (error) {
+        if (error.status !== 204) {
+            console.error("downloadPriceViolationReport error:", error);
+        }
+        throw error;
+    }
+};
+
+export const previewPriceViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/preview-price-violation-report", {
+            params: formatParams(params),
+            timeout: 2 * 60 * 1000,
+        });
+        return response.data;
+    } catch (error) {
+        console.error("previewPriceViolationReport error:", error);
+        throw error;
+    }
+};
 
 // ── Report Studio ──
 
@@ -173,7 +216,7 @@ export const fetchStudioRows = async (params, { signal } = {}) => {
     const response = await axiosInstance.get("/reports/studio/rows", {
         params: formatParams(params),
         signal,
-        timeout: 5 * 60 * 1000,
+        timeout: 10 * 60 * 1000,
     });
     return response.data;
 };
@@ -186,4 +229,66 @@ export const downloadStudioCsv = async (params) => {
         timeout: 10 * 60 * 1000,
     });
     return response.data;
+};
+
+// ── Scheduled report emails ──
+
+/** The workspace's report schedules, newest first. */
+export const fetchReportSchedules = async () => {
+    const response = await axiosInstance.get("/report-schedules");
+    return response.data.data;
+};
+
+export const createReportSchedule = async (schedule) => {
+    const response = await axiosInstance.post("/report-schedules", schedule);
+    return response.data.data;
+};
+
+export const updateReportSchedule = async (id, schedule) => {
+    const response = await axiosInstance.put(`/report-schedules/${id}`, schedule);
+    return response.data.data;
+};
+
+/** status: "active" | "paused" */
+export const setReportScheduleStatus = async (id, status) => {
+    const response = await axiosInstance.patch(`/report-schedules/${id}/status`, { status });
+    return response.data.data;
+};
+
+export const deleteReportSchedule = async (id) => {
+    await axiosInstance.delete(`/report-schedules/${id}`);
+};
+
+/** Builds and emails the report now: { status, rows }. */
+export const sendReportScheduleNow = async (id) => {
+    const response = await axiosInstance.post(`/report-schedules/${id}/send`, null, { timeout: 10 * 60 * 1000 });
+    return response.data.data;
+};
+
+// ── Saved Report Studio templates ──
+
+/** The user's own templates and the workspace's shared ones. */
+export const fetchReportTemplates = async () => {
+    const response = await axiosInstance.get("/report-templates");
+    return response.data.data;
+};
+
+/** { name, description, visibility, config: { view, sources, columns, brandScope, pivot, period, includeFilters } } */
+export const createReportTemplate = async (template) => {
+    const response = await axiosInstance.post("/report-templates", template);
+    return response.data.data;
+};
+
+/** Any of name, description, visibility, config. */
+export const updateReportTemplate = async (id, changes) => {
+    const response = await axiosInstance.put(`/report-templates/${id}`, changes);
+    return response.data.data;
+};
+
+export const deleteReportTemplate = async (id) => {
+    await axiosInstance.delete(`/report-templates/${id}`);
+};
+
+export const markReportTemplateUsed = async (id) => {
+    await axiosInstance.post(`/report-templates/${id}/used`);
 };

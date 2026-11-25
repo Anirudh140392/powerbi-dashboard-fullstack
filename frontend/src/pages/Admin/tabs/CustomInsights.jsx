@@ -142,6 +142,23 @@ const CustomInsights = () => {
 
             if (res.data.success) {
                 showToast(`Insights configuration updated for ${selectedDb.db_name}`, "success");
+
+                // Dispatch event so active components update instantly
+                window.dispatchEvent(new CustomEvent("insights_config_updated", { detail: insightsKpi }));
+
+                // Update current user's session if active database matches
+                try {
+                    const currentUserStr = sessionStorage.getItem("user");
+                    if (currentUserStr) {
+                        const currentUser = JSON.parse(currentUserStr);
+                        if (!currentUser.tabPermissions) currentUser.tabPermissions = {};
+                        if (typeof currentUser.tabPermissions.Insights !== 'object' || currentUser.tabPermissions.Insights === null) {
+                            currentUser.tabPermissions.Insights = { access: true, kpi: {} };
+                        }
+                        currentUser.tabPermissions.Insights.kpi = { ...(currentUser.tabPermissions.Insights.kpi || {}), ...insightsKpi };
+                        sessionStorage.setItem("user", JSON.stringify(currentUser));
+                    }
+                } catch (_) {}
             } else {
                 showToast(res.data.error || "Failed to save configuration", "error");
             }

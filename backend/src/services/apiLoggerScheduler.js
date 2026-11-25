@@ -59,15 +59,19 @@ export async function initApiLoggerScheduler() {
                     console.error('[ApiLoggerScheduler] Cleanup error during 01:00 AM cron:', cleanErr.message);
                 }
 
-                // Step B: Run daily automated API test suite for all registered pages
-                const pages = getRegisteredPages();
-                for (const pageName of pages) {
-                    try {
-                        console.log(`[ApiLoggerScheduler] 🚀 Executing scheduled tests for: "${pageName}"`);
-                        await runPageTests(pageName);
-                    } catch (runErr) {
-                        console.error(`[ApiLoggerScheduler] Test run error for "${pageName}":`, runErr.message);
+                // Step B: Run daily automated API test suite ONLY if explicitly enabled via ENABLE_AUTO_API_TESTS=true
+                if (process.env.ENABLE_AUTO_API_TESTS === 'true') {
+                    const pages = getRegisteredPages();
+                    for (const pageName of pages) {
+                        try {
+                            console.log(`[ApiLoggerScheduler] 🚀 Executing scheduled tests for: "${pageName}"`);
+                            await runPageTests(pageName);
+                        } catch (runErr) {
+                            console.error(`[ApiLoggerScheduler] Test run error for "${pageName}":`, runErr.message);
+                        }
                     }
+                } else {
+                    console.log(`[ApiLoggerScheduler] ℹ️ Automated API test suite auto-execution is disabled (ENABLE_AUTO_API_TESTS!=true).`);
                 }
             },
             {

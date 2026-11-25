@@ -245,13 +245,17 @@ class AnomalySentinel:
             except Exception as e:
                 logger.error(f"Error refreshing anomaly store: {e}")
 
-    def clear_anomalies(self, client=None):
-        """Clears stored anomalies completely for a client or all clients."""
+    def clear_anomalies(self, client=None, force_all=False):
+        """Clears stored unassigned anomalies safely without wiping other brands or assigned tasks."""
         with self._lock:
             if client and client.lower() != "all":
-                self.anomalies = [a for a in self.anomalies if str(a.get("client", "")).lower() != client.lower()]
-            else:
-                self.anomalies = []
+                target = normalize_client_db(client)
+                self.anomalies = [
+                    a for a in self.anomalies
+                    if normalize_client_db(a.get("client")) != target or (a.get("assignment_status") in ("ASSIGNED", "FIXED") or a.get("assigned_to"))
+                ]
+            elif force_all:
+                self.anomalies = [a for a in self.anomalies if (a.get("assignment_status") in ("ASSIGNED", "FIXED") or a.get("assigned_to"))]
             self._save_store()
 
     def _save_store(self):

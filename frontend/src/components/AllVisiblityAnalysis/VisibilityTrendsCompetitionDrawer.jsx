@@ -1200,32 +1200,52 @@ export default function VisibilityTrendsCompetitionDrawer({
     const dataSource = chartData;
     const xData = dataSource.map((p) => p.date);
 
-    // Determine which metrics go on which axis:
-    // Left (index 0): All SOS KPIs (percentage %)
-    // Right (index 1): Offtake (₹) and Search Rank
-    const RIGHT_AXIS_METRICS = ['offtake', 'search_rank'];
+    const activeMetricObjs = activeMetrics
+      .map((id) => (trendMeta.metrics || []).find((m) => m.id === id))
+      .filter(Boolean);
 
-    const series = trendMeta.metrics
-      .filter((m) => activeMetrics.includes(m.id))
-      .map((m) => ({
-        name: m.label,
-        type: "line",
-        smooth: true,
-        symbol: "circle",
-        symbolSize: 6,
-        showSymbol: true,
-        yAxisIndex: RIGHT_AXIS_METRICS.includes(m.id) ? 1 : 0,
-        lineStyle: { width: 2 },
-        emphasis: { focus: "series" },
-        data: dataSource.map((p) => p[m.id] ?? null),
-        itemStyle: { color: m.color },
-      }));
+    const getAxisFormatter = (metric) => {
+      if (!metric) return '{value}%';
+      const id = (metric.id || '').toLowerCase();
+      if (id === 'offtake') {
+        return (val) => {
+          if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
+          if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
+          if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
+          return '₹' + val;
+        };
+      }
+      if (id === 'search_rank') {
+        return '{value}';
+      }
+      return '{value}%';
+    };
 
-    // Check if any right-axis metric is active to determine right axis formatting
-    const hasOfftakeActive = activeMetrics.includes('offtake');
+    const leftMetric = activeMetricObjs.length > 0 ? activeMetricObjs[0] : null;
+    const hasRightMetric = activeMetricObjs.length > 1;
+    const rightMetric = hasRightMetric ? activeMetricObjs[1] : null;
+
+    const series = activeMetricObjs.map((m, idx) => ({
+      name: m.label,
+      type: "line",
+      smooth: true,
+      symbol: "circle",
+      symbolSize: 6,
+      showSymbol: true,
+      yAxisIndex: idx === 0 ? 0 : 1,
+      lineStyle: { width: 2 },
+      emphasis: { focus: "series" },
+      data: dataSource.map((p) => p[m.id] ?? null),
+      itemStyle: { color: m.color },
+    }));
 
     return {
-      grid: { left: 60, right: 80, top: 32, bottom: 40 },
+      grid: {
+        left: (leftMetric && (leftMetric.id || '').toLowerCase() === 'offtake') ? 70 : 55,
+        right: hasRightMetric ? ((rightMetric && (rightMetric.id || '').toLowerCase() === 'offtake') ? 75 : 55) : 25,
+        top: 32,
+        bottom: 40,
+      },
       tooltip: {
         trigger: "axis",
         formatter: (params) => {
@@ -1263,34 +1283,29 @@ export default function VisibilityTrendsCompetitionDrawer({
       },
       yAxis: [
         {
-          // Left axis: SOS percentages
+          // Left axis: dedicated to first selected KPI
           type: "value",
           position: "left",
+          show: Boolean(leftMetric) || activeMetricObjs.length === 0,
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
           axisLabel: {
-            formatter: '{value}%',
+            formatter: getAxisFormatter(leftMetric),
             fontSize: 11,
           },
         },
         {
-          // Right axis: Offtake (₹) / Category Share
+          // Right axis: shifts and displays when user selects a second KPI
           type: "value",
           position: "right",
+          show: hasRightMetric,
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: {
             fontSize: 11,
-            formatter: hasOfftakeActive
-              ? (val) => {
-                if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
-                if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
-                if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
-                return '₹' + val;
-              }
-              : activeMetrics.includes('search_rank') ? '{value}' : '{value}%',
+            formatter: getAxisFormatter(rightMetric),
           },
         },
       ],

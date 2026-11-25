@@ -7,7 +7,7 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-import { getOlapTableName } from '../../utils/olapResolver.js';
+import { getOlapTableName, buildWebPidCondition } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
@@ -25,7 +25,10 @@ function buildFilters(req, alias = 'o') {
     const extraFilters = [];
     const queryParams = { companyId: String(req.companyId) };
 
-    if (web_pid) { extraFilters.push(`${a}.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+    if (web_pid) {
+        const cond = buildWebPidCondition(web_pid, `${a}.web_pid`, queryParams, 'webPid');
+        if (cond) extraFilters.push(cond);
+    }
     if (is_competitor === 'true' || is_competitor === 'false') {
         extraFilters.push(`coalesce(${a}.is_competitor, 0) = {isCompetitor:UInt8}`);
         queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
@@ -171,8 +174,9 @@ export const getReviewsByIssue = async (req, res) => {
         if (sort === 'rating_asc') orderClause = 'ORDER BY o.rating ASC, o.review_date DESC';
         else if (sort === 'rating_desc') orderClause = 'ORDER BY o.rating DESC, o.review_date DESC';
 
-        const queryParams = { companyId: String(req.companyId), webPid: web_pid, subcategory, limit: parseInt(limit), offset: parseInt(offset) };
-        const where = [`o.company_id = {companyId:String}`, `o.web_pid = {webPid:String}`, `o.sentiment_subcategory = {subcategory:String}`, `o.sentiment = 'negative'`];
+        const queryParams = { companyId: String(req.companyId), subcategory, limit: parseInt(limit), offset: parseInt(offset) };
+        const webPidCond = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
+        const where = [`o.company_id = {companyId:String}`, webPidCond, `o.sentiment_subcategory = {subcategory:String}`, `o.sentiment = 'negative'`];
 
         if (platform && platform !== 'all') { where.push(`ilike(o.platform, {platform:String})`); queryParams.platform = platform; }
         if (is_competitor && is_competitor !== 'all') { where.push(`coalesce(o.is_competitor, 0) = {isCompetitor:UInt8}`); queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0; }
@@ -232,7 +236,9 @@ export const getAsinIssues = async (req, res) => {
                 is_competitor, sentiment_category, price_mode, price_min, price_max, rating_bifurcation } = req.query;
         if (!web_pid) return res.status(400).json({ error: 'web_pid param required' });
 
-        const queryParams = { companyId: String(req.companyId), webPid: web_pid };
+        const queryParams = { companyId: String(req.companyId) };
+        const webPidCondPlain = buildWebPidCondition(web_pid, 'web_pid', queryParams, 'webPid');
+        const webPidCondOlap = buildWebPidCondition(web_pid, 'o.web_pid', queryParams, 'webPid');
 
         // Product info
         const productSql = `
@@ -240,7 +246,7 @@ export const getAsinIssues = async (req, res) => {
                    max(pdp_rating_count) AS rating_count,
                    argMax(star_distribution, review_date) AS star_distribution
             FROM ${getOlapTable(req)}
-            WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
+            WHERE company_id = {companyId:String} AND ${webPidCondPlain}
               AND coalesce(is_competitor, 0) = 0
             GROUP BY product_name
             ORDER BY count() DESC
@@ -250,7 +256,7 @@ export const getAsinIssues = async (req, res) => {
         const productRows = await chProduct.json();
         const product = productRows[0] || { product_name: 'Unknown', pdp_rating: null, rating_count: 0, star_distribution: '{}' };
 
-        const where = [`o.company_id = {companyId:String}`, `o.web_pid = {webPid:String}`];
+        const where = [`o.company_id = {companyId:String}`, webPidCondOlap];
         if (platform && platform !== 'all') { where.push(`ilike(o.platform, {platform:String})`); queryParams.platform = platform; }
         if (is_competitor && is_competitor !== 'all') { where.push(`coalesce(o.is_competitor, 0) = {isCompetitor:UInt8}`); queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0; }
         else if (!is_competitor) { where.push(`coalesce(o.is_competitor, 0) = 0`); }

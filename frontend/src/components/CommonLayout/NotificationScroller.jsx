@@ -52,6 +52,7 @@ const ROUTE_TABLE_MAP = {
   "/volume-cohort": "rb_pdp_olap",
   "/primary-overview": "rb_pdp_olap",
   "/secondary-overview": "rb_pdp_olap",
+  "/review-rating": "rb_review_olap",
 };
 
 /**
@@ -307,7 +308,7 @@ export default function NotificationScroller() {
 
   // Prefer real-time WebSocket date, fall back to FilterContext
   const formattedDate = useMemo(() => {
-    const socketDate = effectiveDates?.[tableName];
+    const socketDate = effectiveDates?.[tableName] || (tableName === "rb_review_olap" && effectiveDates?.["rb_reviews_olap"]);
     const dateToUse = socketDate || maxDate;
     if (!dateToUse) return "—";
     const d = dayjs(dateToUse);

@@ -758,6 +758,7 @@ export default function TrendsCompetitionDrawer({
   defaultView = "Trends",
   initialAudience = "Platform",
   showResellerFilter = true,
+  drlSource = 'rk',
 }) {
   const isHayatna = useMemo(() => {
     try {
@@ -917,6 +918,28 @@ export default function TrendsCompetitionDrawer({
     const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
     return db === 'drl' || db === 'prestige';
   })();
+  const userManuallyChangedResellerRef = useRef(false);
+
+  const isBuymoreOption = (opt) => {
+    if (!opt) return false;
+    const s = String(opt).toLowerCase().trim();
+    return (s.includes('buy') && s.includes('more')) || s === 'buymore' || s.includes('3p');
+  };
+
+  const getDefaultResellerValue = useCallback((options, source) => {
+    if (!options || options.length === 0) return 'All';
+    const mode = String(source || 'rk').toLowerCase().trim();
+    if (mode === 'rk' || mode === 'portal') {
+      const nonBuymore = options.filter(o => !isBuymoreOption(o));
+      return nonBuymore.length > 0 ? nonBuymore.join(',') : 'All';
+    } else if (mode === 'buymore') {
+      const buymoreOpts = options.filter(o => isBuymoreOption(o));
+      return buymoreOpts.length > 0 ? buymoreOpts.join(',') : 'All';
+    } else {
+      return options.join(',');
+    }
+  }, []);
+
   const [resellerOptions, setResellerOptions] = useState([]);
   const selectedPlatformLower = (drawerFilters.Platform || '').toLowerCase();
   const isEcommPlatform = selectedPlatformLower === 'amazon' || selectedPlatformLower === 'flipkart';
@@ -934,14 +957,31 @@ export default function TrendsCompetitionDrawer({
           params: { filterType: 'resellerNames', platform: selectedPlatformLower }
         });
         if (res.data?.options) {
-          setResellerOptions(res.data.options);
+          const opts = res.data.options;
+          setResellerOptions(opts);
+          if (!userManuallyChangedResellerRef.current) {
+            const defaultReseller = getDefaultResellerValue(opts, drlSource);
+            setDrawerFilters(prev => {
+              if (prev.ResellerName !== defaultReseller) {
+                return { ...prev, ResellerName: defaultReseller };
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
         console.error('[TrendsDrawer] Error fetching reseller names:', err);
       }
     };
     fetchResellerOptions();
-  }, [open, shouldShowResellerFilter, selectedPlatformLower]);
+  }, [open, shouldShowResellerFilter, selectedPlatformLower, drlSource, getDefaultResellerValue]);
+
+  // Reset user manual reseller tracking when drawer closes
+  useEffect(() => {
+    if (!open) {
+      userManuallyChangedResellerRef.current = false;
+    }
+  }, [open]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -1046,10 +1086,25 @@ export default function TrendsCompetitionDrawer({
       baseline[targetDimensionKey] = normalizeToString(selectedColumn);
     }
 
+    const effectivePlat = normInitPlat !== 'All' 
+      ? normInitPlat 
+      : (targetDimensionKey === 'Platform' && selectedColumn ? normalizeToString(selectedColumn) : (normGlobalPlat !== 'All' ? normGlobalPlat : 'All'));
+    const isEcomm = ['amazon', 'flipkart'].includes(String(effectivePlat).toLowerCase());
+    if (isDrlUser && isEcomm) {
+      if (resellerOptions.length > 0) {
+        baseline.ResellerName = getDefaultResellerValue(resellerOptions, drlSource);
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && (drlSource === 'rk' || drlSource === 'portal')) {
+        baseline.ResellerName = 'rk world';
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && drlSource === 'buymore') {
+        baseline.ResellerName = 'buy more';
+      }
+    }
+
     return { baseline, targetDimensionKey };
-  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn]);
+  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn, isDrlUser, drlSource, resellerOptions, getDefaultResellerValue]);
 
   const handleClearDrawerFilters = useCallback(() => {
+    userManuallyChangedResellerRef.current = false;
     const { baseline } = getBaselineFilters();
     setDrawerFilters(baseline);
   }, [getBaselineFilters]);
@@ -1508,7 +1563,7 @@ export default function TrendsCompetitionDrawer({
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
-        const response = await axiosInstance.get('/pricing-analysis/dimension-trends', { params });
+        const response = await axiosInstance.post('/pricing-analysis/dimension-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1567,12 +1622,13 @@ export default function TrendsCompetitionDrawer({
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
           skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
+          sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           ownBrandsOnly: 'true',
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
+        const response = await axiosInstance.post('/availability-analysis/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1600,10 +1656,11 @@ export default function TrendsCompetitionDrawer({
           sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          drlSource: isDrl ? (drlSource || 'rk') : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+        const response = await axiosInstance.post('/watchtower/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1626,7 +1683,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl, drlSource]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -2885,47 +2942,268 @@ export default function TrendsCompetitionDrawer({
     const xData = dataSource.map((p) => p.date);
 
     const metrics = sortedTrendMetrics.length > 0 ? sortedTrendMetrics : (trendMeta.metrics || []);
-    const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id) && !m.isMetricNA);
+    // Map active metrics in user selection order so the first chosen KPI always leads
+    const activeMetricObjs = activeMetrics
+      .map((id) => metrics.find((m) => m.id === id))
+      .filter(Boolean)
+      .filter((m) => !m.isMetricNA);
 
-    const isQuantityMetric = (m) =>
-      m.id === "QuantitySold" ||
-      m.id === "quantitySold" ||
-      m.id === "Quantity_Sold" ||
-      m.id === "QtySold" ||
-      m.id === "Quantity" ||
-      m.axis === "quantity";
+    const isQuantityMetric = (m) => {
+      if (!m) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "quantity" ||
+        id === "quantitysold" ||
+        id === "quantity_sold" ||
+        id === "qtysold" ||
+        id === "quantity" ||
+        id === "units" ||
+        id === "orders" ||
+        label.includes("quantity")
+      );
+    };
 
-    const isCurrencyActive = activeMetricObjs.some(
-      (m) =>
-        !isQuantityMetric(m) &&
-        (m.axis === "left" ||
-          (m.axis !== "right" &&
-            m.axis !== "assortment" &&
-            m.axis !== "quantity" &&
-            m.id !== "Assortment"))
-    );
-    const isPercentageActive = activeMetricObjs.some(
-      (m) => m.axis === "right"
-    );
-    const isAssortmentActive = activeMetricObjs.some(
-      (m) => m.axis === "assortment" || m.id === "Assortment"
-    );
-    const isQuantityActive = activeMetricObjs.some(
-      (m) => isQuantityMetric(m)
-    );
+    const isAssortmentMetric = (m) => {
+      if (!m) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return m.axis === "assortment" || id === "assortment" || label.includes("assortment");
+    };
+
+    const isPercentageMetric = (m) => {
+      if (!m) return false;
+      if (isQuantityMetric(m) || isAssortmentMetric(m)) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "right" ||
+        id.includes("osa") ||
+        id.includes("availability") ||
+        id.includes("sos") ||
+        id.includes("share") ||
+        id.includes("discount") ||
+        id.includes("conversion") ||
+        id.includes("roas") ||
+        id.includes("listing") ||
+        id.includes("fillrate") ||
+        id.includes("promo") ||
+        id.includes("rate") ||
+        id.includes("bmi") ||
+        label.includes("%") ||
+        label.includes("share") ||
+        label.includes("rate")
+      );
+    };
+
+    const isCurrencyMetric = (m) => {
+      if (!m) return false;
+      if (isQuantityMetric(m) || isAssortmentMetric(m) || isPercentageMetric(m)) return false;
+      const id = (m.id || "").toLowerCase();
+      const label = (m.label || "").toLowerCase();
+      return (
+        m.axis === "left" ||
+        id.includes("sales") ||
+        id.includes("offtake") ||
+        id.includes("spend") ||
+        id.includes("price") ||
+        id.includes("asp") ||
+        id.includes("cpc") ||
+        id.includes("cpm") ||
+        id.includes("ecp") ||
+        id.includes("mrp") ||
+        id.includes("psl") ||
+        id.includes("revenue") ||
+        label.includes("₹") ||
+        label.includes("aed") ||
+        label.includes("price") ||
+        label.includes("sales") ||
+        label.includes("spend") ||
+        label.includes("offtake")
+      );
+    };
+
+    const getMetricCategory = (m) => {
+      if (!m) return "number";
+      if (isQuantityMetric(m)) return "quantity";
+      if (isAssortmentMetric(m)) return "assortment";
+      if (isPercentageMetric(m)) return "percentage";
+      if (isCurrencyMetric(m)) return "currency";
+      return "number";
+    };
+
+    const getAxisFormatter = (cat) => {
+      if (cat === "percentage") {
+        return (value) => `${parseFloat(Number(value).toFixed(2))} %`;
+      }
+      if (cat === "currency") {
+        return (value) => {
+          const prefix = currencySymbol ? `${currencySymbol} ` : "₹ ";
+          const val = Number(value);
+          if (isNaN(val)) return value;
+          const absVal = Math.abs(val);
+          if (absVal >= 10000000) return `${prefix}${(val / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+          if (absVal >= 100000) return `${prefix}${(val / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
+          if (absVal >= 1000) return `${prefix}${(val / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+          return `${prefix}${parseFloat(val.toFixed(2))}`;
+        };
+      }
+      if (cat === "quantity" || cat === "assortment") {
+        return (value) => {
+          const val = Number(value);
+          if (isNaN(val)) return value;
+          const absVal = Math.abs(val);
+          if (absVal >= 10000000) return `${(val / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+          if (absVal >= 1000000) return `${(val / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
+          if (absVal >= 1000) return `${(val / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+          return `${parseFloat(val.toFixed(2))}`;
+        };
+      }
+      return (value) => `${parseFloat(Number(value).toFixed(2))}`;
+    };
+
+    // Determine Y-Axes dynamically:
+    // 1 KPI: Left axis for metric 0
+    // 2 KPIs: Left axis for metric 0, Right axis for metric 1 (each independent)
+    // 3+ KPIs: Each distinct category (Quantity, Currency, Percentage, Assortment) gets its own axis
+    let yAxis = [];
+    let getMetricAxisIndex;
+
+    if (activeMetricObjs.length === 0) {
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          axisLabel: { color: "#000000", fontSize: 11 }
+        }
+      ];
+      getMetricAxisIndex = () => 0;
+    } else if (activeMetricObjs.length === 1) {
+      const cat = getMetricCategory(activeMetricObjs[0]);
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat)
+          }
+        }
+      ];
+      getMetricAxisIndex = () => 0;
+    } else if (activeMetricObjs.length === 2) {
+      const cat0 = getMetricCategory(activeMetricObjs[0]);
+      const cat1 = getMetricCategory(activeMetricObjs[1]);
+      yAxis = [
+        {
+          type: "value",
+          position: "left",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat0)
+          }
+        },
+        {
+          type: "value",
+          position: "right",
+          show: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat1)
+          }
+        }
+      ];
+      getMetricAxisIndex = (m, idx) => idx;
+    } else {
+      // 3 or more metrics selected:
+      // Group distinct categories in order of appearance
+      const activeCats = [];
+      activeMetricObjs.forEach((m) => {
+        const c = getMetricCategory(m);
+        if (!activeCats.includes(c)) activeCats.push(c);
+      });
+
+      // Assign axes for each distinct category:
+      // Cat 0: Left (offset 0)
+      // Cat 1: Right (offset 0)
+      // Cat 2: Right (offset 70)
+      // Cat 3: Left (offset 60)
+      yAxis = activeCats.map((cat, idx) => {
+        const isLeft = idx === 0 || idx === 3;
+        const offset = idx === 2 ? 70 : idx === 3 ? 60 : 0;
+        return {
+          type: "value",
+          position: isLeft ? "left" : "right",
+          offset: offset,
+          show: true,
+          axisLine: { show: offset > 0, lineStyle: { color: "#CBD5E1" } },
+          axisTick: { show: offset > 0, lineStyle: { color: "#CBD5E1" } },
+          splitLine: { show: idx === 0, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: getAxisFormatter(cat)
+          }
+        };
+      });
+
+      getMetricAxisIndex = (m) => {
+        const c = getMetricCategory(m);
+        const idx = activeCats.indexOf(c);
+        return idx >= 0 ? idx : 0;
+      };
+    }
+
+    // Grid margins based on active axes on left & right:
+    const leftAxesCount = yAxis.filter((ax) => ax.position === "left").length;
+    const rightAxesCount = yAxis.filter((ax) => ax.position === "right").length;
+    const isCatCurrency = (cat) => cat === "currency";
+
+    let hasCurrencyLeft = false;
+    let hasCurrencyRight = false;
+    if (activeMetricObjs.length === 1) {
+      hasCurrencyLeft = isCatCurrency(getMetricCategory(activeMetricObjs[0]));
+    } else if (activeMetricObjs.length === 2) {
+      hasCurrencyLeft = isCatCurrency(getMetricCategory(activeMetricObjs[0]));
+      hasCurrencyRight = isCatCurrency(getMetricCategory(activeMetricObjs[1]));
+    } else {
+      const activeCats = [];
+      activeMetricObjs.forEach((m) => {
+        const c = getMetricCategory(m);
+        if (!activeCats.includes(c)) activeCats.push(c);
+      });
+      hasCurrencyLeft = isCatCurrency(activeCats[0]) || (activeCats.length >= 4 && isCatCurrency(activeCats[3]));
+      hasCurrencyRight = (activeCats.length >= 2 && isCatCurrency(activeCats[1])) || (activeCats.length >= 3 && isCatCurrency(activeCats[2]));
+    }
+
+    let gridLeft = leftAxesCount > 1 ? 120 : (hasCurrencyLeft ? 70 : 55);
+    let gridRight = rightAxesCount > 1 ? 140 : rightAxesCount === 1 ? (hasCurrencyRight ? 75 : 60) : 25;
 
     const series = [];
-    activeMetricObjs.forEach((m) => {
-      let yAxisIndex = 0;
-      if (isQuantityMetric(m)) {
-        yAxisIndex = 3;
-      } else if (m.axis === "assortment" || m.id === "Assortment") {
-        yAxisIndex = 2;
-      } else if (m.axis === "right") {
-        yAxisIndex = 1;
-      } else {
-        yAxisIndex = 0;
-      }
+    activeMetricObjs.forEach((m, idx) => {
+      const yAxisIndex = getMetricAxisIndex(m, idx);
 
       series.push({
         name: m.label,
@@ -2951,28 +3229,6 @@ export default function TrendsCompetitionDrawer({
       });
     });
 
-    let gridLeft = 60;
-    if (isCurrencyActive && isAssortmentActive) {
-      gridLeft = 115;
-    } else if (isCurrencyActive || isAssortmentActive || (!isCurrencyActive && isQuantityActive)) {
-      gridLeft = 60;
-    } else {
-      gridLeft = 45;
-    }
-
-    let gridRight = 45;
-    if (isCurrencyActive || isAssortmentActive) {
-      if (isPercentageActive && isQuantityActive) {
-        gridRight = 135;
-      } else if (isPercentageActive || isQuantityActive) {
-        gridRight = 75;
-      } else {
-        gridRight = 45;
-      }
-    } else {
-      gridRight = isPercentageActive ? 75 : 45;
-    }
-
     return {
       grid: { left: gridLeft, right: gridRight, top: 32, bottom: 40 },
       tooltip: { trigger: "axis", formatter: createTooltipFormatter },
@@ -2983,81 +3239,7 @@ export default function TrendsCompetitionDrawer({
         axisLine: { lineStyle: { color: "#E5E7EB" } },
         axisLabel: { fontSize: 11 },
       },
-      yAxis: [
-        {
-          type: "value",
-          position: "left",
-          show: isCurrencyActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              const prefix = currencySymbol + " ";
-              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
-              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${prefix}${parseFloat(value.toFixed(4))}`;
-            }
-          }
-        },
-        {
-          type: "value",
-          position: "right",
-          show: isPercentageActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => `${parseFloat(value.toFixed(2))} %`
-          }
-        },
-        {
-          type: "value",
-          position: "left",
-          offset: isCurrencyActive ? 55 : 0,
-          show: isAssortmentActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              if (value >= 1000000) return `${(value / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
-              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${parseFloat(value.toFixed(2))}`;
-            }
-          }
-        },
-        {
-          type: "value",
-          position: (isCurrencyActive || isAssortmentActive) ? "right" : "left",
-          offset: (isCurrencyActive || isAssortmentActive) ? (isPercentageActive ? 65 : 0) : 0,
-          show: isQuantityActive,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isAssortmentActive, lineStyle: { color: "#F3F4F6" } },
-          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
-          axisLabel: {
-            color: "#000000",
-            fontSize: 11,
-            formatter: (value) => {
-              if (value >= 10000000) return `${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-              if (value >= 100000) return `${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
-              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
-              return `${parseFloat(value.toFixed(2))}`;
-            }
-          }
-        },
-      ],
+      yAxis,
       legend: { show: false },
       series,
     };
@@ -3337,6 +3519,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
+                    userManuallyChangedResellerRef.current = false;
                     setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', SubBrand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
                   }}
                 />
@@ -3381,6 +3564,7 @@ export default function TrendsCompetitionDrawer({
                     value={drawerFilters.ResellerName}
                     options={resellerOptions}
                     onChange={(v) => {
+                      userManuallyChangedResellerRef.current = true;
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
@@ -3694,6 +3878,15 @@ export default function TrendsCompetitionDrawer({
                           return match || null;
                         };
 
+                        // Return ALL web_pids for a given SKU name (a sap_code can have multiple web_pid rows)
+                        const getSkuPids = (skuName) => {
+                          if (!skuName || !filterOptions.skuDetails || !filterOptions.skuDetails.length) return [];
+                          return filterOptions.skuDetails
+                            .filter(d => (d.name || d.product_name || '')?.toLowerCase() === skuName.toLowerCase())
+                            .map(d => d.webPid || d.web_pid)
+                            .filter(Boolean);
+                        };
+
                         const filteredSkus = SKU_OPTIONS.filter(opt => {
                           const details = getSkuDetails(opt);
                           const sapCode = details?.sapCode || details?.sap_code;
@@ -3705,53 +3898,84 @@ export default function TrendsCompetitionDrawer({
                           if (!skuSearchTerm) return true;
                           const term = skuSearchTerm.toLowerCase().trim();
                           if (opt.toLowerCase().includes(term)) return true;
-                          const webPid = details?.webPid || details?.web_pid;
-                          if (webPid && String(webPid).toLowerCase().includes(term)) return true;
+                          const pids = getSkuPids(opt);
+                          if (pids.some(p => String(p).toLowerCase().includes(term))) return true;
                           if (isDrlUser && sapCode && String(sapCode).toLowerCase().includes(term)) return true;
                           return false;
                         });
 
-                        const isSkuSelected = (opt) => {
+                        // Build expanded rows: one row per (skuName, webPid) combination so each web_pid is selectable individually
+                        const expandedSkuRows = [];
+                        filteredSkus.forEach(skuName => {
+                          const pids = getSkuPids(skuName);
+                          if (pids.length === 0) {
+                            expandedSkuRows.push({ skuName, webPid: null });
+                          } else {
+                            pids.forEach(pid => expandedSkuRows.push({ skuName, webPid: pid }));
+                          }
+                        });
+
+                        // Parse currently selected webPids from drawerFilters.SKUWebPid
+                        const getSelectedPids = () => {
+                          if (drawerFilters.SKUWebPid === 'All') return null; // null = all selected
+                          if (drawerFilters.SKUWebPid === 'None' || !drawerFilters.SKUWebPid) return [];
+                          return drawerFilters.SKUWebPid.split(',').map(s => s.trim()).filter(Boolean);
+                        };
+
+                        const isRowSelected = (skuName, webPid) => {
                           if (drawerFilters.SKU === 'All') return true;
                           if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return false;
-                          const list = drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase());
-                          return list.includes(opt.toLowerCase());
+                          const selectedPids = getSelectedPids();
+                          if (selectedPids === null) return true;
+                          if (!webPid) return false;
+                          return selectedPids.includes(webPid);
                         };
 
-                        const getCurrentlySelectedList = () => {
-                          if (drawerFilters.SKU === 'All') return [...SKU_OPTIONS];
+                        const getSelectedRows = () => {
+                          if (drawerFilters.SKU === 'All') return [...expandedSkuRows];
                           if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return [];
-                          return drawerFilters.SKU.split(';;').map(s => s.trim()).filter(Boolean);
+                          const selectedPids = getSelectedPids();
+                          if (selectedPids === null) return [...expandedSkuRows];
+                          return expandedSkuRows.filter(row => selectedPids.includes(row.webPid));
                         };
 
-                        const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
+                        const isAllFilteredSelected = expandedSkuRows.length > 0 && expandedSkuRows.every(row => isRowSelected(row.skuName, row.webPid));
 
                         const handleToggleAllFiltered = () => {
-                          const currentSelected = getCurrentlySelectedList();
+                          if (drawerFilters.SKU === 'All' && skuSearchTerm) {
+                            // User searched while 'All' was active and clicked 'Select All Matching SKUs'
+                            const allPids = expandedSkuRows.map(row => row.webPid).filter(Boolean);
+                            const uniqueSkuNames = [...new Set(expandedSkuRows.map(row => row.skuName))];
+                            setDrawerFilters(prev => ({
+                              ...prev,
+                              SKU: uniqueSkuNames.join(';;'),
+                              SKUWebPid: allPids.length > 0 ? allPids.join(',') : 'All'
+                            }));
+                            return;
+                          }
+                          const currentSelected = getSelectedRows();
                           let nextSelected;
                           if (isAllFilteredSelected) {
-                            // Deselect only the currently filtered SKUs
-                            const filteredLower = new Set(filteredSkus.map(s => s.toLowerCase()));
-                            nextSelected = currentSelected.filter(s => !filteredLower.has(s.toLowerCase()));
+                            // Deselect only the currently filtered rows
+                            const filteredKeys = new Set(expandedSkuRows.map(row => row.webPid || row.skuName).filter(Boolean));
+                            nextSelected = currentSelected.filter(row => !filteredKeys.has(row.webPid || row.skuName));
                           } else {
-                            // Select all currently filtered SKUs
-                            const currentLower = new Set(currentSelected.map(s => s.toLowerCase()));
-                            const toAdd = filteredSkus.filter(s => !currentLower.has(s.toLowerCase()));
+                            // Select all currently filtered rows
+                            const currentKeys = new Set(currentSelected.map(row => row.webPid || row.skuName).filter(Boolean));
+                            const toAdd = expandedSkuRows.filter(row => !currentKeys.has(row.webPid || row.skuName));
                             nextSelected = [...currentSelected, ...toAdd];
                           }
 
                           if (nextSelected.length === 0) {
                             setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
-                          } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                          } else if (nextSelected.length >= expandedSkuRows.length) {
                             setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
                           } else {
-                            const selectedWebPids = nextSelected.map(name => {
-                              const details = getSkuDetails(name);
-                              return details?.webPid || details?.web_pid;
-                            }).filter(Boolean);
+                            const selectedWebPids = nextSelected.map(row => row.webPid).filter(Boolean);
+                            const selectedSkuNames = [...new Set(nextSelected.map(row => row.skuName))];
                             setDrawerFilters(prev => ({
                               ...prev,
-                              SKU: nextSelected.join(';;'),
+                              SKU: selectedSkuNames.join(';;'),
                               SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                             }));
                           }
@@ -3778,50 +4002,57 @@ export default function TrendsCompetitionDrawer({
                                 {isAllFilteredSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
                               </Box>
                               <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
-                                {skuSearchTerm ? `Select All Matching SKUs (${filteredSkus.length})` : 'All SKUs'}
+                                {skuSearchTerm ? `Select All Matching SKUs (${expandedSkuRows.length})` : 'All SKUs'}
                               </Typography>
                             </Box>
 
-                            {/* Filtered SKU items */}
-                            {filteredSkus.map(opt => {
-                              const isSelected = isSkuSelected(opt);
+                            {/* Filtered SKU items — one row per web_pid */}
+                            {expandedSkuRows.map(({ skuName: rowSkuName, webPid: rowWebPid }) => {
+                              const isSelected = isRowSelected(rowSkuName, rowWebPid);
                               // Truncate display: show last part in parentheses as variant hint
-                              const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                              const parenMatch = rowSkuName.match(/\(([^)]+)\)\s*$/);
                               const variant = parenMatch ? parenMatch[1] : '';
-                              const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-                              const skuDetails = getSkuDetails(opt);
-                              const webPid = skuDetails?.webPid || skuDetails?.web_pid || null;
+                              const mainName = rowSkuName.length > 60 ? rowSkuName.substring(0, 57) + '...' : rowSkuName;
+                              const skuDetails = getSkuDetails(rowSkuName);
                               const sapCode = skuDetails?.sapCode || skuDetails?.sap_code || null;
 
                               return (
                                 <Box
-                                  key={opt}
+                                  key={rowWebPid || rowSkuName}
                                   onClick={() => {
-                                    const currentSelected = getCurrentlySelectedList();
-                                    const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                    if (drawerFilters.SKU === 'All') {
+                                      // When 'All' is active and user clicks a particular row, select ONLY this row
+                                      setDrawerFilters(prev => ({
+                                        ...prev,
+                                        SKU: rowSkuName,
+                                        SKUWebPid: rowWebPid || 'All'
+                                      }));
+                                      return;
+                                    }
+                                    const currentSelected = getSelectedRows();
+                                    const rowKey = rowWebPid || rowSkuName;
+                                    const exists = currentSelected.some(s => (s.webPid || s.skuName) === rowKey);
                                     let nextSelected;
                                     if (exists) {
-                                      nextSelected = currentSelected.filter(s => s.toLowerCase() !== opt.toLowerCase());
+                                      nextSelected = currentSelected.filter(s => (s.webPid || s.skuName) !== rowKey);
                                     } else {
-                                      nextSelected = [...currentSelected, opt];
+                                      nextSelected = [...currentSelected, { skuName: rowSkuName, webPid: rowWebPid }];
                                     }
                                     if (nextSelected.length === 0) {
                                       setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
-                                    } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                                    } else if (nextSelected.length >= expandedSkuRows.length) {
                                       setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
                                     } else {
-                                      const selectedWebPids = nextSelected.map(name => {
-                                        const details = getSkuDetails(name);
-                                        return details?.webPid || details?.web_pid;
-                                      }).filter(Boolean);
+                                      const selectedWebPids = nextSelected.map(row => row.webPid).filter(Boolean);
+                                      const selectedSkuNames = [...new Set(nextSelected.map(row => row.skuName))];
                                       setDrawerFilters(prev => ({
                                         ...prev,
-                                        SKU: nextSelected.join(';;'),
+                                        SKU: selectedSkuNames.join(';;'),
                                         SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                                       }));
                                     }
                                   }}
-                                  title={[sapCode && `SAP: ${sapCode}`, webPid && `Web PID: ${webPid}`].filter(Boolean).join(' | ') || opt}
+                                  title={[sapCode && `SAP: ${sapCode}`, rowWebPid && `Web PID: ${rowWebPid}`].filter(Boolean).join(' | ') || rowSkuName}
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -3850,9 +4081,9 @@ export default function TrendsCompetitionDrawer({
                                     }}>
                                       {mainName}
                                     </Typography>
-                                    {webPid || (isDrlUser && sapCode) ? (
+                                    {rowWebPid ? (
                                       <Typography sx={{ fontSize: '10px', color: '#64748B', fontWeight: 500, mt: '-1px' }}>
-                                        {isDrlUser && sapCode ? `SAP: ${sapCode}` : ''}{isDrlUser && sapCode && webPid ? ' | ' : ''}{webPid ? `Web PID: ${webPid}` : ''}
+                                        {sapCode ? `SAP: ${sapCode}  |  ` : ''}Web PID: {rowWebPid}
                                       </Typography>
                                     ) : variant ? (
                                       <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
@@ -3863,7 +4094,7 @@ export default function TrendsCompetitionDrawer({
                                 </Box>
                               );
                             })}
-                            {filteredSkus.length === 0 && (
+                            {expandedSkuRows.length === 0 && (
                               <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No SKUs found</Typography>
                             )}
                           </>

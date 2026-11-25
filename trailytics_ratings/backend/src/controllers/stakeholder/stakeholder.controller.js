@@ -1,5 +1,6 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
+import { buildWebPidCondition } from '../../utils/webPidHelper.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -95,8 +96,8 @@ export const getStakeholderDetail = async (req, res) => {
         else if (is_competitor === 'false') extraFilters.push(`coalesce(r.is_competitor, false) = false`);
 
         if (web_pid) {
-            queryParams.webPid = String(web_pid);
-            extraFilters.push(`r.web_pid = {webPid:String}`);
+            const cond = buildWebPidCondition(web_pid, 'r.web_pid', queryParams, 'webPid');
+            if (cond) extraFilters.push(cond);
         }
 
         const extraWhere = extraFilters.length > 0 ? `AND ${extraFilters.join(' AND ')}` : '';

@@ -119,9 +119,26 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SENDER_DISPLAY_NAME = os.getenv("SENDER_DISPLAY_NAME", "Trailytics API Monitor").strip()
 
 # Database credentials (ClickHouse)
-CLICKHOUSE_URL = os.getenv("CLICKHOUSE_URL", "http://13.200.55.131:8123").strip()
-CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "kenil_user").strip()
-CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "Kenil@Kavar0604").strip()
+CLICKHOUSE_URL = (
+    os.getenv("ADMIN_CLICKHOUSE_URL")
+    or os.getenv("CLICKHOUSE_ADMIN_URL")
+    or os.getenv("CLICKHOUSE_URL")
+    or os.getenv("CLICKHOUSE_HOST")
+    or os.getenv("CLICKHOUSE_DEV_URL")
+    or "http://13.232.194.195:8123"
+).strip()
+CLICKHOUSE_USER = (
+    os.getenv("ADMIN_CLICKHOUSE_USER")
+    or os.getenv("CLICKHOUSE_ADMIN_USER")
+    or os.getenv("CLICKHOUSE_USER")
+    or "default"
+).strip()
+CLICKHOUSE_PASSWORD = (
+    os.getenv("ADMIN_CLICKHOUSE_PASSWORD")
+    or os.getenv("CLICKHOUSE_ADMIN_PASSWORD")
+    or os.getenv("CLICKHOUSE_PASSWORD")
+    or ""
+).strip()
 CLICKHOUSE_DB = (
     os.getenv("ADMIN_DB")
     or os.getenv("CLICKHOUSE_ADMIN_DB")

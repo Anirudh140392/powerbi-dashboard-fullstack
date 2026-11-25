@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import dayjs from 'dayjs';
-import { queryAdminDB } from '../config/adminClickhouse.js';
+import { queryAdminDB, ADMIN_DB } from '../config/adminClickhouse.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,8 +41,8 @@ function escapeHtml(str) {
  */
 export async function fetchAlertRecipients() {
     try {
-        console.log('[ApiAlertReport] Querying recipients from admin_master.api_alert...');
-        const rows = await queryAdminDB('SELECT * FROM admin_master.api_alert');
+        console.log(`[ApiAlertReport] Querying recipients from ${ADMIN_DB}.api_alert...`);
+        const rows = await queryAdminDB(`SELECT * FROM ${ADMIN_DB}.api_alert`);
         
         const validRecipients = [];
         const seen = new Set();
@@ -99,7 +99,7 @@ export async function fetchApiIssues(dateScope = 'latest') {
         let targetDate = dayjs().format('YYYY-MM-DD');
 
         if (dateScope === 'latest') {
-            const probeRes = await queryAdminDB('SELECT max(toDate(Date)) as latest_d FROM admin_master.api_logs');
+            const probeRes = await queryAdminDB(`SELECT max(toDate(Date)) as latest_d FROM ${ADMIN_DB}.api_logs`);
             if (probeRes && probeRes[0]?.latest_d) {
                 targetDate = dayjs(probeRes[0].latest_d).format('YYYY-MM-DD');
             }
@@ -118,7 +118,7 @@ export async function fetchApiIssues(dateScope = 'latest') {
                 response_status,
                 empty_response,
                 error_message
-            FROM admin_master.api_logs
+            FROM ${ADMIN_DB}.api_logs
             WHERE toDate(Date) = '${targetDate}'
               AND (
                 (response_status = 'Failed' OR status_code >= 400 OR status_code = 0)

@@ -288,19 +288,7 @@ export default function DsTesterPage({ isEmbedded = false }) {
           setSentinelAnomalies(anomsRes.data.anomalies);
         }
 
-        // Preserve user manual selection: sync active client and active module during scans
-        if ((isBatchMode && batchQueue.length > 0) || statusData?.is_pipeline_active || statusData?.running) {
-          if (statusData?.active_client && statusData.active_client !== selectedClient) {
-            setSelectedClient(statusData.active_client);
-            fetchModules(statusData.active_client);
-          }
-          if (statusData?.active_module) {
-            setSelectedModule(statusData.active_module);
-          }
-        }
-
-        // 1. Build new runsMap from all latest runs returned by backend session
-        // Every finished run immediately shows status: "done", overall: "PASS" or "FAIL"
+        // Rebuild runsMap from latest runs
         const newMap = {};
         if (Array.isArray(runsRes.data)) {
           runsRes.data.forEach((r) => {
@@ -779,6 +767,11 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const res = await axios.get(`${DS_TESTER_API}/clients`);
       if (Array.isArray(res.data) && res.data.length > 0) {
         setClients(res.data);
+        // Keep the selected client valid for the loaded list (avoids MUI out-of-range warning)
+        const ids = res.data.map((c) => c.id);
+        if (!ids.includes(selectedClient)) {
+          setSelectedClient(ids[0]);
+        }
       }
     } catch (err) {
       console.error("[DsTester] Failed to load clients:", err);
@@ -898,10 +891,6 @@ export default function DsTesterPage({ isEmbedded = false }) {
           setActiveRunData(runData);
           if (drawerRunData && drawerRunData.run_id === activeRunId) {
             setDrawerRunData(runData);
-          }
-          // Auto-switch selectedModule to follow the active test when Selenium is working
-          if (runData.module && (runData.status === "running" || runData.overall === "RUNNING")) {
-            setSelectedModule(runData.module);
           }
         }
 
@@ -1706,28 +1695,6 @@ export default function DsTesterPage({ isEmbedded = false }) {
               >
                 Detected Anomalies ({sentinelAnomalies.length})
               </Button>
-              {sentinelAnomalies.length > 0 && (
-                <Tooltip title="Clear Stale Anomalies / Reset Store">
-                  <Button
-                    size="small"
-                    onClick={handleClearAnomalies}
-                    sx={{
-                      minWidth: "auto",
-                      px: 1,
-                      height: 34,
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#64748b",
-                      borderRadius: "8px",
-                      border: "1px dashed #cbd5e1",
-                      textTransform: "none",
-                      "&:hover": { bgcolor: "#fee2e2", color: "#dc2626", borderColor: "#fca5a5" },
-                    }}
-                  >
-                    Clear
-                  </Button>
-                </Tooltip>
-              )}
             </Box>
 
             {/* Scope Selector: Individual Client vs Full Fleet */}
