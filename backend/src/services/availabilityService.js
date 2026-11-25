@@ -1463,11 +1463,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 }
             }
 
+            const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+
             return {
                 section: "platform_kpi_matrix",
                 viewMode,
                 columns: ['KPI', ...columnValues],
-                rows: [kpiRows.osa, kpiRows.buybox, kpiRows.doi, kpiRows.delivery, kpiRows.skucount, kpiRows.metroAvailability, kpiRows.fillrate, kpiRows.psl],
+                rows: isPrestige
+                    ? [kpiRows.osa, kpiRows.buybox, kpiRows.delivery, kpiRows.skucount, kpiRows.metroAvailability, kpiRows.fillrate, kpiRows.psl]
+                    : [kpiRows.osa, kpiRows.buybox, kpiRows.doi, kpiRows.delivery, kpiRows.skucount, kpiRows.metroAvailability, kpiRows.fillrate, kpiRows.psl],
                 applicableDrillItems: kpiRows.applicableDrillItems || [],
                 currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
@@ -1915,10 +1919,12 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 }
             }
 
+            const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+
             return {
                 viewMode,
                 columns: ['KPI', ...columnValues],
-                rows: [kpiRows.osa, kpiRows.marketShare],
+                rows: isPrestige ? [kpiRows.osa] : [kpiRows.osa, kpiRows.marketShare],
                 applicableDrillItems: kpiRows.applicableDrillItems || [],
                 filters,
                 timestamp: new Date().toISOString()
@@ -2251,6 +2257,20 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
 const getDOI = async (filters) => {
     console.log('[getDOI] Request received with filters:', filters);
+
+    const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+    if (isPrestige) {
+        return {
+            section: "doi_overview",
+            doi: null,
+            prevDoi: null,
+            changePercent: null,
+            todayInventory: 0,
+            totalQtySold: 0,
+            filters,
+            timestamp: new Date().toISOString()
+        };
+    }
 
     const cacheKey = generateCacheKey('doi_overview', filters);
 
@@ -2722,7 +2742,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'kpis') {
-                return { options: ['OSA', 'DOI', 'Fillrate', 'PSL'] };
+                const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+                return { options: isPrestige ? ['OSA', 'Fillrate', 'PSL'] : ['OSA', 'DOI', 'Fillrate', 'PSL'] };
             }
 
             if (filterType === 'cities') {
@@ -3139,10 +3160,12 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = (osa !== null && osa > 0) ? (totalSales / (osa / 100)) - totalSales : null;
 
+                const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+
                 // DOI = (latest_inventory / latest_rolling_qty_sold_30d) * 30
                 const latestInventory = parseFloat(row.latest_inventory) || 0;
                 const rollingQtySold30d = parseFloat(row.latest_rolling_qty_sold_30d) || 0;
-                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : null;
+                const doi = (!isPrestige && rollingQtySold30d > 0) ? (latestInventory / rollingQtySold30d) * 30 : null;
 
                 return {
                     date: bucket.label,
@@ -3156,16 +3179,19 @@ const getAvailabilityKpiTrends = async (filters) => {
                 };
             });
 
+            const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+            const allMetrics = [
+                { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
+                { id: 'Doi', label: 'DOI (Days)', color: '#14b8a6', default: true },
+                { id: 'Fillrate', label: 'Buy Box %', color: '#F59E0B', default: true },
+                { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
+                { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },
+                { id: 'Delivery', label: 'Delivery Time', color: '#EC4899', default: false },
+                { id: 'Psl', label: 'PSL (₹)', color: '#8B5CF6', default: false }
+            ];
+
             return {
-                metrics: [
-                    { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
-                    { id: 'Doi', label: 'DOI (Days)', color: '#14b8a6', default: true },
-                    { id: 'Fillrate', label: 'Buy Box %', color: '#F59E0B', default: true },
-                    { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
-                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },
-                    { id: 'Delivery', label: 'Delivery Time', color: '#EC4899', default: false },
-                    { id: 'Psl', label: 'PSL (₹)', color: '#8B5CF6', default: false }
-                ],
+                metrics: isPrestige ? allMetrics.filter(m => m.id !== 'Doi') : allMetrics,
                 timeSeries,
                 period,
                 dateRange: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') }

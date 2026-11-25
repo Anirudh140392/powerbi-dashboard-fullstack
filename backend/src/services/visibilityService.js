@@ -608,10 +608,8 @@ async function getVisibilityOverviewData(filters = {}) {
         const sponsoredChange = formatPPChange(currentSOS.sponsored, prevSOS.sponsored);
         const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
 
-        return {
-            startDate: dateRanges.current.start,
-            endDate: dateRanges.current.end,
-            cards: [
+        const isPrestige = typeof targetDb === 'string' && targetDb.toLowerCase().includes('prestige');
+        const cards = [
                 {
                     title: "Overall SOS",
                     value: `${currentSOS.overall.toFixed(1)}%`,
@@ -676,7 +674,12 @@ async function getVisibilityOverviewData(filters = {}) {
                     endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.organic.values
                 }
-            ]
+            ];
+
+        return {
+            startDate: dateRanges.current.start,
+            endDate: dateRanges.current.end,
+            cards: isPrestige ? cards.filter(c => c.title !== 'Overall SOV') : cards
         };
     } catch (error) {
         console.error('[VisibilityService] Error getting visibility overview:', error);
@@ -685,8 +688,9 @@ async function getVisibilityOverviewData(filters = {}) {
 }
 
 // Mock data fallback for Visibility Overview cards
-const getVisibilityOverviewMockData = () => ({
-    cards: [
+const getVisibilityOverviewMockData = () => {
+    const isPrestige = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
+    const cards = [
         {
             title: "Overall SOS",
             value: "19.6%",
@@ -731,8 +735,9 @@ const getVisibilityOverviewMockData = () => ({
             extraChange: "Slightly above benchmark",
             extraChangeColor: "orange",
         },
-    ]
-});
+    ];
+    return { cards: isPrestige ? cards.filter(c => c.title !== 'Overall SOV') : cards };
+};
 
 // Mock data for Platform KPI Matrix (matching current frontend static data)
 const getPlatformKpiMatrixMockData = () => ({

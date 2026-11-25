@@ -421,10 +421,21 @@ const getMapIntellectData = async (filters) => {
     const currMsMap = new Map((currMsData || []).map(d => [normalizeCity(d.location), parseFloat(d.avg_market_share || 0)]));
     const prevMsMap = new Map((prevMsData || []).map(d => [normalizeCity(d.location), parseFloat(d.avg_market_share || 0)]));
 
+    const isPrestigeDb = (getCurrentDbName() || '').toLowerCase().includes('prestige');
+
     // ── Merge and Process ──
     let resultCities = [];
 
     if (isMarketShareOnly) {
+        if (isPrestigeDb) {
+            return {
+                cities: [],
+                period: {
+                    startDate: startDate.format('YYYY-MM-DD'),
+                    endDate: endDate.format('YYYY-MM-DD'),
+                }
+            };
+        }
         resultCities = (currMsData || []).map(data => {
             let cityName = (data.location || '').trim();
             const lowerCity = cityName.toLowerCase();
@@ -481,16 +492,16 @@ const getMapIntellectData = async (filters) => {
 
             return {
                 name: cityName,
-                sales: sales,
-                salesFormatted: formatLac(sales),
-                salesChange: parseFloat(calcChange(sales, prevSales).toFixed(1)),
-                orders: Math.round(orders),
-                ordersChange: parseFloat(calcChange(orders, prevOrders).toFixed(1)),
+                sales: isPrestigeDb ? 0 : sales,
+                salesFormatted: isPrestigeDb ? 'N/A' : formatLac(sales),
+                salesChange: isPrestigeDb ? 0 : parseFloat(calcChange(sales, prevSales).toFixed(1)),
+                orders: isPrestigeDb ? 0 : Math.round(orders),
+                ordersChange: isPrestigeDb ? 0 : parseFloat(calcChange(orders, prevOrders).toFixed(1)),
                 osa: parseFloat(osa.toFixed(1)),
                 osaChange: parseFloat(calcChange(osa, prevOsa).toFixed(1)),
-                marketShare: parseFloat(ms.toFixed(2)),
-                marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(2)),
-                qty: Math.round(qty),
+                marketShare: isPrestigeDb ? 0 : parseFloat(ms.toFixed(2)),
+                marketShareChange: isPrestigeDb ? 0 : parseFloat(calcChange(ms, prevMs).toFixed(2)),
+                qty: isPrestigeDb ? 0 : Math.round(qty),
                 listingPercentage: parseFloat((data.city_listing || 0).toFixed(1))
             };
         }).filter(Boolean);
