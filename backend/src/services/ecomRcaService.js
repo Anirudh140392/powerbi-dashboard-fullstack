@@ -519,6 +519,7 @@ export const getEcomRcaData = async (filters = {}) => {
                             mergedMap.set(key, {
                                 ...o,
                                 ad_clicks: 0,
+                                ad_impressions: 0,
                                 ad_orders: 0
                             });
                         }
@@ -533,6 +534,7 @@ export const getEcomRcaData = async (filters = {}) => {
                             mergedMap.set(key, {
                                 ...existing,
                                 ad_clicks: p.ad_clicks || 0,
+                                ad_impressions: p.ad_impressions || 0,
                                 ad_orders: p.ad_orders || 0
                             });
                         } else {
@@ -543,6 +545,7 @@ export const getEcomRcaData = async (filters = {}) => {
                                 sd_ad_clicks: 0, sd_ad_sales: 0, sd_ad_spend: 0, sd_ad_units_sold: 0,
                                 avg_listing_pct: 0,
                                 ad_clicks: p.ad_clicks || 0,
+                                ad_impressions: p.ad_impressions || 0,
                                 ad_orders: p.ad_orders || 0
                             });
                         }
@@ -637,8 +640,12 @@ export const getEcomRcaData = async (filters = {}) => {
                     }
                     if (cat.includes('conversion') || cat.includes('cvr')) {
                         if (cat.includes('inorganic cvr')) {
-                            const clicks = parseFloat(obj.ad_clicks || 0);
-                            return clicks > 0 ? (parseFloat(obj.ad_orders || 0) / clicks) * 100 : 0;
+                            return calculateConversion(
+                                parseFloat(obj.ad_orders || 0),
+                                parseFloat(obj.ad_impressions || 0),
+                                parseFloat(obj.ad_clicks || 0),
+                                { platform, table: 'rb_pm_olap' }
+                            );
                         } else if (cat.includes('organic cvr')) {
                             // Organic CVR = (Organic Qty / Organic GV) * 100
                             // Organic Qty = Qty_sold - Ad_Quantity_sold, Organic GV = Overall GV - Ad GV
@@ -893,6 +900,7 @@ export const getEcomRcaData = async (filters = {}) => {
             SELECT
                 lower(brand) as brand,
                 SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders,
+                SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions,
                 SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks,
                 
                 SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
@@ -1088,9 +1096,10 @@ export const getEcomRcaData = async (filters = {}) => {
         const pSearchOrders = pSpOrders + pSbOrders + pSdOrders;
         const cSearchClicks = cSpClicks + cSbClicks + cSdClicks;
         const pSearchClicks = pSpClicks + pSbClicks + pSdClicks;
-        // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
-        const cCvrAd = cPmClicks > 0 ? (cPmOrders / cPmClicks) * 100 : 0;
-        const pCvrAd = pPmClicks > 0 ? (pPmOrders / pPmClicks) * 100 : 0;
+        // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+        const pmConvOpts = { platform, table: 'rb_pm_olap' };
+        const cCvrAd = calculateConversion(cPmOrders, cPmImp, cPmClicks, pmConvOpts);
+        const pCvrAd = calculateConversion(pPmOrders, pPmImp, pPmClicks, pmConvOpts);
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
@@ -1256,9 +1265,11 @@ export const getEcomRcaData = async (filters = {}) => {
             const cSearchSpendB = cSpSpendB + cSbSpendB + cSdSpendB;
             const pSearchSpendB = pSpSpendB + pSbSpendB + pSdSpendB;
 
-            // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
-            const cCvrAdB = cPmClicksB > 0 ? (cPmOrdersB / cPmClicksB) * 100 : 0;
-            const pCvrAdB = pPmClicksB > 0 ? (pPmOrdersB / pPmClicksB) * 100 : 0;
+            // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+            const cPmImpB = parseFloat(cpmB.impressions || 0);
+            const pPmImpB = parseFloat(ppmB.impressions || 0);
+            const cCvrAdB = calculateConversion(cPmOrdersB, cPmImpB, cPmClicksB, pmConvOpts);
+            const pCvrAdB = calculateConversion(pPmOrdersB, pPmImpB, pPmClicksB, pmConvOpts);
             const cSearchRoasB = cSearchSpendB > 0 ? (cSearchSalesB / cSearchSpendB) : 0;
             const pSearchRoasB = pSearchSpendB > 0 ? (pSearchSalesB / pSearchSpendB) : 0;
 

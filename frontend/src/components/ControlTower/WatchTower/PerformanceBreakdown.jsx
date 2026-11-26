@@ -427,6 +427,7 @@ export function AggregatedViewTable() {
     const [comparePeriods, setComparePeriods] = useState(false);
     const [expandedRows, setExpandedRows] = useState(new Set());
     const [periodComparison, setPeriodComparison] = useState(null);
+    const [useImpressionsConversion, setUseImpressionsConversion] = useState(false);
     const [isPeriodPanelOpen, setIsPeriodPanelOpen] = useState(false);
     const [pmPlatforms, setPmPlatforms] = useState([]);
     const [localPlatformFilter, setLocalPlatformFilter] = useState([]);
@@ -614,6 +615,8 @@ export function AggregatedViewTable() {
 
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
+                const useImpConv = Boolean(result.useImpressionsConversion);
+                setUseImpressionsConversion(useImpConv);
                 setData(result.data);
 
                 // Dynamically calculate totals strictly based on the fetched row data
@@ -631,7 +634,9 @@ export function AggregatedViewTable() {
 
                 calcTotals.ctr = calcTotals.impressions > 0 ? (totalClicks / calcTotals.impressions) * 100 : 0;
                 calcTotals.cpc = totalClicks > 0 ? (calcTotals.spends / totalClicks) : 0;
-                calcTotals.cvr = totalClicks > 0 ? (calcTotals.orders / totalClicks) * 100 : 0;
+                calcTotals.cvr = useImpConv
+                    ? (calcTotals.impressions > 0 ? (calcTotals.orders / calcTotals.impressions) * 100 : 0)
+                    : (totalClicks > 0 ? (calcTotals.orders / totalClicks) * 100 : 0);
                 calcTotals.aov = calcTotals.orders > 0 ? (calcTotals.sales / calcTotals.orders) : 0;
 
                 setTotals(calcTotals);
@@ -639,6 +644,7 @@ export function AggregatedViewTable() {
                 setPeriodComparison(result.period_comparison || null);
             } else {
                 // No data returned — show empty state gracefully instead of erroring
+                setUseImpressionsConversion(false);
                 setData([]);
                 setTotals(null);
                 setUntagged(null);
@@ -797,11 +803,13 @@ export function AggregatedViewTable() {
         const totalClicks = acc.clicks + acc.atc;
         acc.ctr = acc.impressions > 0 ? (totalClicks / acc.impressions) * 100 : 0;
         acc.cpc = totalClicks > 0 ? (acc.spends / totalClicks) : 0;
-        acc.cvr = totalClicks > 0 ? (acc.orders / totalClicks) * 100 : 0;
+        acc.cvr = useImpressionsConversion
+            ? (acc.impressions > 0 ? (acc.orders / acc.impressions) * 100 : 0)
+            : (totalClicks > 0 ? (acc.orders / totalClicks) * 100 : 0);
         acc.aov = acc.orders > 0 ? (acc.sales / acc.orders) : 0;
         acc.spend_percent_share = 100;
         return acc;
-    }, [activeComparePeriod, periodComparison]);
+    }, [activeComparePeriod, periodComparison, useImpressionsConversion]);
 
     const totalsDeltas = useMemo(() => {
         if (!totals || !activeCompareTotals) return null;
@@ -1096,7 +1104,9 @@ export function AggregatedViewTable() {
                                             : (pd.orders > 0 ? pd.sales / pd.orders : 0);
                                         const cvr = pd.cvr !== undefined && pd.cvr !== null
                                             ? pd.cvr
-                                            : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : 0);
+                                            : (useImpressionsConversion
+                                                ? (pd.impressions > 0 ? (pd.orders / pd.impressions) * 100 : 0)
+                                                : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : 0));
 
                                         periodRowVals.push(pd.impressions ?? 0);
                                         if (showClicks) periodRowVals.push(pd.clicks ?? 0);
@@ -1268,7 +1278,9 @@ export function AggregatedViewTable() {
                                     : (pdTotalClicks > 0 ? pd.spends / pdTotalClicks : null);
                                 const pdCvr = pd?.cvr !== undefined && pd?.cvr !== null
                                     ? pd.cvr
-                                    : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : null);
+                                    : (useImpressionsConversion
+                                        ? (pd?.impressions > 0 ? (pd.orders / pd.impressions) * 100 : null)
+                                        : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : null));
                                 const pdAov = pd?.aov !== undefined && pd?.aov !== null
                                     ? pd.aov
                                     : (pd?.orders > 0 ? pd.sales / pd.orders : null);
@@ -1332,7 +1344,11 @@ export function AggregatedViewTable() {
                                                     pd?.cpc ? formatCurrency(pd.cpc) : (pd && pdTotalClicks > 0 ? formatCurrency(pd.spends / pdTotalClicks) : "—"),
                                                     pd ? formatNumber(pd.orders) : "—",
                                                     pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—"),
-                                                    pd?.cvr ? formatPercent(pd.cvr) : (pd && pdTotalClicks > 0 ? formatPercent((pd.orders / pdTotalClicks) * 100) : "—"),
+                                                    pd?.cvr !== undefined && pd?.cvr !== null
+                                                        ? formatPercent(pd.cvr)
+                                                        : (pd && (useImpressionsConversion ? pd.impressions > 0 : pdTotalClicks > 0)
+                                                            ? formatPercent((pd.orders / (useImpressionsConversion ? pd.impressions : pdTotalClicks)) * 100)
+                                                            : "—"),
                                                     pd ? formatCurrency(pd.sales) : "—"
                                                 );
 

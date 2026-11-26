@@ -299,6 +299,12 @@ const FilterSelect = ({ label, value, options, onChange }) => (
 // ------------------- AGGREGATORS -------------------
 const getSafe = (val) => Number.isFinite(val) ? val : 0;
 
+const computeAggregatedConversion = (a) => (
+  a.useImpressionsConversion
+    ? (a.impressions ? (a.orders / a.impressions) * 100 : 0)
+    : (a.clicks ? (a.orders / a.clicks) : 0)
+);
+
 function aggregateQuarterKpis(rows) {
   const aggs = {};
 
@@ -313,7 +319,8 @@ function aggregateQuarterKpis(rows) {
           clicks: 0,
           orders: 0, // Init orders
           adSales: 0,
-          totalSales: 0
+          totalSales: 0,
+          useImpressionsConversion: false
         };
       }
       aggs[q].impressions += getSafe(metrics.impressions);
@@ -322,6 +329,7 @@ function aggregateQuarterKpis(rows) {
       aggs[q].orders += getSafe(metrics.orders); // Add orders aggregation
       aggs[q].adSales += getSafe(metrics.adSales);
       aggs[q].totalSales += getSafe(metrics.totalSales);
+      if (metrics.useImpressionsConversion) aggs[q].useImpressionsConversion = true;
     });
   });
 
@@ -331,7 +339,7 @@ function aggregateQuarterKpis(rows) {
     result[q] = {
       impressions: a.impressions,
       spend: a.spend,
-      conversion: a.clicks ? (a.orders / a.clicks) : 0, // Orders / Clicks
+      conversion: computeAggregatedConversion(a),
       cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
       roas: a.spend ? (a.adSales / a.spend) : 0,
       sales: a.totalSales,       // Total Sales
@@ -347,7 +355,7 @@ function aggregateMonthKpis(rows) {
     // Row has month property?
     const m = row.month;
     if (!m) return;
-    if (!aggs[m]) aggs[m] = { impressions: 0, spend: 0, clicks: 0, orders: 0, adSales: 0, totalSales: 0 };
+    if (!aggs[m]) aggs[m] = { impressions: 0, spend: 0, clicks: 0, orders: 0, adSales: 0, totalSales: 0, useImpressionsConversion: false };
 
     // We need to access the metrics for this row.
     // The row itself represents a day or category. 
@@ -366,6 +374,7 @@ function aggregateMonthKpis(rows) {
       aggs[m].orders += getSafe(qData.orders); // Track orders
       aggs[m].adSales += getSafe(qData.adSales);
       aggs[m].totalSales += getSafe(qData.totalSales);
+      if (qData.useImpressionsConversion) aggs[m].useImpressionsConversion = true;
     }
   });
 
@@ -375,7 +384,7 @@ function aggregateMonthKpis(rows) {
     result[m] = {
       impressions: a.impressions,
       spend: a.spend,
-      conversion: a.clicks ? (a.orders / a.clicks) : 0, // Orders / Clicks (Conversion Rate)
+      conversion: computeAggregatedConversion(a),
       cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
       roas: a.spend ? (a.adSales / a.spend) : 0,
       sales: a.totalSales,
@@ -655,7 +664,8 @@ export default function DrilldownLatestTable() {
             clicks: Number(item.clicks) || 0,
             orders: Number(item.orders) || 0,
             adSales: Number(item.sales) || 0,
-            totalSales: Number(item.total_sales) || 0
+            totalSales: Number(item.total_sales) || 0,
+            useImpressionsConversion: Boolean(item.useImpressionsConversion)
           }
         }
       }));

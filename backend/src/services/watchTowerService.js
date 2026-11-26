@@ -11,7 +11,7 @@ import RcaSkuDim from '../models/RcaSkuDim.js';
 import RbPlatform from '../models/RbPlatform.js';
 import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
-import { queryClickHouse, getCurrentDbName, calculateConversion } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName, calculateConversion, shouldUseImpressionsConversion, buildPmConversionSql } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
@@ -844,7 +844,7 @@ const getPmConversion = async (start, end, platformFilter, locationFilter, categ
         const impressions = parseFloat(result[0]?.impressions || 0);
         const clicks = parseFloat(result[0]?.clicks || 0);
 
-        return calculateConversion(orders, impressions, clicks);
+        return calculateConversion(orders, impressions, clicks, { platform: platformFilter, table: pmSrc.table });
     } catch (err) {
         console.error("Error fetching PM Conversion:", err);
         return 0;
@@ -904,11 +904,13 @@ const getPmConversionBulk = async (start, end, platformFilter, locationFilter, c
 
         const result = await queryClickHouse(sql);
         const map = new Map();
+        const isPlatformGrouping = String(groupByField || '').toLowerCase().includes('platform');
         result.forEach(row => {
             const orders = parseFloat(row.orders || 0);
             const impressions = parseFloat(row.impressions || 0);
             const clicks = parseFloat(row.clicks || 0);
-            const conv = calculateConversion(orders, impressions, clicks);
+            const rowPlatform = isPlatformGrouping ? row.group_key : platformFilter;
+            const conv = calculateConversion(orders, impressions, clicks, { platform: rowPlatform, table: pmSrc.table });
             map.set(row.group_key, conv);
         });
         return map;
@@ -2809,7 +2811,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 };
 
                 const calculateConversionLocal = (data) => {
-                    return data.hasPmData ? calculateConversion(data.orders, data.impressions, data.clicks) : null;
+                    return data.hasPmData ? calculateConversion(data.orders, data.impressions, data.clicks, { platform: rawPlatform, table: pmSrc.table }) : null;
                 };
 
                 const calculateAov = (data) => {
@@ -3593,13 +3595,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             // Calculate derived KPIs - Current
             allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
-            allConversion = allClicks > 0 ? (allOrders / allClicks) * 100 : 0;
+            allConversion = calculateConversion(allOrders, allImpressions, allClicks, { platform: platformArr, table: pmSrc.table });
             allCpm = cpmImpressions > 0 ? (cpmSpend / cpmImpressions) * 1000 : 0;
             allCpc = cpcClicks > 0 ? cpcSpend / cpcClicks : 0;
 
             // Calculate derived KPIs - Previous
             prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
-            prevAllConversion = prevAllClicks > 0 ? (prevAllOrders / prevAllClicks) * 100 : 0;
+            prevAllConversion = calculateConversion(prevAllOrders, prevAllImpressions, prevAllClicks, { platform: platformArr, table: pmSrc.table });
             prevAllCpm = prevCpmImpressions > 0 ? (prevCpmSpend / prevCpmImpressions) * 1000 : 0;
             prevAllCpc = prevCpcClicks > 0 ? prevCpcSpend / prevCpcClicks : 0;
 
@@ -3744,8 +3746,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Calculate ROAS: Total Ad Sales / Total Spend
                 const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
 
-                // Calculate Conversion: (Total Orders / Total Clicks) * 100
-                const conversion = calculateConversion(totalOrders, totalImpressions, totalClicks);
+                // Calculate Conversion: (Orders / Clicks) * 100 (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+                const conversion = calculateConversion(totalOrders, totalImpressions, totalClicks, { platform: p.label, table: pmSrc.table });
 
                 // Calculate CPM: (Total Ad Spend / Total Ad Impressions) * 1000
                 const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
@@ -3780,7 +3782,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Calculate previous period derived metrics from bulk data
                 const prevClicks = metrics.prev.clicks;
                 const prevOrders = metrics.prev.orders;
-                const prevConversion = calculateConversion(prevOrders, prevImpressions, prevClicks);
+                const prevConversion = calculateConversion(prevOrders, prevImpressions, prevClicks, { platform: p.label, table: pmSrc.table });
                 const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
                 const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
@@ -4106,8 +4108,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const cpmImpressions = parseFloat(pm.cpm_impressions || 0);
 
                     const moRoas = moSpend > 0 ? moAdSales / moSpend : 0;
-                    // Conversion = (Orders / Clicks) * 100 from rb_pm_olap
-                    const moConversion = moPmClicks > 0 ? (moOrders / moPmClicks) * 100 : 0;
+                    // Conversion = (Orders / Clicks) * 100 from rb_pm_olap (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+                    const moConversion = calculateConversion(moOrders, moImpressions, moPmClicks, { platform: moPlatform, table: pmSrc.table });
                     const moCpm = cpmImpressions > 0 ? (cpmSpend / cpmImpressions) * 1000 : 0;
                     const moCpc = cpcClicks > 0 ? cpcSpend / cpcClicks : 0;
 
@@ -4308,7 +4310,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const catPmOrders = parseFloat(catPmResult?.total_orders || 0);
                 const catPmImpressions = parseFloat(catPmResult?.total_impressions || 0);
                 const catPmClicks = parseFloat(catPmResult?.total_clicks || 0);
-                const catConversion = catPmClicks > 0 ? (catPmOrders / catPmClicks) * 100 : 0;
+                const catConversion = calculateConversion(catPmOrders, catPmImpressions, catPmClicks, { platform: categoryOverviewPlatform, table: pmSrc.table });
                 const catCpm = catImpressions > 0 ? (catSpend / catImpressions) * 1000 : 0;
                 const catCpc = catPmClicks > 0 ? catSpend / catPmClicks : 0;
 
@@ -4756,10 +4758,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Conversion
             const currOrders = findMetric(boPmMap, bName, 'total_ad_orders');
             const prevOrders = findMetric(boPrevPmMap, bName, 'total_ad_orders');
+            const currImpressions = findMetric(boPmMap, bName, 'total_ad_impressions');
+            const prevImpressions = findMetric(boPrevPmMap, bName, 'total_ad_impressions');
             const currClicks = findMetric(boPmMap, bName, 'total_ad_clicks');
             const prevClicks = findMetric(boPrevPmMap, bName, 'total_ad_clicks');
-            const currConv = currClicks > 0 ? (currOrders / currClicks) * 100 : 0;
-            const prevConv = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+            const currConv = calculateConversion(currOrders, currImpressions, currClicks, { platform: brandsOverviewPlatform, table: pmSrc.table });
+            const prevConv = calculateConversion(prevOrders, prevImpressions, prevClicks, { platform: brandsOverviewPlatform, table: pmSrc.table });
             const convTrend = calcTrendPp(currConv, prevConv);
 
             // Availability
@@ -7786,7 +7790,8 @@ const getMonthOverview = async (filters) => {
         const wtOsa = (availability !== null && listingPercent !== null) ? (availability * listingPercent) / 100 : null;
         const wtDiscount = hasPdp ? parseFloat(data.my_wt_discount || 0) : null;
         const roas = hasPm ? (spend > 0 ? adSales / spend : null) : null;
-        const conversion = hasPm ? calculateConversion(orders, impressions, clicks) : null;
+        const moConvOpts = { platform: moPlatform, table: pmSrc.table };
+        const conversion = hasPm ? calculateConversion(orders, impressions, clicks, moConvOpts) : null;
         const cpcSpend = hasPm ? parseFloat(pmData.cpc_spend || 0) : 0;
         const cpcClicks = hasPm ? parseFloat(pmData.cpc_clicks || 0) : 0;
         const cpmSpend = hasPm ? parseFloat(pmData.cpm_spend || 0) : 0;
@@ -7830,7 +7835,9 @@ const getMonthOverview = async (filters) => {
         const prevWtOsa = (prevAvailability !== null && prevListingPercent !== null) ? (prevAvailability * prevListingPercent) / 100 : null;
         const prevWtDiscount = prevHasPdp ? parseFloat(prevData.my_wt_discount || 0) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
-        const prevConversion = prevHasPm ? (prevClicks > 0 ? (prevOrders / prevClicks) * 100 : null) : null;
+        const prevUseImpConv = shouldUseImpressionsConversion(moConvOpts);
+        const prevConversionDenom = prevUseImpConv ? prevImpressions : prevClicks;
+        const prevConversion = prevHasPm ? (prevConversionDenom > 0 ? calculateConversion(prevOrders, prevImpressions, prevClicks, moConvOpts) : null) : null;
         const prevCpcSpend = prevHasPm ? parseFloat(prevPmData.cpc_spend || 0) : 0;
         const prevCpcClicks = prevHasPm ? parseFloat(prevPmData.cpc_clicks || 0) : 0;
         const prevCpmSpend = prevHasPm ? parseFloat(prevPmData.cpm_spend || 0) : 0;
@@ -9009,8 +9016,11 @@ const getBrandsOverview = async (filters) => {
         // Buy Box %: ((SUM(buy_box_neno_osa)*1.0) / SUM(deno_osa)) * 100
         const buyBoxPct = hasPdp ? (parseFloat(curr.total_deno || 0) > 0 ? (parseFloat(curr.total_buy_box_neno || 0) * 1.0 / parseFloat(curr.total_deno)) * 100 : null) : null;
         const deliveryTime = hasPdp ? (parseFloat(curr.avg_delivery_days || null)) : null;
+        const boConvOpts = { platform: boPlatform, table: pmSrc.table };
+        const boUseImpConv = shouldUseImpressionsConversion(boConvOpts);
         const roas = hasPm ? (spend > 0 ? adSales / spend : null) : null;
-        const conversion = hasPm ? (clicks > 0 ? (orders / clicks) * 100 : null) : null;
+        const conversionDenom = boUseImpConv ? impressions : clicks;
+        const conversion = hasPm ? (conversionDenom > 0 ? calculateConversion(orders, impressions, clicks, boConvOpts) : null) : null;
         const cpm = hasPm ? (impressions > 0 ? (spend / impressions) * 1000 : null) : null;
         const cpc = hasPm ? (clicks > 0 ? spend / clicks : null) : null;
         const asp = hasPdp ? parseFloat(curr.avg_asp || 0) : null;
@@ -9044,7 +9054,8 @@ const getBrandsOverview = async (filters) => {
         const prevBuyBoxPct = prevHasPdp ? (parseFloat(prev.total_deno || 0) > 0 ? (parseFloat(prev.total_buy_box_neno || 0) * 1.0 / parseFloat(prev.total_deno)) * 100 : null) : null;
         const prevDeliveryTime = prevHasPdp ? (parseFloat(prev.avg_delivery_days || null)) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
-        const prevConversion = prevHasPm ? (prevClicks > 0 ? (prevOrders / prevClicks) * 100 : null) : null;
+        const prevConversionDenom = boUseImpConv ? prevImpressions : prevClicks;
+        const prevConversion = prevHasPm ? (prevConversionDenom > 0 ? calculateConversion(prevOrders, prevImpressions, prevClicks, boConvOpts) : null) : null;
         const prevCpm = prevHasPm ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
         const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
         const prevAsp = prevHasPdp ? parseFloat(prev.avg_asp || 0) : null;
@@ -9858,8 +9869,10 @@ const getKpiTrends = async (filters) => {
         // 2. Inorganic Sales (Ad Sales) - Absolute value as requested
         const inorganicSales = effectiveAdSales;
 
-        // 3. Conversion (Orders / Clicks * 100)
-        const conversion = calculateConversion(effectiveAdOrders, effectiveAdImpressions, effectiveAdClicks);
+        // 3. Conversion (Orders / Clicks * 100; Impressions for Marico BigBasket on 13.232.194.195:8123 when reading rb_pm_olap)
+        const trendConvPlatform = (dimension === 'platform' && dimensionValue && dimensionValue !== 'All') ? dimensionValue : platform;
+        const useImpConversion = !usePdpForPmKpis && shouldUseImpressionsConversion({ platform: trendConvPlatform, table: pmSrc.table });
+        const conversion = calculateConversion(effectiveAdOrders, effectiveAdImpressions, effectiveAdClicks, useImpConversion);
 
         // 4. ROAS (Ad Sales / Ad Spend)
         const roas = effectiveAdSpend > 0 ? effectiveAdSales / effectiveAdSpend : 0;
@@ -9894,7 +9907,7 @@ const getKpiTrends = async (filters) => {
             // Core 5 KPIs (Performance Matrix)
             ShareOfSearch: valIfData(hasSosFinalData, hasSosBucketData, parseFloat(shareOfSearch.toFixed(2))),
             InorganicSales: valIfData(hasPmAdSalesData, effectivePmBucketData, parseFloat(inorganicSales.toFixed(2))),
-            Conversion: valIfData(hasPmOrdersData && hasPmClicksData, effectivePmBucketData, parseFloat(conversion.toFixed(2))),
+            Conversion: valIfData(hasPmOrdersData && (useImpConversion ? hasPmImpressionsData : hasPmClicksData), effectivePmBucketData, parseFloat(conversion.toFixed(2))),
             Roas: valIfData(hasPmAdSalesData && hasPmSpendData, effectivePmBucketData, parseFloat(roas.toFixed(2))),
             BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, effectivePmBucketData && hasPdpBucketData, parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
@@ -13134,7 +13147,12 @@ const getRcaData = async (filters = {}) => {
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('ad') && cat.includes('impression')) return parseFloat(obj.impressions || 0);
                     if (cat.includes('impression')) return parseFloat(obj.impressions || 0) + parseFloat(obj.organic_impressions || 0);
-                    if (cat.includes('conversion') || cat.includes('cvr')) return calculateConversion(obj.orders, obj.impressions, obj.clicks);
+                    if (cat.includes('conversion') || cat.includes('cvr')) {
+                        return calculateConversion(obj.orders, obj.impressions, obj.clicks, {
+                            platform,
+                            table: drilldownLevel === 'keyword' ? 'rb_pm_olap' : src.table
+                        });
+                    }
                     if (cat.includes('keyword')) return (obj.deno > 0 ? (obj.neno / obj.deno) * 100 : 0);
                     if (cat.includes('osa')) return (obj.deno > 0 ? (obj.neno / obj.deno) * 100 : 0);
                     if (cat.includes('listing')) return parseFloat(obj.avg_listing_pct || 0);
@@ -14754,7 +14772,7 @@ const getCityOverview = async (filters) => {
 
     const allAvailability = allDeno > 0 ? (allNeno / allDeno) * 100 : null;
     const allRoas = allSpend > 0 ? allAdSales / allSpend : null;
-    const allConversion = calculateConversion(allOrders, allImpressions, allClicks);
+    const allConversion = calculateConversion(allOrders, allImpressions, allClicks, { platform: cityPlatform, table: pmSrc.table });
     const allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : null;
     const allCpc = allClicks > 0 ? allSpend / allClicks : null;
 
@@ -14794,7 +14812,7 @@ const getCityOverview = async (filters) => {
 
     const prevAllAvailability = prevAllDeno > 0 ? (prevAllNeno / prevAllDeno) * 100 : null;
     const prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : null;
-    const prevAllConversion = calculateConversion(prevAllOrders, prevAllImpressions, prevAllClicks);
+    const prevAllConversion = calculateConversion(prevAllOrders, prevAllImpressions, prevAllClicks, { platform: cityPlatform, table: pmSrc.table });
     const prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : null;
     const prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : null;
 
@@ -14888,7 +14906,7 @@ const getCityOverview = async (filters) => {
 
         const availability = hasPdp ? (deno > 0 ? (neno / deno) * 100 : null) : null;
         const roas = hasPm ? (spend > 0 ? adSales / spend : null) : null;
-        const conversion = hasPm ? calculateConversion(orders, impressions, clicks) : null;
+        const conversion = hasPm ? calculateConversion(orders, impressions, clicks, { platform: cityPlatform, table: pmSrc.table }) : null;
         const cpm = hasPm ? (impressions > 0 ? (spend / impressions) * 1000 : null) : null;
         const cpc = hasPm ? (clicks > 0 ? spend / clicks : null) : null;
 
@@ -14928,7 +14946,7 @@ const getCityOverview = async (filters) => {
 
         const prevAvailability = prevHasPdp ? (prevDeno > 0 ? (prevNeno / prevDeno) * 100 : null) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
-        const prevConversion = prevHasPm ? calculateConversion(prevOrders, prevImpressions, prevClicks) : null;
+        const prevConversion = prevHasPm ? calculateConversion(prevOrders, prevImpressions, prevClicks, { platform: cityPlatform, table: pmSrc.table }) : null;
         const prevCpm = prevHasPm ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
         const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
 
@@ -15059,7 +15077,14 @@ const getPerformanceBreakdownData = async (filters) => {
         // ── Calculate total spends by summing rows later to ensure 100% share consistency ──
         // (Removing separate total_spends query for performance and better percentage alignment)
 
-        const cvrFormula = `if (group_clicks > 0, (group_orders / group_clicks) * 100, 0)`;
+        const useImpConv = shouldUseImpressionsConversion({ platform: rawPlatform, table: pmSrc.table });
+        const sqlCvrExpr = buildPmConversionSql({
+            ordersExpr: 'group_orders',
+            impressionsExpr: 'group_impressions',
+            clicksExpr: 'group_clicks_total',
+            platformFilter: rawPlatform,
+            table: pmSrc.table
+        });
 
         const query = `
             SELECT
@@ -15073,7 +15098,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 0 AS spend_percent_share,
                 if (group_clicks_total > 0, group_spends / group_clicks_total, 0) AS cpc,
                 SUM(${pmSrc.f.orders}) AS group_orders,
-                if (group_clicks_total > 0, (group_orders / group_clicks_total) * 100, 0) AS cvr,
+                ${sqlCvrExpr} AS cvr,
                 SUM(${pmSrc.f.adSales}) AS group_sales
             FROM ${pmSrc.table}
             WHERE 1 = 1 ${platformCond} ${dateClause} ${extraClauses} ${ourBrandClause}
@@ -15127,7 +15152,7 @@ const getPerformanceBreakdownData = async (filters) => {
 
         totals.ctr = totals.impressions > 0 ? (totals.totalClicks / totals.impressions) * 100 : 0;
         totals.cpc = totals.totalClicks > 0 ? totals.spends / totals.totalClicks : 0;
-        totals.cvr = totals.totalClicks > 0 ? (totals.orders / totals.totalClicks) * 100 : 0;
+        totals.cvr = calculateConversion(totals.orders, totals.impressions, totals.totalClicks, useImpConv);
         totals.aov = totals.orders > 0 ? totals.sales / totals.orders : 0;
 
         // ── Period Comparison ───────────────────────────────────────────────
@@ -15236,7 +15261,7 @@ const getPerformanceBreakdownData = async (filters) => {
                         spends,
                         cpc: totalClicks > 0 ? spends / totalClicks : 0,
                         orders,
-                        cvr: totalClicks > 0 ? (orders / totalClicks) * 100 : 0,
+                        cvr: calculateConversion(orders, impressions, totalClicks, useImpConv),
                         sales,
                         aov: orders > 0 ? sales / orders : 0
                     };
@@ -15269,7 +15294,8 @@ const getPerformanceBreakdownData = async (filters) => {
             data: parsedData,
             totals,
             untagged: { count: 0, percent: 0 },
-            period_comparison
+            period_comparison,
+            useImpressionsConversion: useImpConv
         };
 
     } catch (error) {

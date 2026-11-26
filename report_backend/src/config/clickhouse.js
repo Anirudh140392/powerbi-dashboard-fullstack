@@ -16,8 +16,77 @@ export const dbStorage = new AsyncLocalStorage();
 // Cache of ClickHouse clients per database name
 const clientCache = new Map();
 
-function isMaricoDb(dbName) {
+const MARICO_IMPRESSIONS_CVR_HOST = '13.232.194.195';
+const MARICO_IMPRESSIONS_CVR_PORT = '8123';
+
+export function isMaricoDb(dbName = getCurrentDbName()) {
     return Boolean(dbName && String(dbName).toLowerCase().includes('marico'));
+}
+
+export function getClickHouseUrlForDb(dbName = getCurrentDbName()) {
+    const isMarico = isMaricoDb(dbName);
+    return isMarico
+        ? (process.env.MARICO_CLICKHOUSE_HOST || process.env.MARICO_CLICKHOUSE_URL || 'http://13.232.194.195:8123')
+        : (process.env.CLICKHOUSE_URL || process.env.CLICKHOUSE_HOST || 'http://13.200.55.131:8123');
+}
+
+export function isMaricoImpressionsConversionServer(dbName = getCurrentDbName()) {
+    if (!isMaricoDb(dbName)) return false;
+    const rawUrl = String(getClickHouseUrlForDb(dbName) || '').trim();
+    if (!rawUrl) return false;
+    try {
+        const normalized = /^https?:\/\//i.test(rawUrl) ? rawUrl : `http://${rawUrl}`;
+        const parsed = new URL(normalized);
+        return parsed.hostname === MARICO_IMPRESSIONS_CVR_HOST && parsed.port === MARICO_IMPRESSIONS_CVR_PORT;
+    } catch {
+        return rawUrl.includes(`${MARICO_IMPRESSIONS_CVR_HOST}:${MARICO_IMPRESSIONS_CVR_PORT}`);
+    }
+}
+
+export function isBigBasketPlatform(platform) {
+    if (!platform) return false;
+    const rawItems = Array.isArray(platform) ? platform : String(platform).split(',');
+    const normalized = rawItems
+        .map((p) => String(p || '').trim().toLowerCase().replace(/\s+/g, ''))
+        .filter(Boolean);
+    if (normalized.length === 0) return false;
+    const unique = [...new Set(normalized)];
+    return unique.length === 1 && unique[0] === 'bigbasket';
+}
+
+export function shouldUseImpressionsConversion({ platform, dbName = getCurrentDbName(), table } = {}) {
+    if (table && String(table).trim().toLowerCase() !== 'rb_pm_olap') {
+        return false;
+    }
+    return isMaricoImpressionsConversionServer(dbName) && isBigBasketPlatform(platform);
+}
+
+export function isBigBasketPlatformSql(platformExpr) {
+    return `lower(replaceAll(trim(toString(ifNull(${platformExpr}, ''))), ' ', '')) = 'bigbasket'`;
+}
+
+export function buildPmConversionSql({
+    ordersExpr,
+    impressionsExpr,
+    clicksExpr,
+    platformExpr = null,
+    platformFilter = null,
+    dbName = getCurrentDbName(),
+    table = 'rb_pm_olap',
+} = {}) {
+    const clicksSql = `if(${clicksExpr} > 0, (${ordersExpr} / ${clicksExpr}) * 100, 0)`;
+    if (String(table || '').trim().toLowerCase() !== 'rb_pm_olap') return clicksSql;
+    if (!isMaricoImpressionsConversionServer(dbName)) return clicksSql;
+
+    const impressionsSql = impressionsExpr
+        ? `if(${impressionsExpr} > 0, (${ordersExpr} / ${impressionsExpr}) * 100, 0)`
+        : '0';
+
+    if (isBigBasketPlatform(platformFilter)) return impressionsSql;
+    if (platformExpr) {
+        return `if(${isBigBasketPlatformSql(platformExpr)}, ${impressionsSql}, ${clicksSql})`;
+    }
+    return clicksSql;
 }
 
 /**
@@ -29,9 +98,7 @@ function getClientForDb(dbName) {
     }
 
     const isMarico = isMaricoDb(dbName);
-    const urlToUse = isMarico
-        ? (process.env.MARICO_CLICKHOUSE_HOST || process.env.MARICO_CLICKHOUSE_URL || 'http://13.232.194.195:8123')
-        : (process.env.CLICKHOUSE_URL || process.env.CLICKHOUSE_HOST || 'http://13.200.55.131:8123');
+    const urlToUse = getClickHouseUrlForDb(dbName);
 
     const username = isMarico
         ? (process.env.MARICO_CLICKHOUSE_USER || 'main_user')

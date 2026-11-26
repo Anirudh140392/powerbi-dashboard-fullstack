@@ -1,4 +1,4 @@
-import { queryClickHouse, getCurrentDbName, calculateConversion } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName, calculateConversion, shouldUseImpressionsConversion } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
@@ -137,6 +137,8 @@ const performanceMarketingService = {
 
                 const keywordMap = new Map();
 
+                const useImpressionsConversion = shouldUseImpressionsConversion({ platform: filters.platform, table: pmSource.table });
+
                 results.forEach(row => {
                     const kw = row.keyword_name || 'N/A';
                     const cat = row.keyword_category || 'N/A';
@@ -147,6 +149,7 @@ const performanceMarketingService = {
                             keyword: kw,
                             isKeyword: true,
                             category: cat,
+                            useImpressionsConversion,
                             months: [],
                             children: new Map()
                         });
@@ -160,7 +163,8 @@ const performanceMarketingService = {
                         revenue: parseFloat(row.revenue || 0),
                         clicks: parseInt(row.clicks || 0),
                         orders: parseInt(row.orders || 0),
-                        conversion: calculateConversion(parseInt(row.orders || 0), parseInt(row.impressions || 0), parseInt(row.clicks || 0)),
+                        useImpressionsConversion,
+                        conversion: calculateConversion(parseInt(row.orders || 0), parseInt(row.impressions || 0), parseInt(row.clicks || 0), { platform: filters.platform, table: pmSource.table }),
                         roas: row.spend > 0 ? (row.revenue || 0) / row.spend : 0,
                         cpm: row.impressions > 0 ? (row.spend / row.impressions) * 1000 : 0
                     };
@@ -355,8 +359,8 @@ const performanceMarketingService = {
                             impressions: imp,
                             spend: sp,
                             roas_roas: sp > 0 ? rev / sp : 0,
-                            // Conversion % = (Orders / Clicks) * 100
-                            cr_percentage: calculateConversion(ord, imp, clk)
+                            // Conversion % = (Orders / Clicks) * 100 (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+                            cr_percentage: calculateConversion(ord, imp, clk, { platform: filters.platform, table: 'rb_pm_olap' })
                         };
                     });
                 };
@@ -377,9 +381,10 @@ const performanceMarketingService = {
                 // KPI 1: Impressions
                 const impressionsChange = calculateChange(currentMetrics.impressions, prevMetrics.impressions);
 
-                // KPI 2: Conversion Rate (Orders / Clicks * 100)
-                const currConversion = calculateConversion(currentMetrics.orders, currentMetrics.impressions, currentMetrics.clicks);
-                const prevConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
+                // KPI 2: Conversion Rate (Orders / Clicks * 100; Impressions for Marico BigBasket on 13.232.194.195:8123)
+                const pmConvOpts = { platform: filters.platform, table: 'rb_pm_olap' };
+                const currConversion = calculateConversion(currentMetrics.orders, currentMetrics.impressions, currentMetrics.clicks, pmConvOpts);
+                const prevConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks, pmConvOpts);
                 const conversionChange = currConversion - prevConversion; // Percentage point difference for rates
 
                 // KPI 3: Spend
@@ -435,7 +440,7 @@ const performanceMarketingService = {
                     const avgImpressions = prevMetrics.impressions / prevDuration;
                     const avgSpend = prevMetrics.spend / prevDuration;
                     const aggregateRoas = prevMetrics.spend > 0 ? prevMetrics.adSales / prevMetrics.spend : 0;
-                    const aggregateConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
+                    const aggregateConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks, pmConvOpts);
 
                     finalTrendData.unshift({
                         date: prevStartDate.format('YYYY-MM-DD'), // Show as comparison start date
@@ -594,7 +599,8 @@ const performanceMarketingService = {
                     }
                 });
 
-                return dailyData;
+                const useImpressionsConversion = shouldUseImpressionsConversion({ platform: filters.platform, table: pmSource.table });
+                return dailyData.map(row => ({ ...row, useImpressionsConversion }));
 
             } catch (error) {
                 console.error("Error in getFormatPerformance:", error);
@@ -1197,13 +1203,14 @@ const performanceMarketingService = {
                 });
 
                 // Transform to frontend expected format
+                const convOpts = { platform: filters.platform, table: pmSource.table };
                 const rows = currentResults.map(row => {
                     const spend = parseFloat(row.spend) || 0;
                     const impressions = parseFloat(row.impressions) || 0;
                     const clicks = parseFloat(row.clicks) || 0;
 
                     const orders = parseFloat(row.orders) || 0;
-                    const conversion = calculateConversion(orders, impressions, clicks).toFixed(1) + '%';
+                    const conversion = calculateConversion(orders, impressions, clicks, convOpts).toFixed(1) + '%';
 
                     // Get REAL M-1 and M-2 values from lookup maps
                     const m1Data = m1Map[row.keyword_type] || {};
@@ -1215,12 +1222,12 @@ const performanceMarketingService = {
                     const m1Clicks = parseFloat(m1Data.clicks) || 0;
                     const m1Impressions = parseFloat(m1Data.impressions) || 0;
                     const m1Orders = parseFloat(m1Data.orders) || 0;
-                    const m1Conv = calculateConversion(m1Orders, m1Impressions, m1Clicks).toFixed(1) + '%';
+                    const m1Conv = calculateConversion(m1Orders, m1Impressions, m1Clicks, convOpts).toFixed(1) + '%';
 
                     const m2Clicks = parseFloat(m2Data.clicks) || 0;
                     const m2Impressions = parseFloat(m2Data.impressions) || 0;
                     const m2Orders = parseFloat(m2Data.orders) || 0;
-                    const m2Conv = calculateConversion(m2Orders, m2Impressions, m2Clicks).toFixed(1) + '%';
+                    const m2Conv = calculateConversion(m2Orders, m2Impressions, m2Clicks, convOpts).toFixed(1) + '%';
 
                     // Build children from keywords
                     const children = (keywordsByType[row.keyword_type] || []).map(kw => {
@@ -1228,7 +1235,7 @@ const performanceMarketingService = {
                         const kwClicks = parseFloat(kw.clicks) || 0;
                         const kwImpressions = parseFloat(kw.impressions) || 0;
                         const kwOrders = parseFloat(kw.orders) || 0;
-                        const kwConv = calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%';
+                        const kwConv = calculateConversion(kwOrders, kwImpressions, kwClicks, convOpts).toFixed(1) + '%';
 
                         // Get zones for this keyword
                         const zoneKey = `${kw.keyword_type}|${kw.keyword_name}`;
@@ -1237,7 +1244,7 @@ const performanceMarketingService = {
                             const zClicks = parseFloat(z.clicks) || 0;
                             const zImpressions = parseFloat(z.impressions) || 0;
                             const zOrders = parseFloat(z.orders) || 0;
-                            const zConv = calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%';
+                            const zConv = calculateConversion(zOrders, zImpressions, zClicks, convOpts).toFixed(1) + '%';
 
                             return {
                                 label: z.zone,
@@ -1246,8 +1253,8 @@ const performanceMarketingService = {
                                     Math.round(zSpend * 0.9),
                                     Math.round(zSpend * 0.85),
                                     zConv,
-                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%',
-                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%'
+                                    calculateConversion(zOrders, zImpressions, zClicks, convOpts).toFixed(1) + '%',
+                                    calculateConversion(zOrders, zImpressions, zClicks, convOpts).toFixed(1) + '%'
                                 ],
                                 children: []
                             };
@@ -1261,8 +1268,8 @@ const performanceMarketingService = {
                                 Math.round(kwSpend * 0.9),
                                 Math.round(kwSpend * 0.85),
                                 kwConv,
-                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%',
-                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%'
+                                calculateConversion(kwOrders, kwImpressions, kwClicks, convOpts).toFixed(1) + '%',
+                                calculateConversion(kwOrders, kwImpressions, kwClicks, convOpts).toFixed(1) + '%'
                             ],
                             children: zoneChildren
                         };

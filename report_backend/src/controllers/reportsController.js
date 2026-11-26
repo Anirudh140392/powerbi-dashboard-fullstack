@@ -1,4 +1,4 @@
-import { queryClickHouse, streamClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { queryClickHouse, streamClickHouse, getCurrentDbName, buildPmConversionSql } from '../config/clickhouse.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
@@ -932,7 +932,7 @@ export const downloadReport = async (req, res) => {
                         total_impressions as Impressions,
                         total_clicks as Clicks,
                         total_orders as Orders,
-                        round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
+                        round(${buildPmConversionSql({ ordersExpr: 'total_orders', impressionsExpr: 'total_impressions', clicksExpr: 'total_clicks', platformExpr: 'Platform', platformFilter: platform, table: 'rb_pm_olap' })}, 2) as Conversion_Rate,
                         round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
                         round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
                         round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,
@@ -1169,7 +1169,7 @@ export const downloadReport = async (req, res) => {
                     round(any(pm.total_spend), 2) as Spend,
                     round(any(pm.total_inorganic_sales), 2) as Inorganic_Sales,
                     round(if(any(pm.total_spend) > 0, any(pm.total_inorganic_sales) / any(pm.total_spend), 0), 2) as ROAS,
-                    round(if(any(pm.total_clicks) > 0, (any(pm.total_orders) / any(pm.total_clicks)) * 100, 0), 2) as Conversion_Rate,
+                    round(${buildPmConversionSql({ ordersExpr: 'any(pm.total_orders)', impressionsExpr: 'any(pm.total_impressions)', clicksExpr: 'any(pm.total_clicks)', platformExpr: hasPlatform ? 'Platform' : null, platformFilter: platform, table: 'rb_pm_olap' })}, 2) as Conversion_Rate,
                     round(if(any(pm.total_impressions) > 0, (any(pm.total_spend) / any(pm.total_impressions)) * 1000, 0), 2) as CPM,
                     round(if(any(pm.total_clicks) > 0, any(pm.total_spend) / any(pm.total_clicks), 0), 2) as CPC,
                     round(if(any(pm.total_orders) > 0, any(pm.total_inorganic_sales) / any(pm.total_orders), 0), 2) as AOV,
@@ -1427,7 +1427,7 @@ export const downloadReport = async (req, res) => {
                         total_impressions as Impressions,
                         total_clicks as Clicks,
                         total_orders as Orders,
-                        round(if(total_clicks > 0, (total_orders / total_clicks) * 100, 0), 2) as Conversion_Rate,
+                        round(${buildPmConversionSql({ ordersExpr: 'total_orders', impressionsExpr: 'total_impressions', clicksExpr: 'total_clicks', platformExpr: 'Platform', platformFilter: platform, table: 'rb_pm_olap' })}, 2) as Conversion_Rate,
                         round(if(total_spend > 0, total_inorganic_sales / total_spend, 0), 2) as ROAS,
                         round(if(total_clicks > 0, total_spend / total_clicks, 0), 2) as CPC,
                         round(if(total_impressions > 0, (total_spend / total_impressions) * 1000, 0), 2) as CPM,

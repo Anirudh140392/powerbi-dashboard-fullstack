@@ -18,6 +18,8 @@
  * sales): with competitors included they read blank where a group has no own rows.
  */
 
+import { isMaricoImpressionsConversionServer } from '../config/clickhouse.js';
+
 const ratio = (num, den) => `${num} / nullIf(${den}, 0) * 100`;
 const kwTop10 = (c) => `${c.num('POSITION')} <= 10`;
 const kwShare = (column) => (c, own) => ({
@@ -86,7 +88,26 @@ export const STUDIO_KPIS = {
     impressions: { source: 'pm', label: 'Impressions', unit: 'number', sql: (c) => `sum(${c.num('impressions')})` },
     clicks: { source: 'pm', label: 'Clicks', unit: 'number', sql: (c) => `sum(${c.num('ad_click')})` },
     orders: { source: 'pm', label: 'Orders', unit: 'number', sql: (c) => `sum(${c.num('ad_quantity_sold')})` },
-    conversion: { source: 'pm', label: 'Conversion', unit: 'percent', sql: (c) => ratio(`sum(${c.num('ad_quantity_sold')})`, `sum(${c.num('ad_click')})`) },
+    conversion: {
+        source: 'pm',
+        label: 'Conversion',
+        unit: 'percent',
+        sql: (c, _own, context) => {
+            const orders = `sum(${c.num('ad_quantity_sold')})`;
+            const clicks = `sum(${c.num('ad_click')})`;
+            const clicksRatio = ratio(orders, clicks);
+            if (isMaricoImpressionsConversionServer() && context?.keyDims?.includes('platform')) {
+                try {
+                    const impressions = `sum(${c.num('impressions')})`;
+                    const platformKeyExpr = `replaceAll(${c.text('Platform')}, ' ', '')`;
+                    return `if(${platformKeyExpr} = 'bigbasket', ${ratio(orders, impressions)}, ${clicksRatio})`;
+                } catch {
+                    return clicksRatio;
+                }
+            }
+            return clicksRatio;
+        },
+    },
     cpc: { source: 'pm', label: 'CPC', unit: 'currency', sql: (c) => `sum(${c.num('ad_spend')}) / nullIf(sum(${c.num('ad_click')}), 0)` },
     cpm: { source: 'pm', label: 'CPM', unit: 'currency', sql: (c) => `sum(${c.num('ad_spend')}) / nullIf(sum(${c.num('impressions')}), 0) * 1000` },
     aov: { source: 'pm', label: 'AOV', unit: 'currency', sql: (c) => `sum(${c.num('ad_sales')}) / nullIf(sum(${c.num('ad_quantity_sold')}), 0)` },

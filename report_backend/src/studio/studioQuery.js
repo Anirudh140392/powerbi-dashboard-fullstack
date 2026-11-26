@@ -143,7 +143,7 @@ async function planReport({ sources, columns, brandScope }) {
             kpiKeys
                 .filter((k) => STUDIO_KPIS[k].source === plan.id && STUDIO_KPIS[k].sql)
                 .map((k) => {
-                    const sql = attempt(() => STUDIO_KPIS[k].sql(plan.c, shareOwn));
+                    const sql = attempt(() => STUDIO_KPIS[k].sql(plan.c, shareOwn, { keyDims, sourceId: plan.id }));
                     // Not tracked for competitors: blank, not 0, for a group with no own rows.
                     if (sql && !ownOnly && STUDIO_KPIS[k].ownData) {
                         return [k, `if(countIf(${plan.ownTest}) > 0, ${sql}, nullIf(${sql}, 0))`];

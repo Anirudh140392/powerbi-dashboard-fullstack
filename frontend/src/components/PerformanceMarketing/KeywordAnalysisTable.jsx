@@ -101,15 +101,18 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
       acc.rawOrders += m.orders || 0;
       acc.rawClicks += m.clicks || 0;
       acc.rawRevenue += m.revenue || 0;
+      if (m.useImpressionsConversion) acc.useImpressionsConversion = true;
       return acc;
     },
-    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0, rawOrders: 0, rawClicks: 0, rawRevenue: 0 }
+    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0, rawOrders: 0, rawClicks: 0, rawRevenue: 0, useImpressionsConversion: false }
   );
 
   const count = months.length;
 
-  // Standardized to match Performance Overview: Conversion = Orders / Clicks
-  const accurateConversion = sum.rawClicks > 0 ? (sum.rawOrders / sum.rawClicks) * 100 : 0;
+  // Standardized to match Performance Overview: Conversion = Orders / Clicks (or Impressions for Marico BigBasket on 13.232.194.195:8123)
+  const accurateConversion = sum.useImpressionsConversion
+    ? (sum.impressions > 0 ? (sum.rawOrders / sum.impressions) * 100 : 0)
+    : (sum.rawClicks > 0 ? (sum.rawOrders / sum.rawClicks) * 100 : 0);
   
   const accurateRoas = sum.spend > 0 ? (sum.rawRevenue / sum.spend) : 0;
   const accurateCpm = sum.impressions > 0 ? (sum.spend / sum.impressions) * 1000 : 0;
