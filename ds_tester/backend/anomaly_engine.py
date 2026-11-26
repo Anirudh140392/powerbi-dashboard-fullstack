@@ -248,13 +248,13 @@ class AnomalySentinel:
     def clear_anomalies(self, client=None, force_all=False):
         """Clears stored unassigned anomalies safely without wiping other brands or assigned tasks."""
         with self._lock:
-            if client and client.lower() != "all":
+            if client and str(client).lower() != "all":
                 target = normalize_client_db(client)
                 self.anomalies = [
                     a for a in self.anomalies
                     if normalize_client_db(a.get("client")) != target or (a.get("assignment_status") in ("ASSIGNED", "FIXED") or a.get("assigned_to"))
                 ]
-            elif force_all:
+            elif force_all or (client and str(client).lower() == "all"):
                 self.anomalies = [a for a in self.anomalies if (a.get("assignment_status") in ("ASSIGNED", "FIXED") or a.get("assigned_to"))]
             self._save_store()
 

@@ -62,6 +62,7 @@ import {
   AssignmentInd as AssignmentIndIcon,
   ContentCopy as ContentCopyIcon,
   Search as SearchIcon,
+  DeleteOutline as DeleteOutlineIcon,
 } from "@mui/icons-material";
 import dayjs from "dayjs";
 import axios from "axios";
@@ -260,10 +261,20 @@ export default function DsTesterPage({ isEmbedded = false }) {
     }
   }, [sentinelTargetClient, selectedClient, selectedModule]);
 
-  const handleClearAnomalies = async () => {
+  const handleClearAnomalies = async (clientToClear = selectedClient) => {
+    const isAll = !clientToClear || clientToClear === "all";
+    const clientName = isAll ? "ALL Brands" : (clients.find((c) => c.id === clientToClear)?.label || clientToClear);
+    const msg = isAll
+      ? "Are you sure you want to clear unassigned anomalies for ALL brands? Assigned issues will be preserved."
+      : `Are you sure you want to clear detected anomalies for ${clientName}? This will reset the anomaly matrix for this brand.`;
+
+    if (!window.confirm(msg)) return;
+
     try {
-      await axios.post(`${DS_TESTER_API}/anomaly/clear`);
-      setSentinelAnomalies([]);
+      await axios.post(`${DS_TESTER_API}/anomaly/clear`, null, {
+        params: { client: isAll ? "all" : clientToClear },
+      });
+      await fetchSentinelAnomalies();
       await fetchSentinelStatus();
     } catch (e) {
       console.error("Error clearing anomalies:", e);
@@ -1695,6 +1706,30 @@ export default function DsTesterPage({ isEmbedded = false }) {
               >
                 Detected Anomalies ({sentinelAnomalies.length})
               </Button>
+              {sentinelAnomalies.length > 0 && (
+                <Tooltip title={`Clear detected anomalies for ${currentClientObj.label}`}>
+                  <Button
+                    size="small"
+                    onClick={() => handleClearAnomalies(selectedClient)}
+                    startIcon={<DeleteOutlineIcon sx={{ fontSize: "14px !important" }} />}
+                    sx={{
+                      minWidth: "auto",
+                      px: 1,
+                      height: 34,
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#dc2626",
+                      borderRadius: "8px",
+                      border: "1px dashed #fca5a5",
+                      bgcolor: "#fff5f5",
+                      textTransform: "none",
+                      "&:hover": { bgcolor: "#fee2e2", borderColor: "#f87171" },
+                    }}
+                  >
+                    Clear {currentClientObj.label}
+                  </Button>
+                </Tooltip>
+              )}
             </Box>
 
             {/* Scope Selector: Individual Client vs Full Fleet */}
@@ -2761,6 +2796,27 @@ export default function DsTesterPage({ isEmbedded = false }) {
                 }}
               >
                 Forward All {brandAnomalies.length} Anomalies
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={() => handleClearAnomalies(selectedClient)}
+                disabled={brandAnomalies.length === 0}
+                startIcon={<DeleteOutlineIcon />}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  textTransform: "none",
+                  borderColor: "#fca5a5",
+                  color: "#dc2626",
+                  bgcolor: "#ffffff",
+                  px: 1.5,
+                  "&:hover": { bgcolor: "#fee2e2", borderColor: "#f87171" },
+                }}
+              >
+                Clear {currentClientObj.label} Anomalies
               </Button>
             </Box>
           </Box>
@@ -4954,6 +5010,28 @@ export default function DsTesterPage({ isEmbedded = false }) {
             </Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {sentinelAnomalies.length > 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                onClick={() => handleClearAnomalies("all")}
+                startIcon={<DeleteOutlineIcon />}
+                sx={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  textTransform: "none",
+                  borderColor: "#fecaca",
+                  color: "#dc2626",
+                  borderRadius: "8px",
+                  py: "2px",
+                  px: 1,
+                  "&:hover": { bgcolor: "#fee2e2", borderColor: "#f87171" },
+                }}
+              >
+                Clear Store
+              </Button>
+            )}
             <Tooltip title={sentinelDrawerExpanded ? "Collapse Sidebar" : "Expand Sidebar (Wide Canvas View)"}>
               <IconButton size="small" onClick={() => setSentinelDrawerExpanded(!sentinelDrawerExpanded)} sx={{ color: "#64748b" }}>
                 {sentinelDrawerExpanded ? <FullscreenExitIcon /> : <FullscreenIcon />}
