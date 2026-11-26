@@ -349,8 +349,8 @@ class AnomalySentinel:
             date_clause = "DATE BETWEEN today() - 30 AND today() - 1"
             date_clause_bm = "toDate(DATE) BETWEEN today() - 30 AND today() - 1"
 
-        # Check for count/cardinality metrics (must NOT be compared against rate/percentage baselines)
-        if any(w in k_lower for w in ["available locations", "critical availability cities", "total locations", "total skus", "oos skus", "count", "cities"]):
+        # Check for count/cardinality metrics (must NOT be compared against rate/percentage baselines; do not match 'discount')
+        if any(w in k_lower for w in ["available locations", "critical availability cities", "total locations", "total skus", "oos skus", "cities"]) or k_lower.endswith("_count") or k_lower == "count" or " count" in k_lower:
             return None
 
         # On-Shelf Availability (OSA %) - Only match true OSA metrics, not SOS, discounts or rates
@@ -1682,7 +1682,7 @@ class AnomalySentinel:
                     "is_breach": is_breach,
                     "status_label": status_lbl
                 })
-            decomp["level5_skus"] = skus_list
+            decomp["level5_skus"] = skus_list[:15]
 
         except Exception as e:
             logger.error(f"Error decomposing hierarchy for {client}: {e}")
