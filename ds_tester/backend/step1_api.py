@@ -52,11 +52,15 @@ def call_platform_api(
     params: Optional[Dict[str, Any]] = None,
     period: Optional[Any] = None,
     db_name: Optional[str] = None,
-    timeout: int = 60,
+    timeout: int = 150,
+    max_retries: int = 2,
 ) -> Dict[str, Any]:
     """
     Calls the platform's existing backend API endpoint with proper auth headers and query params.
+    Includes an increased timeout (150s) and automatic retries with backoff for heavy multi-platform
+    aggregations (e.g. DRL with 19 platforms) during concurrent Selenium dashboard loads.
     """
+    import time
     url = f"{API_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
     query_params: Dict[str, Any] = {}
 
@@ -75,7 +79,18 @@ def call_platform_api(
         "x-db-name": target_db,
     }
 
-    response = requests.get(url, params=query_params, headers=headers, timeout=timeout)
-    response.raise_for_status()
-    data = response.json()
-    return data
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            current_timeout = timeout + (attempt * 30)
+            response = requests.get(url, params=query_params, headers=headers, timeout=current_timeout)
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError) as e:
+            last_exc = e
+            if attempt < max_retries:
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise last_exc
+        except Exception as e:
+            raise e
