@@ -7,7 +7,6 @@ on:
       - enhancement_01122025_backend_kenil
       - enhancement_01122025_dev_kenil
       - enhancement_01122025_marico_kenil
-      - ds_tester
   workflow_dispatch:  # Allow manual trigger
 
 env:
