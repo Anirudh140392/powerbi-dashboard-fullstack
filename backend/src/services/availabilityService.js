@@ -2444,29 +2444,26 @@ const getDOI = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getMetroCities = async () => {
-    return getCachedOrCompute('metro_cities_list_v2', async () => {
-        try {
-            const currentDb = getCurrentDbName() || 'drl';
-            const table = (currentDb === 'drl' || currentDb === 'prestige' || currentDb === 'mamaearth' || currentDb === 'mcvities' || currentDb === 'sugar' || currentDb === 'pidilite' || currentDb === 'zydus' || currentDb === 'trailytics') 
-                ? `${currentDb}.rb_location_darkstore` 
-                : 'rb_location_darkstore';
-
-            const query = `
+export const getTier1Cities = async () => {
+    try {
+        return await getCachedOrCompute(generateCacheKey('metro_cities_list', {}), async () => {
+            const results = await queryClickHouse(`
                 SELECT DISTINCT location
-                FROM ${table}
-                WHERE lower(tier) = 'tier 1' OR lower(tier) LIKE '%tier 1%' OR lower(tier) = '1'
+                FROM rb_location_darkstore
+                WHERE lower(trim(toString(tier))) IN ('tier 1', 'tier-1', 'tier1', '1')
                 ORDER BY location
-            `;
-            const results = await queryClickHouse(query);
-            const cities = results.map(r => r.location).filter(Boolean);
-            if (cities.length > 0) return cities;
-            return ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
-        } catch (error) {
-            console.error('[getMetroCities] Error:', error);
-            return ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
-        }
-    }, CACHE_TTL.LONG);
+            `);
+            return results.map(r => r.location).filter(Boolean);
+        }, CACHE_TTL.LONG);
+    } catch (error) {
+        console.error('[getTier1Cities] Error:', error);
+        return [];
+    }
+};
+
+const getMetroCities = async () => {
+    const cities = await getTier1Cities();
+    return cities.length ? cities : ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
 };
 
 const isMetroCity = async (location) => {

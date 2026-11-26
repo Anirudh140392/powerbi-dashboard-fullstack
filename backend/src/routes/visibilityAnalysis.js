@@ -106,8 +106,8 @@ export default (app) => {
      *         name: viewMode
      *         schema:
      *           type: string
-     *           enum: [Platform, Format, City]
-     *         description: View mode for matrix
+     *           enum: [Platform, Format, City, CategoryCrossPlatform, CityCrossPlatform]
+     *         description: Cross-platform modes return platform KPIs for the selected category or location with current and comparison period dates.
      *       - in: query
      *         name: platform
      *         schema:

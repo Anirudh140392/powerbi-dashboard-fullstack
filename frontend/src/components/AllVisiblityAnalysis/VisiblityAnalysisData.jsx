@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
 import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
+import VisibilityPlatformComparison from './VisibilityPlatformComparison';
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -238,6 +239,14 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
               dynamicKey="visibility"
               data={active.data}
               title={active.label}
+              titleAction={activeTab !== 'platform' && (
+                <VisibilityPlatformComparison
+                  key={active.key}
+                  dimension={active.label}
+                  options={activeTab === 'city' ? (active.data.comparisonCities ?? []) : active.data.columns.slice(1)}
+                  filters={localMatrixFilters}
+                />
+              )}
               showPagination={true}
               filterApiUrl="/api/visibility-analysis/filter-options"
               onFilterChange={(appliedFilters) => {

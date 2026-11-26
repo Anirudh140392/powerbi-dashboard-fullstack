@@ -658,6 +658,7 @@ export const getSearchTermsPerformance = async (req, res) => {
             keywordType: req.query.keywordType || 'All',
             keywordTypeFilter: req.query.keywordTypeFilter || 'All',
             category: req.query.category || 'All',
+            includeWeightedMetrics: req.query.includeWeightedMetrics === 'true',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true',
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,

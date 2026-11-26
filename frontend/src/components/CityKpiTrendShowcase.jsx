@@ -686,7 +686,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange, selectedLevel }) {
+function MatrixVariant({ dynamicKey, data, title, titleAction, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange, selectedLevel }) {
   console.log("🖼️ [MatrixVariant] Render - dynamicKey:", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -974,16 +974,17 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {/* Icon badge */}
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
               <Layers className="h-5 w-5 text-indigo-500" strokeWidth={2} />
             </div>
             <div>
-              <CardTitle className="text-base text-slate-900">
-                {title} KPI Matrix
-              </CardTitle>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <CardTitle className="text-base text-slate-900">{title} KPI Matrix</CardTitle>
+                {titleAction}
+              </div>
               <CardDescription className="text-xs text-slate-500">
                 Analyze by dimensions
               </CardDescription>
@@ -991,7 +992,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           </div>
 
           {/* City-style Heatmap Legend */}
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
             {/* KpiFilterPanel Integration */}
             <button
               onClick={handleOpenFilterPanel}
@@ -1528,6 +1529,7 @@ export default function CityKpiTrendShowcase({
   dynamicKey,
   data,
   title,
+  titleAction,
   showPagination = true,
   kpiFilterOptions,
   filterApiUrl,
@@ -1545,6 +1547,7 @@ export default function CityKpiTrendShowcase({
       dynamicKey={dynamicKey}
       data={data}
       title={title}
+      titleAction={titleAction}
       showPagination={showPagination}
       kpiFilterOptions={kpiFilterOptions}
       filterApiUrl={filterApiUrl}
