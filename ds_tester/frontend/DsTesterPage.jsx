@@ -182,6 +182,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
       const urlParams = new URLSearchParams(window.location.search);
       const clientParam = urlParams.get("client");
       if (clientParam && clientParam.trim()) return clientParam.trim().toLowerCase();
+      const saved = localStorage.getItem("ds_tester_selected_client");
+      if (saved && saved.trim()) return saved.trim().toLowerCase();
       const activeWs = sessionStorage.getItem("activeWorkspaceDb") || localStorage.getItem("activeWorkspaceDb");
       if (activeWs && activeWs.trim()) return activeWs.trim().toLowerCase();
       const userRaw = sessionStorage.getItem("user");
@@ -209,7 +211,13 @@ export default function DsTesterPage({ isEmbedded = false }) {
   const [sentinelDrawerOpen, setSentinelDrawerOpen] = useState(false);
   const [sentinelAnomalies, setSentinelAnomalies] = useState([]);
   const [sentinelScanning, setSentinelScanning] = useState(false);
-  const [activeMainTab, setActiveMainTab] = useState("parity_suite"); // "parity_suite" | "brand_anomalies"
+  const [activeMainTab, setActiveMainTab] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("ds_tester_active_tab");
+      if (saved) return saved;
+    } catch (e) {}
+    return "parity_suite";
+  }); // "parity_suite" | "brand_anomalies"
   const [anomalyModuleFilter, setAnomalyModuleFilter] = useState("all"); // "all" | module_id
   const [anomalySeverityFilter, setAnomalySeverityFilter] = useState("all"); // "all" | "CRITICAL" | "WARNING"
   const [sentinelTargetClient, setSentinelTargetClient] = useState("all");
@@ -356,12 +364,29 @@ export default function DsTesterPage({ isEmbedded = false }) {
     fetchSentinelAnomalies();
     const interval = setInterval(() => {
       fetchSentinelStatus();
-    }, 10000);
+      fetchSentinelAnomalies();
+    }, 8000);
     return () => {
       clearInterval(interval);
       if (sentinelTimerRef.current) clearInterval(sentinelTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedClient) {
+      try {
+        localStorage.setItem("ds_tester_selected_client", selectedClient);
+      } catch (e) {}
+    }
+  }, [selectedClient]);
+
+  useEffect(() => {
+    if (activeMainTab) {
+      try {
+        sessionStorage.setItem("ds_tester_active_tab", activeMainTab);
+      } catch (e) {}
+    }
+  }, [activeMainTab]);
 
   const fetchSentinelStatus = async () => {
     try {
@@ -393,11 +418,20 @@ export default function DsTesterPage({ isEmbedded = false }) {
     }
   };
 
-  // Brand-specific anomalies for the selected client (e.g. Prestige)
+  const normalizeClientStr = (c) => {
+    if (!c) return "";
+    const s = String(c).toLowerCase().trim().replace(/[\s\._'-]+/g, "");
+    if (s.includes("reddy") || s === "drl") return "drl";
+    if (s === "boat") return "boat";
+    return s;
+  };
+
+  // Brand-specific anomalies for the selected client (e.g. Prestige, Danone, Dr. Reddy's)
   const brandAnomalies = useMemo(() => {
-    if (!selectedClient) return sentinelAnomalies;
+    if (!selectedClient || selectedClient === "all") return sentinelAnomalies;
+    const targetNorm = normalizeClientStr(selectedClient);
     return sentinelAnomalies.filter(
-      (a) => (a.client || "").toLowerCase() === selectedClient.toLowerCase()
+      (a) => normalizeClientStr(a.client) === targetNorm
     );
   }, [sentinelAnomalies, selectedClient]);
 

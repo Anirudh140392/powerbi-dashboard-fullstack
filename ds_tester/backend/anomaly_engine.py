@@ -19,6 +19,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 from datetime import datetime, date, timedelta
@@ -177,6 +178,7 @@ def resolve_platform_from_text(text: str) -> Optional[str]:
     return None
 
 STORE_PATH = os.path.join(os.path.dirname(__file__), "anomaly_store.json")
+BACKUP_STORE_PATH = os.path.join(os.path.dirname(__file__), "anomaly_store_backup.json")
 
 
 class AnomalySentinel:
@@ -216,34 +218,39 @@ class AnomalySentinel:
             self._active_driver = None
 
     def _load_store(self):
-        if os.path.exists(STORE_PATH):
-            try:
-                with open(STORE_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    raw_anomalies = data.get("anomalies", [])
-                    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-                    # Retain anomalies from last 7 days OR any anomaly assigned to a tester
-                    self.anomalies = [
-                        a for a in raw_anomalies
-                        if str(a.get("timestamp", ""))[:10] >= seven_days_ago or a.get("assignment_status") in ("ASSIGNED", "FIXED") or a.get("assigned_to")
-                    ]
-                    self.last_run_time = data.get("last_run_time")
-                    self.next_run_time = "Manual Trigger Only"
-                    self.verified_runs_count = data.get("verified_runs_count", 0)
-                    self._last_loaded_mtime = os.path.getmtime(STORE_PATH)
-            except Exception as e:
-                logger.error(f"Error loading anomaly store: {e}")
-                self.anomalies = []
+        """Loads anomaly store from disk. Retains all anomalies indefinitely until user explicitly clears them."""
+        loaded_anomalies = None
+        for path in (STORE_PATH, BACKUP_STORE_PATH):
+            if os.path.exists(path) and os.path.getsize(path) > 5:
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        raw = data.get("anomalies", [])
+                        if isinstance(raw, list):
+                            loaded_anomalies = [a for a in raw if isinstance(a, dict)]
+                            self.last_run_time = data.get("last_run_time")
+                            self.next_run_time = "Manual Trigger Only"
+                            self.verified_runs_count = data.get("verified_runs_count", 0)
+                            if path == STORE_PATH:
+                                self._last_loaded_mtime = os.path.getmtime(STORE_PATH)
+                            break
+                except Exception as e:
+                    logger.warning(f"Warning reading anomaly store from {path}: {e}")
+
+        if loaded_anomalies is not None:
+            self.anomalies = loaded_anomalies
+        # NOTE: If both files fail to read, DO NOT wipe self.anomalies! Preserve in-memory state.
 
     def refresh_store(self):
         """Reloads store from disk if external process or run modified it."""
-        if os.path.exists(STORE_PATH):
-            try:
-                mtime = os.path.getmtime(STORE_PATH)
-                if not hasattr(self, "_last_loaded_mtime") or mtime > getattr(self, "_last_loaded_mtime", 0.0):
-                    self._load_store()
-            except Exception as e:
-                logger.error(f"Error refreshing anomaly store: {e}")
+        with self._lock:
+            if os.path.exists(STORE_PATH):
+                try:
+                    mtime = os.path.getmtime(STORE_PATH)
+                    if not hasattr(self, "_last_loaded_mtime") or mtime > getattr(self, "_last_loaded_mtime", 0.0):
+                        self._load_store()
+                except Exception as e:
+                    logger.error(f"Error refreshing anomaly store: {e}")
 
     def clear_anomalies(self, client=None, force_all=False):
         """Clears stored unassigned anomalies safely without wiping other brands or assigned tasks."""
@@ -259,16 +266,31 @@ class AnomalySentinel:
             self._save_store()
 
     def _save_store(self):
+        """Saves anomaly store atomically with temporary file write and backup synchronization."""
+        payload = {
+            "last_run_time": self.last_run_time,
+            "next_run_time": self.next_run_time,
+            "verified_runs_count": self.verified_runs_count,
+            "anomalies_count": len(self.anomalies),
+            "anomalies": self.anomalies[:1000]
+        }
         try:
-            with open(STORE_PATH, "w", encoding="utf-8") as f:
-                json.dump({
-                    "last_run_time": self.last_run_time,
-                    "next_run_time": self.next_run_time,
-                    "verified_runs_count": self.verified_runs_count,
-                    "anomalies_count": len(self.anomalies),
-                    "anomalies": self.anomalies[:500]  # Keep most recent 200
-                }, f, indent=2, default=str)
+            # 1. Atomic write to STORE_PATH
+            tmp_path = STORE_PATH + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, default=str)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, STORE_PATH)
             self._last_loaded_mtime = os.path.getmtime(STORE_PATH)
+
+            # 2. Write backup replica to BACKUP_STORE_PATH
+            backup_tmp = BACKUP_STORE_PATH + ".tmp"
+            with open(backup_tmp, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, default=str)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(backup_tmp, BACKUP_STORE_PATH)
         except Exception as e:
             logger.error(f"Error saving anomaly store: {e}")
 

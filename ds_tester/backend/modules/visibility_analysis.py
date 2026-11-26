@@ -807,9 +807,37 @@ def step3_ui(
             matrix_results[f"{p_clean}_sponsored_sos"] = None
             matrix_results[f"{p_clean}_organic_sos"] = None
 
+        import re
+        def _norm_platform(name: str) -> str:
+            return re.sub(r'[^a-z0-9]', '', str(name).lower().strip())
+
         try:
             # Poll for up to 15 seconds for matrix table to load
             for attempt in range(15):
+                # Step A: Maximize page size so all platform columns are rendered on a single page
+                driver.execute_script(r"""
+                    const tables = Array.from(document.querySelectorAll("table"));
+                    const matrixTable = tables.find(t => {
+                        const txt = t.innerText || '';
+                        return txt.includes("OVERALL SOS") || txt.includes("Overall SOS") || txt.includes("SPONSORED SOS");
+                    });
+                    if (matrixTable) {
+                        const card = matrixTable.closest("div.rounded-3xl, div.rounded-2xl") || matrixTable.parentElement;
+                        const colSelect = card ? card.querySelector("select") : null;
+                        if (colSelect && !colSelect.dataset.dsTesterMaxed) {
+                            colSelect.dataset.dsTesterMaxed = "true";
+                            const opts = Array.from(colSelect.options);
+                            const maxOpt = opts[opts.length - 1];
+                            if (maxOpt && colSelect.value !== maxOpt.value) {
+                                colSelect.value = maxOpt.value;
+                                colSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+                """)
+                time.sleep(0.1)
+
+                # Step B: Scrape visible headers and cell values
                 scraped = driver.execute_script(r"""
                     const tables = Array.from(document.querySelectorAll("table"));
                     let matrixTable = null;
@@ -826,7 +854,12 @@ def step3_ui(
                     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     card.style.outline = '2px solid #0284c7';
 
-                    const headers = Array.from(matrixTable.querySelectorAll("thead th")).map(th => th.innerText.trim().toLowerCase());
+                    const headerThs = Array.from(matrixTable.querySelectorAll("thead th"));
+                    const headers = headerThs.map(th => {
+                        const span = th.querySelector("span:not(.trend-icon)");
+                        const raw = span ? span.innerText : th.innerText;
+                        return (raw || '').split('\n')[0].trim().toLowerCase();
+                    });
                     const rows = Array.from(matrixTable.querySelectorAll("tbody tr"));
                     const result = {};
 
@@ -837,7 +870,7 @@ def step3_ui(
                         headers.forEach((h, idx) => {
                             if (idx === 0 || idx >= cells.length) return;
                             const cell = cells[idx];
-                            const valEl = cell.querySelector("span.font-mono, span.tabular-nums") || cell;
+                            const valEl = cell.querySelector("span.font-mono, span.tabular-nums, button") || cell;
                             const valText = valEl ? valEl.innerText.trim() : "";
                             if (valText) {
                                 result[`${h}|${kpiName}`] = valText;
@@ -864,10 +897,33 @@ def step3_ui(
                         if not kpi_key:
                             continue
 
+                        norm_col = _norm_platform(plat_col)
+                        # Exact platform matching using normalized alphanumeric strings to prevent substring collisions
                         for p in platforms:
                             p_clean = p.lower().strip()
-                            if p_clean in plat_col:
+                            if _norm_platform(p) == norm_col:
                                 matrix_results[f"{p_clean}_{kpi_key}"] = val
+                                break
+
+                    # Step C: If any platforms are still missing and a "Next" button exists, paginate through
+                    missing_platforms = [p for p in platforms if matrix_results.get(f"{p.lower().strip()}_overall_sos") is None]
+                    if missing_platforms:
+                        has_next = driver.execute_script(r"""
+                            const tables = Array.from(document.querySelectorAll("table"));
+                            const matrixTable = tables.find(t => (t.innerText || '').includes("OVERALL SOS") || (t.innerText || '').includes("Overall SOS"));
+                            if (!matrixTable) return false;
+                            const card = matrixTable.closest("div.rounded-3xl, div.rounded-2xl") || matrixTable.parentElement;
+                            const nextBtn = Array.from(card.querySelectorAll("button")).find(b => (b.innerText || '').trim().toLowerCase() === 'next' && !b.disabled);
+                            if (nextBtn) {
+                                nextBtn.click();
+                                return true;
+                            }
+                            return false;
+                        """)
+                        if has_next:
+                            time.sleep(0.2)
+                            continue
+
                     break
                 time.sleep(0.1)
         except Exception as e:
