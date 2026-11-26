@@ -1,0 +1,25 @@
+{
+  "name": "rating-temporal-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Temporal worker + schedule for the Ratings daily automation pipeline",
+  "scripts": {
+    "build": "tsc",
+    "worker": "node lib/worker.js",
+    "schedule": "node lib/schedule.js",
+    "start": "npm run build && npm run worker"
+  },
+  "dependencies": {
+    "@temporalio/activity": "^1.11.8",
+    "@temporalio/client": "^1.11.8",
+    "@temporalio/worker": "^1.11.8",
+    "@temporalio/workflow": "^1.11.8",
+    "dotenv": "^17.3.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.11.10",
+    "typescript": "~5.7.2"
+  }
+}
