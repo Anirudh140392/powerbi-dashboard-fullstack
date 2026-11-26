@@ -141,8 +141,9 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
             format: 'JSONEachRow',
         };
 
-        if (Object.keys(clickhouse_settings).length > 0) {
-            queryOptions.clickhouse_settings = clickhouse_settings;
+        const settings = { ...dbStorage.getStore()?.querySettings, ...clickhouse_settings };
+        if (Object.keys(settings).length > 0) {
+            queryOptions.clickhouse_settings = settings;
         }
 
         const result = await client.query(queryOptions);

@@ -1,3 +1,4 @@
+import { dbStorage } from '../config/clickhouse.js';
 import watchTowerService from '../services/watchTowerService.js';
 import { applyQcDateFilter, getMaxAllowedDate } from '../helper/qcDateHelper.js';
 
@@ -289,6 +290,26 @@ export const getPlatformOverview = async (req, res) => {
     }
 };
 
+async function loadPlatformOverview(filters, overviewPlatformKey, load) {
+    if (filters.breakdown !== 'platform') return load(filters);
+
+    const names = String(filters.platform || '').split(',').map(name => name.trim().toLowerCase());
+    const rows = new Map();
+    for (const platform of new Set(names)) {
+        if (!platform || ['none', 'all', 'all platforms'].includes(platform)) continue;
+        const entities = await dbStorage.run(
+            { ...dbStorage.getStore(), querySettings: { max_threads: 2 } },
+            () => load({ ...filters, platform, [overviewPlatformKey]: platform })
+        );
+        for (const entity of entities) {
+            const id = entity.label.trim().toLowerCase();
+            if (!rows.has(id)) rows.set(id, { ...entity, key: id, columns: [] });
+            rows.get(id).columns.push(...entity.columns.map(column => ({ ...column, platform })));
+        }
+    }
+    return Array.from(rows.values());
+}
+
 /**
  * Get Month Overview Data
  */
@@ -296,7 +317,7 @@ export const getMonthOverview = async (req, res) => {
     try {
         const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getMonthOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getMonthOverview(filters);
+        const data = await loadPlatformOverview(filters, 'monthOverviewPlatform', watchTowerService.getMonthOverview);
         res.json(data);
     } catch (error) {
         console.error('Error fetching month overview:', error);
@@ -311,7 +332,7 @@ export const getCategoryOverview = async (req, res) => {
     try {
         const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getCategoryOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getCategoryOverview(filters);
+        const data = await loadPlatformOverview(filters, 'categoryOverviewPlatform', watchTowerService.getCategoryOverview);
         res.json(data);
     } catch (error) {
         console.error('Error fetching category overview:', error);
@@ -326,7 +347,7 @@ export const getBrandsOverview = async (req, res) => {
     try {
         const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getBrandsOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getBrandsOverview(filters);
+        const data = await loadPlatformOverview(filters, 'brandsOverviewPlatform', watchTowerService.getBrandsOverview);
         res.json(data);
     } catch (error) {
         console.error('Error fetching brands overview:', error);
@@ -572,7 +593,7 @@ export const getCityOverview = async (req, res) => {
     try {
         const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getCityOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getCityOverview(filters);
+        const data = await loadPlatformOverview(filters, 'cityOverviewPlatform', watchTowerService.getCityOverview);
         res.json(data);
     } catch (error) {
         console.error('[getCityOverview] Error:', error);

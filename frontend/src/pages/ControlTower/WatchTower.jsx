@@ -115,7 +115,10 @@ export default function WatchTower() {
 
   const [selectedDrlSource, setSelectedDrlSource] = useState('rk');
 
-  const handleViewTrends = (card, level = "MRP", source = "rk") => {
+  const [trendPlatformOverride, setTrendPlatformOverride] = useState();
+
+  const handleViewTrends = (card, level = "MRP", source = "rk", platformOverride) => {
+    setTrendPlatformOverride(platformOverride);
     console.log("card clicked", card, "source:", source);
     if (source && typeof source === 'string') {
       setSelectedDrlSource(source);
@@ -306,7 +309,8 @@ export default function WatchTower() {
       const currentChannel = filters.channel || "All";
       const currentPlatform = filters.platform || "All";
       if (overriddenContextRef.current.selectedChannel !== currentChannel ||
-        overriddenContextRef.current.platform !== currentPlatform) {
+        overriddenContextRef.current.platform !== currentPlatform ||
+        overriddenContextRef.current.platforms !== (localPlatformsList.length ? localPlatformsList : allPlatformNames || filterContext.platforms)) {
         hasMeaningfulChange = true;
       }
     }
@@ -1054,7 +1058,7 @@ export default function WatchTower() {
         initialAudience={initialTrendAudience}
         dynamicKey="platform_overview_tower"
         brandOptions={contextBrands}
-        initialPlatform={filters.platform}
+        initialPlatform={trendPlatformOverride || filters.platform}
         showResellerFilter={true}
         drlSource={selectedDrlSource}
       />

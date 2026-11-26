@@ -315,7 +315,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 
 // MAIN ADVANCED FILTER MODAL
 // ========================================
-export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, grammages = null, kpiOptions: propKpiOptions = null }) {
+export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, grammages = null, kpiOptions: propKpiOptions = null, platformScope }) {
     const isDrlUser = useMemo(() => {
         try {
             const u = JSON.parse(sessionStorage.getItem('user') || '{}');
@@ -715,7 +715,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 ? filters.brands
                 : normalizeArr(selectedBrand);
 
-            const platforms = (filters?.platforms && filters.platforms.length > 0)
+            const platforms = (filters?.platforms && (platformScope || filters.platforms.length > 0))
                 ? filters.platforms
                 : normalizeArr(globalPlatform);
 
@@ -742,7 +742,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 sapCodes,
             };
         });
-    }, [isOpen, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl]);
+    }, [isOpen, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl, platformScope]);
 
     const updateFilter = (key, value) => {
         setLocalFilters(prev => ({ ...prev, [key]: value }))
@@ -924,7 +924,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Platform"
                                                 icon={Monitor}
-                                                options={dynamicPlatforms}
+                                                options={platformScope ? dynamicPlatforms.filter(option => platformScope.some(p => p.toLowerCase() === String(option.name).toLowerCase())) : dynamicPlatforms}
                                                 selected={localFilters.platforms}
                                                 onChange={(val) => updateFilter('platforms', val)}
                                                 placeholder="All Platforms"
