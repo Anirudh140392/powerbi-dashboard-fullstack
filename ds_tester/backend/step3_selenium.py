@@ -339,37 +339,33 @@ def highlight_element(driver: webdriver.Chrome, selector_or_elem: Any, duration_
 
 
 
-def wait_for_loading_complete(driver: webdriver.Chrome, timeout: int = 15):
-
+def wait_for_loading_complete(driver: webdriver.Chrome, timeout: float = 3.0):
     """
-
-    Waits for any active loading spinners, progress bars, or MUI skeletons to disappear.
-
-    Fast reactive check with minimal settle buffer.
-
+    Waits for active loading spinners, progress bars, or MUI skeletons to disappear.
+    Excludes permanent status indicators (such as .animate-pulse dots/badges).
+    Returns immediately if no loaders are active. Capped at 3.5s maximum to prevent stalling.
     """
-
-    wait = WebDriverWait(driver, timeout, poll_frequency=0.05)
-
-    time.sleep(0.05)
-
-
-
-    try:
-
-        wait.until(
-
-            EC.invisibility_of_element_located((By.CSS_SELECTOR, ".MuiSkeleton-root, .MuiCircularProgress-root, .animate-pulse"))
-
-        )
-
-    except TimeoutException:
-
-        pass
-
-
-
-    time.sleep(0.05)
+    effective_timeout = min(float(timeout), 3.5)
+    start_time = time.time()
+    time.sleep(0.04)
+    while time.time() - start_time < effective_timeout:
+        try:
+            has_loader = driver.execute_script("""
+                const loaders = document.querySelectorAll(
+                    ".MuiSkeleton-root, .MuiCircularProgress-root, [role='progressbar'], .animate-spin"
+                );
+                for (const el of loaders) {
+                    if (el.offsetParent !== null && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                        return true;
+                    }
+                }
+                return false;
+            """)
+            if not has_loader:
+                break
+        except Exception:
+            break
+        time.sleep(0.05)
 
 
 
@@ -938,181 +934,104 @@ def apply_dashboard_period(driver: webdriver.Chrome, period: Any):
 
 
     try:
-
-        # 1. Apply directly through DateRangeComparePicker React Fiber / FilterContext
-
-        fiber_applied = driver.execute_script("""
-
+        # 1. Direct state application through FilterContext or DateRangeComparePicker Fiber
+        applied = driver.execute_script("""
             const startVal = arguments[0];
-
             const endVal = arguments[1];
 
-
-
-            const allBtns = Array.from(document.querySelectorAll('button'));
-
-            const dateBtn = allBtns.find(b => b.innerText && b.innerText.includes('-') && (b.innerText.includes('202') || b.innerText.includes('201') || b.innerText.includes('203')));
-
-            if (!dateBtn) return { success: false, reason: 'Date button not found' };
-
-
-
-            const key = Object.keys(dateBtn).find(k => k.startsWith('__reactFiber$'));
-
-            let fiber = dateBtn[key];
-
-            while (fiber) {
-
-                if (fiber.memoizedProps && typeof fiber.memoizedProps.onApply === 'function') {
-
-                    const makeDay = (base, dateStr) => {
-
-                        const [y, m, d] = dateStr.split('-').map(Number);
-
-                        return base.clone().year(y).month(m - 1).date(d).startOf('day');
-
-                    };
-
-
-
-                    const base = fiber.memoizedProps.timeStart;
-
-                    if (!base || typeof base.clone !== 'function') break;
-
-
-
-                    const s = makeDay(base, startVal);
-
-                    const e = makeDay(base, endVal);
-
-                    const len = e.diff(s, 'day') + 1;
-
-                    const ce = s.subtract(1, 'day');
-
-                    const cs = ce.subtract(len - 1, 'day');
-
-
-
-                    fiber.memoizedProps.onApply(s, e, cs, ce, true, "Custom");
-
-                    return { success: true };
-
+            // A. Check window.__filterContext directly (instantaneous React state dispatch)
+            const fc = window.__filterContext;
+            if (fc && typeof fc.setTimeStart === 'function' && typeof fc.setTimeEnd === 'function') {
+                const dayjsFunc = fc.timeStart ? fc.timeStart.constructor : (window.dayjs || null);
+                if (dayjsFunc) {
+                    const s = dayjsFunc(startVal);
+                    const e = dayjsFunc(endVal);
+                    fc.setTimeStart(s);
+                    fc.setTimeEnd(e);
+                    if (typeof fc.setUserSetDate === 'function') fc.setUserSetDate(true);
+                    return { success: true, method: 'filterContext' };
                 }
-
-                fiber = fiber.return;
-
             }
 
-            return { success: false, reason: 'Fiber onApply not found' };
+            // B. React Fiber on DateRangeComparePicker button
+            const allBtns = Array.from(document.querySelectorAll('button'));
+            const dateBtn = allBtns.find(b => b.innerText && b.innerText.includes('-') && (b.innerText.includes('202') || b.innerText.includes('201') || b.innerText.includes('203')));
+            if (dateBtn) {
+                const key = Object.keys(dateBtn).find(k => k.startsWith('__reactFiber$'));
+                let fiber = dateBtn[key];
+                while (fiber) {
+                    if (fiber.memoizedProps && typeof fiber.memoizedProps.onApply === 'function') {
+                        const base = fiber.memoizedProps.timeStart;
+                        if (base) {
+                            const dayjsFunc = base.constructor;
+                            const s = dayjsFunc(startVal);
+                            const e = dayjsFunc(endVal);
+                            const len = e.diff(s, 'day') + 1;
+                            const ce = s.subtract(1, 'day');
+                            const cs = ce.subtract(len - 1, 'day');
+                            fiber.memoizedProps.onApply(s, e, cs, ce, true, "Custom");
+                            return { success: true, method: 'fiber' };
+                        }
+                    }
+                    fiber = fiber.return;
+                }
+            }
 
+            return { success: false, reason: 'Fiber onApply and filterContext not found' };
         """, start_str, end_str)
 
-
-
-        if fiber_applied and fiber_applied.get("success"):
-
-            time.sleep(0.15)
-
-            wait_for_loading_complete(driver, timeout=15)
-
+        if applied and applied.get("success"):
+            time.sleep(0.1)
+            wait_for_loading_complete(driver, timeout=2.5)
             return
 
-
-
         # 2. Visual Popover Interaction fallback
-
         try:
-
-            wait = WebDriverWait(driver, 3)
-
+            wait = WebDriverWait(driver, 1.5)
             date_btn = wait.until(
-
                 EC.element_to_be_clickable(
-
                     (By.XPATH, "//button[contains(., '-') and (.//p or .//span or contains(@class, 'flex'))]")
-
                 )
-
             )
-
             date_btn.click()
-
-            time.sleep(0.4)
-
-
+            time.sleep(0.1)
 
             driver.execute_script("""
-
                 const startVal = arguments[0];
-
                 const endVal = arguments[1];
-
                 const inputs = Array.from(document.querySelectorAll(".MuiPopover-root input[type='date'], input[type='date']"));
-
                 if (inputs.length >= 2) {
-
                     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-
                     if (setter) {
-
                         setter.call(inputs[0], startVal);
-
                         inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-
                         inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
 
-
-
                         setter.call(inputs[1], endVal);
-
                         inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-
                         inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
-
                     }
-
                 }
-
-
 
                 // Close Popover cleanly
-
                 const popover = document.querySelector(".MuiPopover-root");
-
                 if (popover) {
-
                     const btns = Array.from(popover.querySelectorAll("button"));
-
                     const applyBtn = btns.find(b => b.innerText && b.innerText.trim().toLowerCase() === "apply");
-
                     const cancelBtn = btns.find(b => b.innerText && b.innerText.trim().toLowerCase() === "cancel");
-
                     if (applyBtn) {
-
                         applyBtn.click();
-
                     } else if (cancelBtn) {
-
                         cancelBtn.click();
-
                     }
-
                 }
-
             """, start_str, end_str)
-
         except Exception:
-
             pass
 
-
-
-        time.sleep(2.5)
-
-        wait_for_loading_complete(driver, timeout=25)
-
+        time.sleep(0.2)
+        wait_for_loading_complete(driver, timeout=2.5)
     except Exception as e:
-
         print(f"[apply_dashboard_period] Error setting date range: {e}")
 
 
