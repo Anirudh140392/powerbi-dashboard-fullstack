@@ -226,8 +226,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
   const [assignedModuleFilter, setAssignedModuleFilter] = useState("all");
   const [assignedCopied, setAssignedCopied] = useState(false);
   const [customSentinelFilters, setCustomSentinelFilters] = useState({
-    startDate: null,
-    endDate: null,
+    startDate: defaultStart.format("YYYY-MM-DD"),
+    endDate: defaultEnd.format("YYYY-MM-DD"),
     platform: "All",
     channel: "All",
     brandName: "All",
@@ -523,11 +523,17 @@ export default function DsTesterPage({ isEmbedded = false }) {
       setSelectedClient(sentinelTargetClient);
     }
 
+    const activeCustom = sentinelFilterMode === "custom" ? {
+      ...customSentinelFilters,
+      startDate: customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD"),
+      endDate: customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD"),
+    } : null;
+
     try {
       const res = await axios.post(`${DS_TESTER_API}/anomaly/trigger`, {
         clients: sentinelTargetClient === "all" ? null : [sentinelTargetClient],
         headless: !watchLiveBrowser,
-        custom_filters: sentinelFilterMode === "custom" ? customSentinelFilters : null,
+        custom_filters: activeCustom,
       });
 
       if (res.data?.status === "busy") {
@@ -1116,6 +1122,12 @@ export default function DsTesterPage({ isEmbedded = false }) {
     setPeriodModalOpen(false);
 
     let periodPayload = selectedPeriod;
+    if (sentinelFilterMode === "custom" && (customSentinelFilters.startDate || timeStart)) {
+      periodPayload = {
+        startDate: customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD"),
+        endDate: customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD"),
+      };
+    }
     let segId = targetSegment.id;
 
     if (selectedModule === "review_rating") {
@@ -1234,7 +1246,10 @@ export default function DsTesterPage({ isEmbedded = false }) {
     if (!selectedModule) return;
     setPeriodModalOpen(false);
 
-    let periodPayload = overridePeriod || selectedPeriod;
+    let periodPayload = overridePeriod || (sentinelFilterMode === "custom" && (customSentinelFilters.startDate || timeStart) ? {
+      startDate: customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD"),
+      endDate: customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD"),
+    } : selectedPeriod);
     if (selectedModule === "review_rating") {
       periodPayload = { startDate: "Last 6 Months", endDate: "Last 6 Months", preset: "6M" };
     } else if (selectedModule === "content_analysis") {
@@ -1771,7 +1786,16 @@ export default function DsTesterPage({ isEmbedded = false }) {
               <Button
                 variant="outlined"
                 size="small"
-                onClick={() => setSentinelFilterModalOpen(true)}
+                onClick={() => {
+                  const startStr = customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD");
+                  const endStr = customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD");
+                  setCustomSentinelFilters((prev) => ({
+                    ...prev,
+                    startDate: startStr,
+                    endDate: endStr,
+                  }));
+                  setSentinelFilterModalOpen(true);
+                }}
                 disabled={sentinelScanning}
                 startIcon={<TuneIcon fontSize="small" sx={{ color: sentinelFilterMode === "custom" ? "#2563eb" : "#64748b" }} />}
                 sx={{
@@ -3393,7 +3417,18 @@ export default function DsTesterPage({ isEmbedded = false }) {
 
           </Box>
 
-          <IconButton size="small" onClick={() => { setSentinelFilterMode("custom"); setSentinelFilterModalOpen(false); }}>
+          <IconButton size="small" onClick={() => {
+            const startStr = customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD");
+            const endStr = customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD");
+            setCustomSentinelFilters((prev) => ({
+              ...prev,
+              startDate: startStr,
+              endDate: endStr,
+            }));
+            setSelectedPeriod({ startDate: startStr, endDate: endStr });
+            setSentinelFilterMode("custom");
+            setSentinelFilterModalOpen(false);
+          }}>
 
             <CloseIcon fontSize="small" />
 
@@ -3663,23 +3698,17 @@ export default function DsTesterPage({ isEmbedded = false }) {
                   timeEnd={timeEnd}
 
                   onApply={(s, e) => {
-
                     setTimeStart(s);
-
                     setTimeEnd(e);
-
-                    setCustomSentinelFilters({
-
-                      ...customSentinelFilters,
-
-                      startDate: s.format("YYYY-MM-DD"),
-
-                      endDate: e.format("YYYY-MM-DD"),
-
-                    });
-
+                    const sStr = s.format("YYYY-MM-DD");
+                    const eStr = e.format("YYYY-MM-DD");
+                    setCustomSentinelFilters((prev) => ({
+                      ...prev,
+                      startDate: sStr,
+                      endDate: eStr,
+                    }));
+                    setSelectedPeriod({ startDate: sStr, endDate: eStr });
                   }}
-
                 />
 
                 <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#64748b", fontWeight: 600 }}>
@@ -3705,25 +3734,21 @@ export default function DsTesterPage({ isEmbedded = false }) {
             size="small"
 
             onClick={() => {
-
               setSentinelFilterMode("default");
-
               setCustomSentinelFilters({
-
-                startDate: null,
-
-                endDate: null,
-
+                startDate: defaultStart.format("YYYY-MM-DD"),
+                endDate: defaultEnd.format("YYYY-MM-DD"),
                 platform: "All",
-
                 channel: "All",
-
                 brandName: "All",
-
+                category: "All",
                 retailerName: "All",
-
               });
-
+              setSelectedPeriod({
+                startDate: defaultStart.format("YYYY-MM-DD"),
+                endDate: defaultEnd.format("YYYY-MM-DD"),
+              });
+              setSentinelFilterModalOpen(false);
             }}
 
             sx={{ color: "#64748b", textTransform: "none", fontWeight: 600, fontSize: "12px" }}
@@ -3742,7 +3767,18 @@ export default function DsTesterPage({ isEmbedded = false }) {
 
             variant="contained"
 
-            onClick={() => { setSentinelFilterMode("custom"); setSentinelFilterModalOpen(false); }}
+            onClick={() => {
+              const startStr = customSentinelFilters.startDate || timeStart.format("YYYY-MM-DD");
+              const endStr = customSentinelFilters.endDate || timeEnd.format("YYYY-MM-DD");
+              setCustomSentinelFilters((prev) => ({
+                ...prev,
+                startDate: startStr,
+                endDate: endStr,
+              }));
+              setSelectedPeriod({ startDate: startStr, endDate: endStr });
+              setSentinelFilterMode("custom");
+              setSentinelFilterModalOpen(false);
+            }}
 
             sx={{
 

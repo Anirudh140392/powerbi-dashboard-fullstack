@@ -1102,8 +1102,8 @@ class AnomalySentinel:
                 # 1. Dynamically resolve accurate date period for this client and module
                 if custom_filters and custom_filters.get("startDate") and custom_filters.get("endDate"):
                     period = {
-                        "startDate": str(custom_filters["startDate"]),
-                        "endDate": str(custom_filters["endDate"]),
+                        "startDate": str(custom_filters["startDate"])[:10],
+                        "endDate": str(custom_filters["endDate"])[:10],
                     }
                 elif mod_name == "review_rating":
                     period = {"startDate": "Last 6 Months", "endDate": "Last 6 Months", "preset": "6M"}
@@ -1114,7 +1114,7 @@ class AnomalySentinel:
                         "platform": seg_name.replace("pds_score_", "").capitalize(),
                     }
                 else:
-                    # Dynamically derive date range from database max date or last 14 days
+                    # Dynamically derive date range from database max date or last 30-day baseline
                     end_dt = date.today()
                     try:
                         max_row = execute_select_query(f"SELECT MAX(toDate(DATE)) FROM {client}.rb_pdp_olap", database=client)
@@ -1127,7 +1127,7 @@ class AnomalySentinel:
                     except Exception:
                         pass
                     period = {
-                        "startDate": (end_dt - timedelta(days=14)).strftime("%Y-%m-%d"),
+                        "startDate": (end_dt - timedelta(days=30)).strftime("%Y-%m-%d"),
                         "endDate": end_dt.strftime("%Y-%m-%d"),
                     }
 
