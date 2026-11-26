@@ -3,6 +3,14 @@ import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
+import { getTier1Cities } from './availabilityService.js';
+
+function cityTierKey(city) {
+    const name = String(city ?? '').trim().toLowerCase();
+    if (name === 'bangalore') return 'bengaluru';
+    if (name === 'gurgaon') return 'gurugram';
+    return name;
+}
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
@@ -42,10 +50,33 @@ export const isAllValue = (val) => {
     );
 };
 
+/**
+ * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
+ * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
+ */
+const processKeywordType = (val) => {
+    if (!val || val === 'All' || val === 'all') return null;
+    if (Array.isArray(val)) {
+        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
+            const lower = String(t).toLowerCase();
+            if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+            return lower;
+        }).flat();
+    }
+    const lower = String(val).toLowerCase();
+    if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+    return lower;
+};
+
 function buildCHCondition(value, column, options = {}) {
     let { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
     if (column === 'keyword_search_product' || column === 'Product' || column === 'item_name') {
         noSplit = true;
+    }
+
+    if (column === 'keyword_type' || column.endsWith('.keyword_type') || isKeywordType) {
+        isKeywordType = true;
+        value = processKeywordType(value);
     }
 
     const isAll = isAllValue;
@@ -79,29 +110,50 @@ function buildCHCondition(value, column, options = {}) {
     }
 
     if (isCategory || isKeywordType || isPlatform || isDimension ||
-        ['platform_name', 'keyword', 'keyword_search_product', 'location_name', 'brand'].includes(column)) {
+        ['platform_name', 'keyword', 'keyword_type', 'keyword_search_product', 'location_name', 'brand'].includes(column) ||
+        column.endsWith('.platform_name') || column.endsWith('.keyword') || column.endsWith('.keyword_type') || column.endsWith('.brand')) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
-/**
- * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
- * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
- */
-const processKeywordType = (val) => {
-    if (!val || val === 'All' || val === 'all') return null;
-    if (Array.isArray(val)) {
-        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
-            const lower = String(t).toLowerCase();
-            if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
-            return lower;
-        }).flat();
-    }
-    const lower = String(val).toLowerCase();
-    if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
-    return lower;
-};
+// Match each search listing once so repeated keyword appearances cannot multiply PDP observations.
+async function getKeywordSkuWeightedMetrics({ skuSearchWhere, dateFrom, dateTo, location, brand }) {
+    const columns = await getTableColumns('rb_pdp_olap');
+    const col = name => resolveColumn(columns, name);
+    const numeric = name => {
+        const field = col(name);
+        return columns.has(field.toLowerCase()) ? `toFloat64OrNull(toString(p.${field}))` : 'CAST(NULL AS Nullable(Float64))';
+    };
+    const validOsa = 'available >= 0 AND observed > 0 AND listing BETWEEN 0 AND 100';
+    const validPrice = 'mrp_value > 0 AND selling_price_value >= 0 AND sales_value > 0';
+    return queryClickHouse(`
+        WITH listings AS (
+            SELECT DISTINCT keyword_search_product AS name,
+                   lower(platform_name) AS pf, lower(toString(web_pid)) AS pid
+            FROM rb_kw_olap
+            WHERE ${skuSearchWhere} AND toInt32(flag) = 1 AND notEmpty(toString(web_pid))
+        ), observations AS (
+            SELECT lower(p.${col('Platform')}) AS pf, lower(toString(p.${col('Web_Pid')})) AS pid,
+                   lower(trim(p.${col('Location')})) AS city,
+                   ${numeric('neno_osa')} AS available, ${numeric('deno_osa')} AS observed,
+                   ${numeric('listing_percent')} AS listing, ${numeric('MRP')} AS mrp_value,
+                   ${numeric('Selling_Price')} AS selling_price_value, ${numeric('Sales')} AS sales_value
+            FROM rb_pdp_olap AS p
+            WHERE toDate(p.${col('DATE')}) BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND toInt32(p.${col('Comp_flag')}) = 0
+              AND ${buildCHCondition(location, `p.${col('Location')}`, { isDimension: true })}
+              AND ${buildCHCondition(brand, `p.${col('Brand')}`, { isDimension: true })}
+        )
+        SELECT name, city, GROUPING(city) AS is_total,
+               round(sumIf(available, ${validOsa}) / nullIf(sumIf(observed, ${validOsa}), 0)
+                     * avgIf(listing, ${validOsa}), 2) AS weighted_osa,
+               round(100 * sumIf((mrp_value - selling_price_value) / nullIf(mrp_value, 0) * sales_value, ${validPrice})
+                     / nullIf(sumIf(sales_value, ${validPrice}), 0), 2) AS weighted_discount
+        FROM observations INNER JOIN listings USING (pf, pid)
+        GROUP BY GROUPING SETS ((name), (name, city))
+    `);
+}
 
 /**
  * Shared helper to build platform condition based on channel
@@ -958,6 +1010,9 @@ class VisibilityService {
     async getPlatformKpiMatrix(filters) {
         console.log('[VisibilityService] getPlatformKpiMatrix called with filters:', filters);
 
+        const comparisonColumn = filters.viewMode === 'CategoryCrossPlatform' ? 'keyword_category'
+            : filters.viewMode === 'CityCrossPlatform' ? 'location_name' : null;
+
         try {
             // Build WHERE clause based on date filters
             let startDate = filters.startDate;
@@ -969,66 +1024,7 @@ class VisibilityService {
                 startDate = dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
             }
 
-            const replacements = { startDate, endDate };
-
-            // Base WHERE clause for rb_kw_olap
-            let baseWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
-
-            if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                if (channelCond !== '1=1') baseWhere += ` AND ${channelCond}`;
-            }
-
-            // Apply platform filter if provided
-            if (filters.platform && filters.platform !== 'All') {
-                const platCond = buildCHCondition(filters.platform, 'platform_name');
-                baseWhere += ` AND ${platCond}`;
-            } else {
-                // Always exclude specific platforms from the matrix
-                const excludedList = EXCLUDED_PLATFORMS.map(p => `'${escapeCH(p)}'`).join(',');
-                baseWhere += ` AND platform_name NOT IN (${excludedList})`;
-            }
-
-            // Apply location filter if provided
-            if (filters.location && filters.location !== 'All') {
-                const locCond = buildCHCondition(filters.location, 'location_name');
-                baseWhere += ` AND ${locCond}`;
-            }
-
-            // Apply keyword filter if provided
-            if (filters.keyword && filters.keyword !== 'All') {
-                baseWhere += ` AND ${buildCHCondition(filters.keyword, 'keyword')}`;
-            }
-
-            if (filters.keywordType && filters.keywordType !== 'All') {
-                baseWhere += ` AND ${buildCHCondition(filters.keywordType, 'keyword_type')}`;
-            }
-
-            // Apply format (category) filter if provided
-            const categoryValue = filters.category || filters.format;
-            if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
-                const formatCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-                baseWhere += ` AND ${formatCond}`;
-            }
-
-            // Apply pincode filter if provided
-            if (filters.pincode && filters.pincode !== 'All') {
-                const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
-                const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
-                if (filteredPins.length > 0) {
-                    const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
-                    baseWhere += ` AND toString(pincode) IN (${pinList})`;
-                }
-            }
-
-            // Apply rank filter if provided
-            if (filters.rank && filters.rank !== 'All') {
-                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                if (!isNaN(maxRank) && maxRank > 0) {
-                    baseWhere += ` AND POSITION <= ${maxRank} AND POSITION > 0`;
-                }
-            }
+            let regionCondition = '';
 
             // Handle Zone/MetroFlag filters: fetch cities first to ensure reliable filtering
             if ((filters.zone && filters.zone !== 'All') || (filters.metroFlag && filters.metroFlag !== 'All')) {
@@ -1053,10 +1049,9 @@ class VisibilityService {
                     const cityResults = await queryClickHouse(cityQuery);
                     if (cityResults && cityResults.length > 0) {
                         const cityList = cityResults.map(r => `'${escapeCH(r.location_name)}'`).join(',');
-                        baseWhere += ` AND location_name IN (${cityList})`;
+                        regionCondition = ` AND location_name IN (${cityList})`;
                     } else {
-                        // If no cities found for zone/metro, force empty result
-                        baseWhere += " AND 1=0";
+                        regionCondition = ' AND 1=0';
                     }
                 }
             }
@@ -1076,42 +1071,11 @@ class VisibilityService {
                 prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
             }
 
-            // Apply same filters to previous period
-            let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
-            if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                if (channelCond !== '1=1') prevBaseWhere += ` AND ${channelCond}`;
-            }
-            if (filters.platform && filters.platform !== 'All') {
-                prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
-            } else {
-                const excludedList = EXCLUDED_PLATFORMS.map(p => `'${escapeCH(p)}'`).join(',');
-                prevBaseWhere += ` AND platform_name NOT IN (${excludedList})`;
-            }
-            if (filters.location && filters.location !== 'All') {
-                prevBaseWhere += ` AND ${buildCHCondition(filters.location, 'location_name')}`;
-            }
-            if (filters.pincode && filters.pincode !== 'All') {
-                const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
-                const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
-                if (filteredPins.length > 0) {
-                    const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
-                    prevBaseWhere += ` AND toString(pincode) IN (${pinList})`;
-                }
-            }
-            // Re-apply city list filter to previous where if needed
-            if (baseWhere.includes('location_name IN')) {
-                const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
-                if (cityListMatch) {
-                    prevBaseWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                }
-            }
-
             // Query builder helper for current/prev/sparkline
             const getMatrixQueries = async (dimColumn, dimAlias, filtersToExclude = []) => {
                 // Build filtered where clauses for this specific matrix
-                let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
-                let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'${regionCondition}`;
+                let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'${regionCondition}`;
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1131,7 +1095,7 @@ class VisibilityService {
                     // This allows the user to drill down into a specific city/category in the matrix view
                     if (val && val !== 'All' && val !== 'all') {
                         const isCat = col === 'keyword_category';
-                        const cond = buildCHCondition(val, col, { isCategory: isCat });
+                        const cond = buildCHCondition(val, col, { isCategory: isCat, noSplit: col === comparisonColumn });
                         currentWhere += ` AND ${cond}`;
                         prevWhere += ` AND ${cond}`;
                     }
@@ -1164,15 +1128,6 @@ class VisibilityService {
                     }
                 }
 
-                // Re-apply city list filter if zones/metroFlags were used
-                if (baseWhere.includes('location_name IN (')) {
-                    const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
-                    if (cityListMatch) {
-                        currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                        currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                    }
-                }
-
                 const current = `
                     SELECT 
                         ${dimColumn} as ${dimAlias},
@@ -1183,7 +1138,7 @@ class VisibilityService {
                     WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                     GROUP BY ${dimColumn}
                     ORDER BY count() DESC
-                    LIMIT 15
+                    ${comparisonColumn ? '' : 'LIMIT 15'}
                 `;
 
                 const previous = `
@@ -1212,17 +1167,6 @@ class VisibilityService {
 
                 return { current, previous, sparkline };
             };
-
-            // Execute all queries in parallel for efficiency
-            const platQueries = await getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
-            const formQueries = await getMatrixQueries('keyword_category', 'format');
-            const cityQueries = await getMatrixQueries('location_name', 'city');
-
-            const [platRes, platPrev, platSpark, formRes, formPrev, formSpark, cityRes, cityPrev, citySpark] = await Promise.all([
-                queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
-                queryClickHouse(formQueries.current), queryClickHouse(formQueries.previous), queryClickHouse(formQueries.sparkline),
-                queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline)
-            ]);
 
             // Helper to process results into UI format
             const processResults = (current, previous, sparkline) => {
@@ -1263,11 +1207,13 @@ class VisibilityService {
                         const currData = current.find(c => (c.platform || c.format || c.city) === dimName);
                         const prevData = prevMap[dimName];
 
+                        const missingValue = comparisonColumn && currData?.[kpi.key] == null;
+                        const missingPrevious = comparisonColumn && prevData?.[kpi.key] == null;
                         const val = Number(currData?.[kpi.key]) || 0;
                         const prevVal = Number(prevData?.[kpi.key]) || 0;
 
-                        row[dimName] = val;
-                        trend[dimName] = Number((val - prevVal).toFixed(1));
+                        row[dimName] = missingValue ? null : val;
+                        trend[dimName] = missingValue || missingPrevious ? null : Number((val - prevVal).toFixed(1));
                         series[dimName] = sparkMap[dimName]?.[kpi.sparkKey] || [val];
                     });
 
@@ -1279,14 +1225,48 @@ class VisibilityService {
                 return { columns, rows };
             };
 
+            // Execute all queries in parallel for efficiency
+            const platQueries = await getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
+            if (comparisonColumn) {
+                const period = { startDate, endDate, compareStartDate: prevStart, compareEndDate: prevEnd };
+                if (filters.viewMode === 'CityCrossPlatform') {
+                    const cities = await getTier1Cities();
+                    if (!cities.some(city => cityTierKey(city) === cityTierKey(filters.location))) {
+                        return { platformData: { columns: ['kpi'], rows: [] }, period };
+                    }
+                }
+                const [current, previous] = await Promise.all([
+                    queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous)
+                ]);
+                return {
+                    platformData: processResults(current, previous, []),
+                    period
+                };
+            }
+
+            const formQueries = await getMatrixQueries('keyword_category', 'format');
+            const cityQueries = await getMatrixQueries('location_name', 'city');
+
+            const [platRes, platPrev, platSpark, formRes, formPrev, formSpark, cityRes, cityPrev, citySpark, tier1Cities] = await Promise.all([
+                queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
+                queryClickHouse(formQueries.current), queryClickHouse(formQueries.previous), queryClickHouse(formQueries.sparkline),
+                queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline),
+                getTier1Cities()
+            ]);
+            const tier1Keys = new Set(tier1Cities.map(cityTierKey));
+            // The daily series covers cities beyond the main matrix's top 15.
+            const availableCities = new Set(citySpark.map(row => row.city));
+            const comparisonCities = [...availableCities].filter(city => tier1Keys.has(cityTierKey(city))).sort();
+
             return {
                 platformData: processResults(platRes, platPrev, platSpark),
                 formatData: processResults(formRes, formPrev, formSpark),
-                cityData: processResults(cityRes, cityPrev, citySpark)
+                cityData: { ...processResults(cityRes, cityPrev, citySpark), comparisonCities }
             };
 
         } catch (error) {
             console.error('[VisibilityService] Error in getPlatformKpiMatrix:', error);
+            if (comparisonColumn) throw error;
             return {
                 platformData: { columns: ["kpi"], rows: [] },
                 formatData: { columns: ["kpi"], rows: [] },
@@ -4198,6 +4178,17 @@ class VisibilityService {
             }
             const skuOuterWhere = skuOuterFilters.length > 0 ? `WHERE ${skuOuterFilters.join(' AND ')}` : '';
 
+            const skuSearchWhere = `DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          ${rankCondition}
+                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''`;
+
             const mainQuery = viewMode === 'sku' ? `
                     WITH product_counts AS (
                         SELECT
@@ -4217,16 +4208,7 @@ class VisibilityService {
                             arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
                             max(toInt32(flag)) as is_own_sku
                         FROM rb_kw_olap
-                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                          AND ${platformCondition}
-                          AND ${channelCondition}
-                          AND ${locationCondition}
-                          AND ${categoryCondition}
-                          AND ${globalKeywordTypeCondition}
-                          AND ${localKeywordTypeCondition}
-                          AND ${keywordCondition}
-                          ${rankCondition}
-                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                        WHERE ${skuSearchWhere}
                         GROUP BY platform_name, keyword_search_product
                     )
                     SELECT
@@ -4479,6 +4461,23 @@ class VisibilityService {
 
             // Fetch SKU images, page_url from rb_sku_platform and calculate Offtake Share from rb_pdp_olap
             if (viewMode === 'sku') {
+                if (filters.includeWeightedMetrics && ownBrandsOnly && results.length) {
+                    try {
+                        const metrics = await getKeywordSkuWeightedMetrics({ skuSearchWhere, dateFrom, dateTo, location, brand });
+                        for (const row of metrics) {
+                            const item = itemsMap[row.name];
+                            if (!item) continue;
+                            const values = { weightedOsa: row.weighted_osa, weightedDiscount: row.weighted_discount };
+                            if (Number(row.is_total)) Object.assign(item, values);
+                            else {
+                                item.weightedByCity ??= Object.create(null);
+                                item.weightedByCity[row.city] = values;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[VisibilityService] Failed to load weighted SKU metrics:', error);
+                    }
+                }
                 const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
                 if (webPids.length > 0) {
                     try {

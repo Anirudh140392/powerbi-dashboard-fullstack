@@ -118,13 +118,14 @@ export default function DownloadReport() {
   // ── PRICE VIOLATION TAB STATE ──
   const [pvSelectedPlatforms, setPvSelectedPlatforms] = useState([]);
   const [pvSelectedLocations, setPvSelectedLocations] = useState([]);
+  const [pvSelectedPincodes, setPvSelectedPincodes] = useState([]);
   const [pvSelectedSkus, setPvSelectedSkus] = useState([]);
   const [pvSelectedWebPids, setPvSelectedWebPids] = useState([]);
   const [pvStartDate, setPvStartDate] = useState(null);
   const [pvEndDate, setPvEndDate] = useState(null);
 
   const [pvFilterOptions, setPvFilterOptions] = useState({
-    platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null
+    platforms: [], locations: [], pincodes: [], skus: [], webPids: [], minDate: null, maxDate: null
   });
   const [loadingPvFilters, setLoadingPvFilters] = useState(false);
   const initialPvFiltersRef = useRef(null);
@@ -184,6 +185,7 @@ export default function DownloadReport() {
     const params = {};
     if (pvSelectedPlatforms.length > 0) params.platform = pvSelectedPlatforms.join(",");
     if (pvSelectedLocations.length > 0) params.location = pvSelectedLocations.join(",");
+    if (pvSelectedPincodes.length > 0) params.pincode = pvSelectedPincodes.join(",");
     if (pvSelectedSkus.length > 0) params.sku = pvSelectedSkus.join(",");
     if (pvSelectedWebPids.length > 0) params.webPid = pvSelectedWebPids.join(",");
     if (pvStartDate) {
@@ -195,7 +197,7 @@ export default function DownloadReport() {
       params.endDate = e.format("YYYY-MM-DD");
     }
     return params;
-  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedSkus, pvSelectedWebPids, pvStartDate, pvEndDate, isQcUserMode, clientMaxAllowedDate]);
+  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedPincodes, pvSelectedSkus, pvSelectedWebPids, pvStartDate, pvEndDate, isQcUserMode, clientMaxAllowedDate]);
 
   const loadPvFilters = useCallback(async (customParams = null) => {
     setLoadingPvFilters(true);
@@ -204,6 +206,7 @@ export default function DownloadReport() {
       if (customParams === null) {
         if (pvSelectedPlatforms.length > 0) p.platform = pvSelectedPlatforms.join(",");
         if (pvSelectedLocations.length > 0) p.location = pvSelectedLocations.join(",");
+        if (pvSelectedPincodes.length > 0) p.pincode = pvSelectedPincodes.join(",");
         if (pvSelectedSkus.length > 0) p.sku = pvSelectedSkus.join(",");
         if (pvSelectedWebPids.length > 0) p.webPid = pvSelectedWebPids.join(",");
       }
@@ -211,6 +214,7 @@ export default function DownloadReport() {
       const newOptions = {
         platforms: data.platforms || [],
         locations: data.locations || [],
+        pincodes: data.pincodes || [],
         skus: data.skus || [],
         webPids: data.webPids || [],
         minDate: data.minDate || null,
@@ -228,7 +232,7 @@ export default function DownloadReport() {
     } finally {
       setLoadingPvFilters(false);
     }
-  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedSkus, pvSelectedWebPids]);
+  }, [pvSelectedPlatforms, pvSelectedLocations, pvSelectedPincodes, pvSelectedSkus, pvSelectedWebPids]);
 
   useEffect(() => {
     if (isEmamiDb && activeTab === "price_violation") {
@@ -245,6 +249,7 @@ export default function DownloadReport() {
   const handleResetPv = () => {
     setPvSelectedPlatforms([]);
     setPvSelectedLocations([]);
+    setPvSelectedPincodes([]);
     setPvSelectedSkus([]);
     setPvSelectedWebPids([]);
     setPvStartDate(null);
@@ -1304,6 +1309,21 @@ export default function DownloadReport() {
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete
                     multiple
+                    options={pvFilterOptions.pincodes?.length > 0 ? pvFilterOptions.pincodes.map(String) : (initialPvFiltersRef.current?.pincodes?.map(String) || [])}
+                    value={pvSelectedPincodes}
+                    onChange={(e, v) => setPvSelectedPincodes(v)}
+                    limitTags={1}
+                    disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
+                    renderInput={(p) => (
+                      <TextField {...p} label="Pincode" placeholder="All Pincodes" variant="outlined" InputLabelProps={{ shrink: true }} />
+                    )}
+                    sx={acSx}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Autocomplete
+                    multiple
                     options={pvFilterOptions.skus?.length > 0 ? pvFilterOptions.skus : (initialPvFiltersRef.current?.skus || [])}
                     value={pvSelectedSkus}
                     onChange={(e, v) => setPvSelectedSkus(v)}
@@ -1478,6 +1498,9 @@ export default function DownloadReport() {
                         <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
                           Location
                         </TableCell>
+                        <TableCell sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
+                          Pincode
+                        </TableCell>
                         <TableCell align="center" sx={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.8rem", borderBottom: "1px solid #e2e8f0", py: 1.2 }}>
                           Date
                         </TableCell>
@@ -1498,7 +1521,7 @@ export default function DownloadReport() {
                     <TableBody>
                       {pvRows.length === 0 && !pvLoading ? (
                         <TableRow>
-                          <TableCell colSpan={9} align="center" sx={{ py: 6, color: "#94a3b8" }}>
+                          <TableCell colSpan={10} align="center" sx={{ py: 6, color: "#94a3b8" }}>
                             No price violations found for selected filters.
                           </TableCell>
                         </TableRow>
@@ -1516,6 +1539,9 @@ export default function DownloadReport() {
                             </TableCell>
                             <TableCell sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1, textTransform: "capitalize" }}>
                               {row.location}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.78rem", color: "#475569", borderBottom: "1px solid #f1f5f9", py: 1 }}>
+                              {row.pincode && row.pincode !== "0" ? row.pincode : "-"}
                             </TableCell>
                             <TableCell align="center" sx={{ fontSize: "0.78rem", color: "#64748b", borderBottom: "1px solid #f1f5f9", py: 1 }}>
                               {row.date}

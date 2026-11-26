@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
 import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
+import VisibilityPlatformComparison from './VisibilityPlatformComparison';
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -238,6 +239,14 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
               dynamicKey="visibility"
               data={active.data}
               title={active.label}
+              titleAction={activeTab !== 'platform' && (
+                <VisibilityPlatformComparison
+                  key={active.key}
+                  dimension={active.label}
+                  options={activeTab === 'city' ? (active.data.comparisonCities ?? []) : active.data.columns.slice(1)}
+                  filters={localMatrixFilters}
+                />
+              )}
               showPagination={true}
               filterApiUrl="/api/visibility-analysis/filter-options"
               onFilterChange={(appliedFilters) => {
@@ -908,8 +917,8 @@ const VisiblityAnalysisData = ({
     };
 
     // Use real API data only — no random generators
-    const overviewCards = apiData?.overview?.cards;
-    if (overviewCards && overviewCards.length > 0) {
+    const overviewCards = (apiData?.overview?.cards || []).filter(card => !String(card.title || '').includes('SOV'));
+    if (overviewCards.length > 0) {
       return overviewCards.map((card, idx) => {
         // Parse numeric value from string like "19.6%"
         const numValue = parseFloat(card.value) || 0;

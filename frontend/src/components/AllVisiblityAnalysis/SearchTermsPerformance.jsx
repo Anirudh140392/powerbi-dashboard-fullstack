@@ -18,15 +18,18 @@ const ALL_KPIS = [
 ];
 
 const DEFAULT_VISIBLE_KPIS = {
-  searchVolume: true,
+  searchVolume: false,
   leadingBrand: true,
   overallSOS: true,
-  overallSOV: true,
+  overallSOV: false,
   organicSOS: true,
-  organicSOV: true,
+  organicSOV: false,
   paidSOS: true,
-  adSOV: true,
+  adSOV: false,
 };
+
+// KPIs removed from both the table AND the Custom KPI Columns modal per business request
+const HIDDEN_KPIS = { searchVolume: true, overallSOV: true, organicSOV: true, adSOV: true };
 
 
 const sosColor = (val) => {
@@ -108,8 +111,22 @@ const BrandSOSBreakdown = ({ brands, loading }) => {
   );
 };
 
+const weightedSkuColumns = [
+  { key: "weightedOsa", label: "Weighted OSA", formula: "On-shelf availability (%) × average listing coverage (%) ÷ 100" },
+  { key: "weightedDiscount", label: "Weighted Discount", formula: "Sum of (discount from MRP (%) × sales) ÷ total eligible sales" },
+];
+
+const weightedValue = value => value == null ? "" : Number(value).toFixed(2);
+
+function WeightedSkuCells({ metrics }) {
+  return weightedSkuColumns.map(({ key }) => {
+    const value = weightedValue(metrics?.[key]);
+    return <td key={key} className="px-3 py-2 text-center text-sm font-semibold text-slate-700 tabular-nums">{value ? `${value}%` : "—"}</td>;
+  });
+}
+
 const DrilldownModal = ({ 
-  items, title, onClose, loading, type = "sku", 
+  items, title, onClose, loading, type = "sku", showWeightedMetrics = false,
   onToggleLocations, expandedLocs, locsLoading,
   keywordTypeFilter, onKeywordTypeFilterChange 
 }) => {
@@ -120,6 +137,7 @@ const DrilldownModal = ({
       ? ["Keyword", "Ad Position", "Organic Position", "Top 5 Days", "Top 10 Days", "Top 20 Days"]
       : [type === "sku" ? "SKU" : "Keyword", "Ad Position", "Organic Position", "Overall SOS", "Organic SOS", "Paid SOS"];
     
+    if (showWeightedMetrics) headers.push(...weightedSkuColumns.map(column => column.label));
     const rows = items.map(it => isKeyword ? [
       `"${(it.name || "").replace(/"/g, '""')}"`,
       it.adPosition || "",
@@ -134,6 +152,7 @@ const DrilldownModal = ({
       it.overallSOS != null ? it.overallSOS.toFixed(2) : "",
       it.organicSOS != null ? it.organicSOS.toFixed(2) : "",
       it.paidSOS != null ? it.paidSOS.toFixed(2) : "",
+      ...(showWeightedMetrics ? weightedSkuColumns.map(({ key }) => weightedValue(it[key])) : []),
     ]);
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
@@ -152,7 +171,7 @@ const DrilldownModal = ({
       onClick={onClose}
     >
       <div
-        style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: 840, maxWidth: "96%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
+        style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: showWeightedMetrics ? 1060 : 840, maxWidth: "96%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -223,7 +242,7 @@ const DrilldownModal = ({
           </p>
         ) : (
           <div style={{ maxHeight: 520, overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid #f1f5f9" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+          <table style={{ width: "100%", minWidth: showWeightedMetrics ? 850 : undefined, borderCollapse: "separate", borderSpacing: 0 }}>
             <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
               <tr>
                 <th rowSpan={2} style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#f8fafc" }}>
@@ -241,6 +260,12 @@ const DrilldownModal = ({
                     Share of Search (SOS)
                   </th>
                 )}
+                {showWeightedMetrics && weightedSkuColumns.map(column => (
+                  <th key={column.key} rowSpan={2} scope="col" title={column.formula}
+                    className="w-24 border-b-2 border-slate-200 bg-slate-50 px-3 py-2 text-center align-middle text-xs font-bold text-slate-700">
+                    {column.label}
+                  </th>
+                ))}
               </tr>
               <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
                 <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
@@ -385,6 +410,7 @@ const DrilldownModal = ({
                         <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.paidSOS} /></td>
                       </>
                     )}
+                    {showWeightedMetrics && <WeightedSkuCells metrics={item} />}
                   </tr>
                   
                   {expandedLocs?.[item.name] && expandedLocs[item.name].map((loc, j) => (
@@ -454,6 +480,7 @@ const DrilldownModal = ({
                           <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.paidSOS} fontSize={12} /></td>
                         </>
                       )}
+                      {showWeightedMetrics && <WeightedSkuCells metrics={item.weightedByCity?.[loc.city?.trim().toLowerCase()]} />}
                     </tr>
                   ))}
                 </React.Fragment>
@@ -521,16 +548,19 @@ export default function SearchTermsPerformance() {
   const [optionsLoading, setOptionsLoading] = useState({ platforms: false, categories: false, brands: false });
 
   // Custom KPI Column Visibility State
+  // Force-hide the columns the business requested off the UI (Search Volume, Overall SOV, Organic SOV, Ad SOV)
+  // so they stay hidden even when a saved localStorage preference would re-enable them.
+  const FORCE_HIDDEN_KPIS = { searchVolume: false, overallSOV: false, organicSOV: false, adSOV: false };
   const [visibleKpis, setVisibleKpis] = useState(() => {
     try {
       const saved = localStorage.getItem("top_search_terms_visible_kpis");
       if (saved) {
-        return { ...DEFAULT_VISIBLE_KPIS, ...JSON.parse(saved) };
+        return { ...DEFAULT_VISIBLE_KPIS, ...JSON.parse(saved), ...FORCE_HIDDEN_KPIS };
       }
     } catch (e) {
       // ignore
     }
-    return DEFAULT_VISIBLE_KPIS;
+    return { ...DEFAULT_VISIBLE_KPIS, ...FORCE_HIDDEN_KPIS };
   });
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
   const [tempVisibleKpis, setTempVisibleKpis] = useState(visibleKpis);
@@ -598,6 +628,7 @@ export default function SearchTermsPerformance() {
     return ALL_KPIS.filter(kpi => {
       if (activeView !== "keyword" && kpi.keywordOnly) return false;
       if (kpi.hideIfSugar && isSugarUser) return false;
+      if (HIDDEN_KPIS[kpi.id]) return false;
       return true;
     });
   }, [activeView, isSugarUser]);
@@ -624,8 +655,9 @@ export default function SearchTermsPerformance() {
   };
 
   const filterParams = useMemo(() => {
+    if (activeView === "banner") return null;
     return {
-      viewMode: activeView === "keyword" ? "keyword" : (activeView === "brand" ? "brand" : "sku"),
+      viewMode: activeView,
       platform: normalize(localFilters.platform.length > 0 ? localFilters.platform : (activeView === "sku" ? currentSkuPlatform : globalPlatform)),
       brand: normalize(localFilters.brand.length > 0 ? localFilters.brand : selectedBrand),
       location: normalize(selectedLocation),
@@ -644,6 +676,7 @@ export default function SearchTermsPerformance() {
   }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, compareStart, compareEnd, localFilters, selectedRank]);
 
   useEffect(() => {
+    if (!filterParams) return;
     let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
@@ -772,6 +805,7 @@ export default function SearchTermsPerformance() {
     if (!drilldownModal) return;
 
     if (drilldownModal.type === "sku" && drilldownModal.keywordName) {
+      let active = true;
       const fetchModalData = async () => {
         setDrilldownModal(prev => ({ ...prev, loading: true }));
         setExpandedKeywordLocations({}); // Reset expanded locations
@@ -779,21 +813,19 @@ export default function SearchTermsPerformance() {
           const data = await fetchSearchTermsPerformance({
             ...filterParams,
             viewMode: "sku",
-            brand: drilldownModal.isMySkus ? (selectedBrand || "All") : "All",
-            location: (selectedLocation && selectedLocation !== "All") 
-              ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
-              : "All",
-            category: selectedCategory || "All",
+            brand: drilldownModal.isMySkus ? filterParams.brand : "All",
+            includeWeightedMetrics: drilldownModal.isMySkus,
             keyword: drilldownModal.keywordName,
             ownBrandsOnly: drilldownModal.isMySkus,
           });
-          setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
+          if (active) setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
         } catch (err) {
           console.error("Error fetching SKU data reactively:", err);
-          setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
+          if (active) setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
         }
       };
       fetchModalData();
+      return () => { active = false; };
     } else if (drilldownModal.type === "keyword" && drilldownModal.skuName) {
       const fetchModalData = async () => {
         setDrilldownModal(prev => ({ ...prev, loading: true }));
@@ -985,6 +1017,21 @@ export default function SearchTermsPerformance() {
     return "100%";
   }, [activeKpis.length]);
 
+  const viewTabs = (
+    <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
+      {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "banner", label: "Banner" }].map(v => (
+        <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
+          padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+          fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+          background: activeView === v.id ? "#0f172a" : "transparent",
+          color: activeView === v.id ? "#fff" : "#64748b",
+          boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
+          whiteSpace: "nowrap"
+        }}>{v.label}</button>
+      ))}
+    </div>
+  );
+
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#f1f5f9", minHeight: 200, padding: "28px 32px", borderRadius: 24, margin: "24px 0", border: "1px solid #e2e8f0" }}>
       <style>{`
@@ -1005,6 +1052,24 @@ export default function SearchTermsPerformance() {
         </div>
       </div>
 
+      {activeView === "banner" ? (
+        <>
+          {viewTabs}
+          <p style={{
+            margin: "16px 0 0",
+            padding: 24,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.05)",
+            textAlign: "center",
+            color: "#475569",
+          }}>
+            Coming soon
+          </p>
+        </>
+      ) : (
+      <>
       {/* Controls Row */}
       <div style={{
         display: "flex",
@@ -1021,18 +1086,7 @@ export default function SearchTermsPerformance() {
         msOverflowStyle: "none"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
-            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "brand", label: "Brands" }].map(v => (
-              <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
-                padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-                background: activeView === v.id ? "#0f172a" : "transparent",
-                color: activeView === v.id ? "#fff" : "#64748b",
-                boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
-                whiteSpace: "nowrap"
-              }}>{v.label}</button>
-            ))}
-          </div>
+          {viewTabs}
 
           {/* Search Bar */}
           <div style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
@@ -1683,7 +1737,8 @@ export default function SearchTermsPerformance() {
           items={drilldownModal.items} 
           title={drilldownModal.title} 
           loading={drilldownModal.loading} 
-          type={drilldownModal.type} 
+          type={drilldownModal.type}
+          showWeightedMetrics={drilldownModal.type === "sku" && drilldownModal.isMySkus}
           keywordTypeFilter={modalKeywordType}
           onKeywordTypeFilterChange={setModalKeywordType}
           onClose={() => { 
@@ -2077,6 +2132,8 @@ export default function SearchTermsPerformance() {
           initialFilters={trendDrawerFilters}
           initialAudience="Keyword"
         />
+      )}
+      </>
       )}
     </div>
   );

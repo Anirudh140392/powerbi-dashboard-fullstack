@@ -202,6 +202,7 @@ export const fetchSearchTermsPerformance = async (filters = {}) => {
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.sku && filters.sku !== 'All') params.append('sku', normalize(filters.sku));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
+    if (filters.includeWeightedMetrics) params.append('includeWeightedMetrics', 'true');
     if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
     if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
     if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
