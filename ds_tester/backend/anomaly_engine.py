@@ -290,6 +290,7 @@ class AnomalySentinel:
         pass
 
     def get_status(self) -> Dict[str, Any]:
+        self.refresh_store()
         all_clients = get_all_enterprise_clients()
         return {
             "running": getattr(self, "_is_pipeline_active", False),
@@ -773,6 +774,7 @@ class AnomalySentinel:
                 new_anomalies.append(anomaly_record)
 
         with self._lock:
+            self.refresh_store()
             # Add newly detected anomalies for this run, preserving assignment metadata if already assigned
             if new_anomalies:
                 _np = lambda p: "" if not p or str(p).lower() in ("none", "all", "null") else str(p).lower().strip()
@@ -978,6 +980,7 @@ class AnomalySentinel:
             created_anomalies.append(anomaly_rec)
 
         with self._lock:
+            self.refresh_store()
             _np = lambda p: "" if not p or str(p).lower() in ("none", "all", "null") else str(p).lower().strip()
             for anom in created_anomalies:
                 existing = next((a for a in self.anomalies if (

@@ -77,10 +77,18 @@ def create_chrome_driver(headless: bool = False) -> webdriver.Chrome:
 
 
     options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--no-first-run")
+    options.add_argument("--dns-prefetch-disable")
+    options.add_argument("--disable-backgrounding-occluded-windows")
 
-    # Speed Optimization: Disable images & notifications to cut network and CPU latency
+    # Set eager page load strategy: DOM is interactive immediately without blocking on image downloads
+    options.page_load_strategy = "eager"
+
+    # Disable notifications so popups don't obstruct Selenium clicks
     prefs = {
-        "profile.managed_default_content_settings.images": 2,
         "profile.default_content_setting_values.notifications": 2,
     }
     options.add_experimental_option("prefs", prefs)
@@ -426,9 +434,9 @@ def normalize_client_db(client_name: Optional[str]) -> str:
 
 
 
-def get_client_metadata(client_name: str) -> Tuple[str, str]:
+def get_client_metadata(client_name: str) -> Tuple[str, str, str]:
 
-    """Returns (db_id, company_id) from ClickHouse admin_master.tb_database."""
+    """Returns (db_id, company_id, logo_url) from ClickHouse admin_master.tb_database."""
 
     norm = normalize_client_db(client_name)
 
@@ -442,11 +450,11 @@ def get_client_metadata(client_name: str) -> Tuple[str, str]:
 
         ch = get_clickhouse_client('admin_master')
 
-        rows = ch.query(f"SELECT toString(db_id), toString(company_id) FROM tb_database WHERE lower(db_name) = '{norm}' LIMIT 1").result_rows
+        rows = ch.query(f"SELECT toString(db_id), toString(company_id), toString(logo_url) FROM tb_database WHERE lower(db_name) = '{norm}' LIMIT 1").result_rows
 
         if rows:
 
-            _CLIENT_METADATA_CACHE[norm] = (str(rows[0][0]), str(rows[0][1]))
+            _CLIENT_METADATA_CACHE[norm] = (str(rows[0][0]), str(rows[0][1]), str(rows[0][2] or ""))
 
             return _CLIENT_METADATA_CACHE[norm]
 
@@ -454,7 +462,7 @@ def get_client_metadata(client_name: str) -> Tuple[str, str]:
 
         pass
 
-    return ("1", "")
+    return ("1", "", "")
 
 
 
@@ -482,7 +490,7 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str = FRONTEND_UR
 
     jwt_secret = os.getenv("JWT_SECRET", "trailytics_jwt_secret_2026")
 
-    real_db_id, real_company_id = get_client_metadata(target_db)
+    real_db_id, real_company_id, real_logo_url = get_client_metadata(target_db)
 
 
 
@@ -499,6 +507,8 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str = FRONTEND_UR
         "dbId": real_db_id,
 
         "companyId": real_company_id,
+
+        "dbLogoUrl": real_logo_url,
 
         "role": "admin",
 
@@ -541,6 +551,8 @@ def ensure_authenticated(driver: webdriver.Chrome, target_url: str = FRONTEND_UR
         "dbId": real_db_id,
 
         "companyId": real_company_id,
+
+        "dbLogoUrl": real_logo_url,
 
         "tabPermissions": tab_perms,
 

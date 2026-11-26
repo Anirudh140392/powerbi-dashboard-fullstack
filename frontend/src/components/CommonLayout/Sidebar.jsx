@@ -23,6 +23,7 @@ import hmstahlLogo from "../../assets/hmstahl.jpeg";
 
 const getStaticFallbackLogo = (dbName) => {
     const name = String(dbName || '').toLowerCase().trim();
+    if (name === 'danone') return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQJ9sq8BV80bCZcZQ-_rsKN_gB8WIcxmTq9Anlk-HyrgA&s=10';
     if (name === 'mamaearth') return mamaearthLogo;
     if (name === 'mars_petcare') return marsPetcareLogo;
     if (name === 'mars_dmart') return marsLogo; // use marsLogo since marsDmartLogo was imported as mars2.svg
@@ -303,6 +304,8 @@ const Sidebar = ({
 
   // Dynamic logo based on user's database
   const activeLogo = useMemo(() => {
+    if (user?.dbLogoUrl) return user.dbLogoUrl;
+    if (user?.dbName === 'danone') return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQJ9sq8BV80bCZcZQ-_rsKN_gB8WIcxmTq9Anlk-HyrgA&s=10';
     if (user?.dbName === 'mamaearth') return mamaearthLogo;
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
     if (user?.dbName === 'mars_dmart') return marsDmartLogo;
@@ -320,10 +323,12 @@ const Sidebar = ({
     if (user?.dbName === 'emami') return emamiLogo;
     if (user?.dbName === 'hm_amz_dev') return amazonDeviceLogo;
     if (user?.dbName === 'hm_stahl') return hmstahlLogo;
-    return marsLogo;
-  }, [user?.dbName]);
+    if (user?.dbName === 'mars') return marsLogo;
+    return trailLogo;
+  }, [user?.dbName, user?.dbLogoUrl]);
 
   const activeLogoAlt = useMemo(() => {
+    if (user?.dbName === 'danone') return 'Danone Logo';
     if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
     if (user?.dbName === 'mars_dmart') return 'Mars Dmart Logo';
@@ -341,7 +346,8 @@ const Sidebar = ({
     if (user?.dbName === 'emami') return 'Emami Logo';
     if (user?.dbName === 'hm_amz_dev') return 'Amazon Device Logo';
     if (user?.dbName === 'hm_stahl') return 'HM Stahl Logo';
-    return 'Mars Logo';
+    if (user?.dbName === 'mars') return 'Mars Logo';
+    return (user?.dbName || 'Brand').toUpperCase() + ' Logo';
   }, [user?.dbName]);
 
   const logoDimensions = useMemo(() => {
