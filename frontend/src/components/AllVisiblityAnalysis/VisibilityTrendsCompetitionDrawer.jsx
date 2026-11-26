@@ -1140,8 +1140,10 @@ export default function VisibilityTrendsCompetitionDrawer({
             : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          keywordType: drawerFilters.Keyword_Type !== 'All' ? drawerFilters.Keyword_Type : undefined,
+          keyword: drawerFilters.Keyword !== 'All' ? drawerFilters.Keyword : undefined,
           channel: selectedChannel || 'All',
-          rank: drawerFilters.Rank || 'All',
+          rank: drawerFilters.Rank || drawerFilters.rank || 'All',
           compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
           compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
         };
