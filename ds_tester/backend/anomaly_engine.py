@@ -1357,6 +1357,16 @@ class AnomalySentinel:
 
         plat_cond = f"AND lower(Platform) = '{platform.lower().strip()}'" if platform else ""
 
+        # Determine 30-day baseline date range ending at MAX(DATE) to align with live dashboard
+        try:
+            max_date_res = execute_select_query(f"SELECT MAX(toDate(DATE)) FROM {client}.rb_pdp_olap", database=client)
+            max_date = max_date_res[0][0] if max_date_res and max_date_res[0] and max_date_res[0][0] else datetime.now().date()
+        except Exception:
+            max_date = datetime.now().date()
+        start_date = max_date - timedelta(days=30)
+        end_date = max_date
+        date_cond = f"DATE >= '{start_date}' AND DATE <= '{end_date}'"
+
         # Fetch platform-level SOS/SOV from rb_kw_olap if available
         sos_by_plat = {}
         try:
@@ -1366,7 +1376,7 @@ class AnomalySentinel:
                    ROUND(sumIf(spons, flag = 1) * 100.0 / nullIf(sum(spons), 0), 2) as ad_sos,
                    ROUND(sumIf(organic, flag = 1) * 100.0 / nullIf(sum(organic), 0), 2) as org_sos
             FROM {client}.rb_kw_olap
-            WHERE DATE >= today() - 14 AND platform_name != ''
+            WHERE {date_cond} AND platform_name != ''
             GROUP BY lower(trim(platform_name))
             """
             kw_rows = execute_select_query(kw_q)
@@ -1382,112 +1392,204 @@ class AnomalySentinel:
 
         try:
             # -------------------------------------------------------------
-            # Level 1: Platform breakdown
+            # Level 1: Platform breakdown (Live Platform Overview alignment)
             # -------------------------------------------------------------
-            l1_q = f"""
-            SELECT Platform,
-                   ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
-                   ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
-                   ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
-                   ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
-                   ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
-                   ROUND(SUM(toFloat64OrZero(toString(Ad_Spend))), 2) as spend,
-                   ROUND(SUM(toFloat64OrZero(toString(Sales))) / nullIf(SUM(toFloat64OrZero(toString(Ad_Spend))), 0), 2) as roas,
-                   ROUND(SUM(toFloat64OrZero(toString(Ad_sales))), 2) as inorg_sales,
-                   ROUND(SUM(neno_osa * Sales) * 100.0 / nullIf(SUM(deno_osa * Sales), 0), 2) as wt_osa,
-                   count() as cnt
-            FROM {client}.rb_pdp_olap
-            WHERE DATE >= today() - 14 AND Comp_flag = 0 AND Platform != ''
-            GROUP BY Platform ORDER BY sales DESC, cnt DESC
-            """
-            l1_rows = execute_select_query(l1_q)
-            total_sales = sum([float(r[1] or 0) for r in l1_rows])
-            total_cnt = sum([int(r[10] or 0) for r in l1_rows]) or 1.0
-
             platforms_list = []
-            for r in l1_rows:
-                p_raw = (r[0] or "").lower().strip()
-                p_sales = float(r[1] or 0)
-                p_osa = float(r[2] or 0)
-                p_disc = float(r[3] or 0)
-                p_asp = float(r[4] or 0)
-                p_qty = float(r[5] or 0)
-                p_spend = float(r[6] or 0)
-                p_roas = float(r[7] or 0)
-                p_inorg = float(r[8] or 0)
-                p_wt_osa = float(r[9] or p_osa)
-                p_sos = sos_by_plat.get(p_raw, {"sos": 0.0, "ad_sos": 0.0, "organic_sos": 0.0})
+            try:
+                from .step1_api import call_platform_api
+                api_res = call_platform_api('/api/watchtower/platform-overview', db_name=client, params={'months': 1, 'startDate': str(start_date), 'endDate': str(end_date)})
+                if api_res and isinstance(api_res, list):
+                    for item in api_res:
+                        key_raw = str(item.get('key') or '').lower().strip()
+                        if key_raw in ('all', 'overall', 'odd_overall'):
+                            continue
+                        cols = {c.get('title'): c.get('value') for c in item.get('columns', [])}
+                        p_name = item.get('label') or item.get('key')
 
-                # Determine primary metric value for inspected KPI
-                if metric == "discount":
-                    val = p_disc
-                    is_breach = p_disc > 40.0 or (p_disc < 5.0 and p_disc > 0)
-                    status_lbl = f"ANOMALY: DISC {p_disc}%" if is_breach else "NORMAL"
-                elif metric == "osa":
-                    val = p_osa
-                    is_breach = p_osa < 70.0
-                    status_lbl = f"ANOMALY DETECTED: LOW OSA ({p_osa}%)" if is_breach else "NORMAL"
-                elif metric == "wt_osa":
-                    val = p_wt_osa
-                    is_breach = p_wt_osa < 70.0
-                    status_lbl = f"ANOMALY: LOW WT OSA ({p_wt_osa}%)" if is_breach else "NORMAL"
-                elif metric in ("sos", "overall_sov"):
-                    val = p_sos["sos"]
-                    is_breach = val < 5.0 and val > 0
-                    status_lbl = f"ANOMALY: LOW SOS ({val}%)" if is_breach else "NORMAL"
-                elif metric == "ad_sos":
-                    val = p_sos["ad_sos"]
-                    is_breach = val < 2.0 and val > 0
-                    status_lbl = f"ANOMALY: LOW AD SOS ({val}%)" if is_breach else "NORMAL"
-                elif metric == "organic_sos":
-                    val = p_sos["organic_sos"]
-                    is_breach = val < 5.0 and val > 0
-                    status_lbl = f"ANOMALY: LOW ORG SOS ({val}%)" if is_breach else "NORMAL"
-                elif metric == "roas":
-                    val = p_roas
-                    is_breach = val < 2.0 and val > 0
-                    status_lbl = f"ANOMALY: LOW ROAS ({val}x)" if is_breach else "NORMAL"
-                elif metric == "ad_spend":
-                    val = p_spend
-                    is_breach = p_spend > 5000000.0
-                    status_lbl = "HIGH SPEND SPIKE" if is_breach else "NORMAL"
-                elif metric == "qty_sold":
-                    val = p_qty
-                    is_breach = p_qty < 100.0
-                    status_lbl = "LOW VELOCITY" if is_breach else "NORMAL"
-                elif metric == "asp_ppu":
-                    val = p_asp
-                    is_breach = False
-                    status_lbl = "NORMAL"
-                elif metric == "inorganic_sale":
-                    val = p_inorg
-                    is_breach = False
-                    status_lbl = "NORMAL"
-                else:
-                    val = p_sales
-                    is_breach = p_osa < 70.0
-                    status_lbl = f"ANOMALY DETECTED: LOW OSA ({p_osa}%)" if is_breach else "NORMAL"
+                        def parse_num_or_na(v, default=0.0):
+                            if v is None or v == 'N/A' or v == '—' or v == '':
+                                return "N/A"
+                            c_str = str(v).replace('₹', '').replace('%', '').replace('x', '').replace(',', '').strip()
+                            try:
+                                return float(c_str)
+                            except:
+                                return default
 
-                platforms_list.append({
-                    "name": format_platform(r[0]),
-                    "raw_name": r[0],
-                    "value": val,
-                    "sales": p_sales,
-                    "osa": p_osa,
-                    "wt_osa": p_wt_osa,
-                    "discount": p_disc,
-                    "asp": p_asp,
-                    "qty": p_qty,
-                    "spend": p_spend,
-                    "roas": p_roas,
-                    "inorg_sales": p_inorg,
-                    "sos": p_sos["sos"],
-                    "ad_sos": p_sos["ad_sos"],
-                    "organic_sos": p_sos["organic_sos"],
-                    "share_pct": round((p_sales / total_sales) * 100.0, 1) if total_sales > 0 else round((int(r[10] or 0) / total_cnt) * 100.0, 1),
-                    "is_breach": is_breach,
-                    "status_label": status_lbl
-                })
+                        p_sales = parse_num_or_na(cols.get('Offtakes'))
+                        p_qty = parse_num_or_na(cols.get('Quantity Sold') or cols.get('Qty Sold'))
+                        p_osa = parse_num_or_na(cols.get('OSA'))
+                        p_wt_osa = parse_num_or_na(cols.get('Wt OSA') or cols.get('WT OSA'))
+                        p_asp = parse_num_or_na(cols.get('ASP'))
+                        p_disc = parse_num_or_na(cols.get('Promo-My') or cols.get('Discount') or cols.get('Promo'))
+                        p_spend = parse_num_or_na(cols.get('Spend'))
+                        p_roas = parse_num_or_na(cols.get('ROAS'))
+                        p_sos = parse_num_or_na(cols.get('Share of Search') or cols.get('SOS'))
+
+                        # Metric-specific breach & status
+                        if metric == "discount":
+                            val = p_disc if p_disc != "N/A" else 0.0
+                            is_breach = val > 40.0 or (val < 5.0 and val > 0)
+                            status_lbl = f"ANOMALY: DISC {val}%" if is_breach else "NORMAL"
+                        elif metric == "osa":
+                            val = p_osa if p_osa != "N/A" else 0.0
+                            is_breach = val < 70.0 and val > 0
+                            status_lbl = f"ANOMALY DETECTED: LOW OSA ({val}%)" if is_breach else "NORMAL"
+                        elif metric == "wt_osa":
+                            val = p_wt_osa if p_wt_osa != "N/A" else (p_osa if p_osa != "N/A" else 0.0)
+                            is_breach = val < 70.0 and val > 0
+                            status_lbl = f"ANOMALY: LOW WT OSA ({val}%)" if is_breach else "NORMAL"
+                        elif metric in ("sos", "overall_sov"):
+                            val = p_sos if p_sos != "N/A" else 0.0
+                            is_breach = val < 5.0 and val > 0
+                            status_lbl = f"ANOMALY: LOW SOS ({val}%)" if is_breach else "NORMAL"
+                        elif metric == "ad_spend":
+                            val = p_spend if p_spend != "N/A" else 0.0
+                            is_breach = val > 5000000.0
+                            status_lbl = "HIGH SPEND SPIKE" if is_breach else "NORMAL"
+                        elif metric == "qty_sold":
+                            val = p_qty if p_qty != "N/A" else 0.0
+                            is_breach = val < 100.0 and val > 0
+                            status_lbl = "LOW VELOCITY" if is_breach else "NORMAL"
+                        elif metric == "asp_ppu":
+                            val = p_asp if p_asp != "N/A" else 0.0
+                            is_breach = False
+                            status_lbl = "NORMAL"
+                        else:
+                            val = p_sales if p_sales != "N/A" else 0.0
+                            is_breach = (p_osa != "N/A" and p_osa < 70.0)
+                            status_lbl = f"ANOMALY DETECTED: LOW OSA ({p_osa}%)" if is_breach else "NORMAL"
+
+                        platforms_list.append({
+                            "name": format_platform(p_name),
+                            "raw_name": key_raw,
+                            "value": val,
+                            "sales": p_sales,
+                            "osa": p_osa if p_osa != "N/A" else None,
+                            "wt_osa": p_wt_osa if p_wt_osa != "N/A" else None,
+                            "discount": p_disc if p_disc != "N/A" else None,
+                            "asp": p_asp if p_asp != "N/A" else 0.0,
+                            "qty": p_qty,
+                            "spend": p_spend,
+                            "roas": p_roas,
+                            "sos": p_sos if p_sos != "N/A" else None,
+                            "share_pct": 0.0,
+                            "is_breach": is_breach,
+                            "status_label": status_lbl
+                        })
+            except Exception as e:
+                logger.warning(f"Live platform API overview fallback to ClickHouse: {e}")
+
+            if not platforms_list:
+                l1_q = f"""
+                SELECT Platform,
+                       ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
+                       ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
+                       ROUND(AVG(toFloat64OrZero(toString(listing_percent))), 2) as listing_pct,
+                       ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
+                       ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
+                       ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
+                       ROUND(SUM(toFloat64OrZero(toString(Ad_Spend))), 2) as spend,
+                       ROUND(SUM(toFloat64OrZero(toString(Sales))) / nullIf(SUM(toFloat64OrZero(toString(Ad_Spend))), 0), 2) as roas,
+                       ROUND(SUM(toFloat64OrZero(toString(Ad_sales))), 2) as inorg_sales,
+                       count() as cnt
+                FROM {client}.rb_pdp_olap
+                WHERE {date_cond} AND Comp_flag = 0 AND Platform != ''
+                GROUP BY Platform ORDER BY sales DESC, cnt DESC
+                """
+                l1_rows = execute_select_query(l1_q)
+                total_sales = sum([float(r[1] or 0) for r in l1_rows])
+                total_cnt = sum([int(r[10] or 0) for r in l1_rows]) or 1.0
+
+                for r in l1_rows:
+                    p_raw = (r[0] or "").lower().strip()
+                    p_sales = float(r[1] or 0)
+                    p_osa = float(r[2] or 0)
+                    p_list_pct = float(r[3] or 100.0)
+                    p_disc = float(r[4] or 0)
+                    p_asp = float(r[5] or 0)
+                    p_qty = float(r[6] or 0)
+                    p_spend = float(r[7] or 0)
+                    p_roas = float(r[8] or 0)
+                    p_inorg = float(r[9] or 0)
+                    p_wt_osa = round((p_osa * p_list_pct) / 100.0, 2) if p_osa is not None and p_list_pct is not None else p_osa
+                    p_sos = sos_by_plat.get(p_raw, {"sos": 0.0, "ad_sos": 0.0, "organic_sos": 0.0})
+
+                    sales_disp = "N/A" if total_sales == 0 else p_sales
+                    qty_disp = "N/A" if total_sales == 0 else p_qty
+                    spend_disp = "N/A" if p_spend == 0 else p_spend
+                    roas_disp = "N/A" if p_roas == 0 else p_roas
+                    sos_disp = "N/A" if p_sos["sos"] == 0 else p_sos["sos"]
+
+                    # Determine primary metric value for inspected KPI
+                    if metric == "discount":
+                        val = p_disc
+                        is_breach = p_disc > 40.0 or (p_disc < 5.0 and p_disc > 0)
+                        status_lbl = f"ANOMALY: DISC {p_disc}%" if is_breach else "NORMAL"
+                    elif metric == "osa":
+                        val = p_osa
+                        is_breach = p_osa < 70.0
+                        status_lbl = f"ANOMALY DETECTED: LOW OSA ({p_osa}%)" if is_breach else "NORMAL"
+                    elif metric == "wt_osa":
+                        val = p_wt_osa
+                        is_breach = p_wt_osa < 70.0
+                        status_lbl = f"ANOMALY: LOW WT OSA ({p_wt_osa}%)" if is_breach else "NORMAL"
+                    elif metric in ("sos", "overall_sov"):
+                        val = p_sos["sos"]
+                        is_breach = val < 5.0 and val > 0
+                        status_lbl = f"ANOMALY: LOW SOS ({val}%)" if is_breach else "NORMAL"
+                    elif metric == "ad_sos":
+                        val = p_sos["ad_sos"]
+                        is_breach = val < 2.0 and val > 0
+                        status_lbl = f"ANOMALY: LOW AD SOS ({val}%)" if is_breach else "NORMAL"
+                    elif metric == "organic_sos":
+                        val = p_sos["organic_sos"]
+                        is_breach = val < 5.0 and val > 0
+                        status_lbl = f"ANOMALY: LOW ORG SOS ({val}%)" if is_breach else "NORMAL"
+                    elif metric == "roas":
+                        val = p_roas
+                        is_breach = val < 2.0 and val > 0
+                        status_lbl = f"ANOMALY: LOW ROAS ({val}x)" if is_breach else "NORMAL"
+                    elif metric == "ad_spend":
+                        val = p_spend
+                        is_breach = p_spend > 5000000.0
+                        status_lbl = "HIGH SPEND SPIKE" if is_breach else "NORMAL"
+                    elif metric == "qty_sold":
+                        val = p_qty
+                        is_breach = p_qty < 100.0
+                        status_lbl = "LOW VELOCITY" if is_breach else "NORMAL"
+                    elif metric == "asp_ppu":
+                        val = p_asp
+                        is_breach = False
+                        status_lbl = "NORMAL"
+                    elif metric == "inorganic_sale":
+                        val = p_inorg
+                        is_breach = False
+                        status_lbl = "NORMAL"
+                    else:
+                        val = p_sales
+                        is_breach = p_osa < 70.0
+                        status_lbl = f"ANOMALY DETECTED: LOW OSA ({p_osa}%)" if is_breach else "NORMAL"
+
+                    platforms_list.append({
+                        "name": format_platform(r[0]),
+                        "raw_name": r[0],
+                        "value": val,
+                        "sales": sales_disp,
+                        "osa": p_osa,
+                        "wt_osa": p_wt_osa,
+                        "discount": p_disc,
+                        "asp": p_asp,
+                        "qty": qty_disp,
+                        "spend": spend_disp,
+                        "roas": roas_disp,
+                        "inorg_sales": p_inorg,
+                        "sos": sos_disp,
+                        "ad_sos": p_sos["ad_sos"],
+                        "organic_sos": p_sos["organic_sos"],
+                        "share_pct": round((p_sales / total_sales) * 100.0, 1) if total_sales > 0 else round((int(r[10] or 0) / total_cnt) * 100.0, 1),
+                        "is_breach": is_breach,
+                        "status_label": status_lbl
+                    })
 
             if platform:
                 target_p = format_platform(platform).lower()
@@ -1501,31 +1603,41 @@ class AnomalySentinel:
             SELECT Location,
                    ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
                    ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
+                   ROUND(AVG(toFloat64OrZero(toString(listing_percent))), 2) as listing_pct,
                    ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
                    ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
                    ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
                    count() as cnt
             FROM {client}.rb_pdp_olap
-            WHERE DATE >= today() - 14 AND Comp_flag = 0 AND Location != '' {plat_cond}
+            WHERE {date_cond} AND Comp_flag = 0 AND Location != '' {plat_cond}
             GROUP BY Location ORDER BY sales DESC, cnt DESC
             """
             l2_rows = execute_select_query(l2_q)
             l2_total_sales = sum([float(r[1] or 0) for r in l2_rows])
-            l2_total_cnt = sum([int(r[6] or 0) for r in l2_rows]) or 1.0
+            l2_total_cnt = sum([int(r[7] or 0) for r in l2_rows]) or 1.0
 
             cities_list = []
             for r in l2_rows:
                 c_sales = float(r[1] or 0)
                 c_osa = float(r[2] or 0)
-                c_disc = float(r[3] or 0)
-                c_asp = float(r[4] or 0)
-                c_qty = float(r[5] or 0)
+                c_list_pct = float(r[3] or 100.0)
+                c_disc = float(r[4] or 0)
+                c_asp = float(r[5] or 0)
+                c_qty = float(r[6] or 0)
+                c_wt_osa = round((c_osa * c_list_pct) / 100.0, 2) if c_osa is not None and c_list_pct is not None else c_osa
+
+                c_sales_disp = "N/A" if l2_total_sales == 0 else c_sales
+                c_qty_disp = "N/A" if l2_total_sales == 0 else c_qty
 
                 if metric == "discount":
                     val = c_disc
                     is_breach = c_disc > 40.0
                     status_lbl = f"HIGH DISCOUNT ({c_disc}%)" if is_breach else "NORMAL"
-                elif metric in ("osa", "wt_osa"):
+                elif metric == "wt_osa":
+                    val = c_wt_osa
+                    is_breach = c_wt_osa < 70.0
+                    status_lbl = f"STOCKOUT RISK ({c_wt_osa}%)" if is_breach else "OPTIMAL"
+                elif metric == "osa":
                     val = c_osa
                     is_breach = c_osa < 70.0
                     status_lbl = f"STOCKOUT RISK ({c_osa}%)" if is_breach else "OPTIMAL"
@@ -1546,12 +1658,13 @@ class AnomalySentinel:
                     "name": format_city(r[0]),
                     "raw_name": r[0],
                     "value": val,
-                    "sales": c_sales,
+                    "sales": c_sales_disp,
                     "osa": c_osa,
+                    "wt_osa": c_wt_osa,
                     "discount": c_disc,
                     "asp": c_asp,
-                    "qty": c_qty,
-                    "share_pct": round((c_sales / l2_total_sales) * 100.0, 1) if l2_total_sales > 0 else round((int(r[6] or 0) / l2_total_cnt) * 100.0, 1),
+                    "qty": c_qty_disp,
+                    "share_pct": round((c_sales / l2_total_sales) * 100.0, 1) if l2_total_sales > 0 else round((int(r[7] or 0) / l2_total_cnt) * 100.0, 1),
                     "is_breach": is_breach,
                     "status_label": status_lbl
                 })
@@ -1564,24 +1677,31 @@ class AnomalySentinel:
             SELECT Brand, if(Comp_flag = 0, 'Own Brand', 'Competitor') as b_type,
                    ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
                    ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
+                   ROUND(AVG(toFloat64OrZero(toString(listing_percent))), 2) as listing_pct,
                    ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
                    ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
                    ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
                    count() as cnt
             FROM {client}.rb_pdp_olap
-            WHERE DATE >= today() - 14 AND Brand != '' {plat_cond}
+            WHERE {date_cond} AND Brand != '' {plat_cond}
             GROUP BY Brand, b_type ORDER BY sales DESC, cnt DESC
             """
             l3_rows = execute_select_query(l3_q)
+            l3_total_sales = sum([float(r[2] or 0) for r in l3_rows])
             brands_list = []
             for r in l3_rows:
                 b_sales = float(r[2] or 0)
                 b_osa = float(r[3] or 0)
-                b_disc = float(r[4] or 0)
-                b_asp = float(r[5] or 0)
-                b_qty = float(r[6] or 0)
+                b_list_pct = float(r[4] or 100.0)
+                b_disc = float(r[5] or 0)
+                b_asp = float(r[6] or 0)
+                b_qty = float(r[7] or 0)
+                b_wt_osa = round((b_osa * b_list_pct) / 100.0, 2) if b_osa is not None and b_list_pct is not None else b_osa
 
-                val = b_disc if metric == "discount" else b_osa if metric in ("osa", "wt_osa") else b_asp if metric == "asp_ppu" else b_qty if metric == "qty_sold" else b_sales
+                b_sales_disp = "N/A" if l3_total_sales == 0 else b_sales
+                b_qty_disp = "N/A" if l3_total_sales == 0 else b_qty
+
+                val = b_disc if metric == "discount" else b_wt_osa if metric == "wt_osa" else b_osa if metric == "osa" else b_asp if metric == "asp_ppu" else b_qty if metric == "qty_sold" else b_sales
                 is_breach = b_osa < 70.0 if metric in ("osa", "wt_osa", "offtakes") else (b_disc > 40.0 if metric == "discount" else False)
                 status_lbl = "ANOMALY DETECTED" if is_breach else "NORMAL"
 
@@ -1589,11 +1709,12 @@ class AnomalySentinel:
                     "name": format_brand(r[0]),
                     "type": r[1],
                     "value": val,
-                    "sales": b_sales,
+                    "sales": b_sales_disp,
                     "osa": b_osa,
+                    "wt_osa": b_wt_osa,
                     "discount": b_disc,
                     "asp": b_asp,
-                    "qty": b_qty,
+                    "qty": b_qty_disp,
                     "is_breach": is_breach,
                     "status_label": status_lbl
                 })
@@ -1603,38 +1724,46 @@ class AnomalySentinel:
             # Level 4: Category Level
             # -------------------------------------------------------------
             l4_q = f"""
-            SELECT Category,
+            SELECT if(Category IS NOT NULL AND Category != '' AND Category != '0', Category, 'General') as cat_col,
                    ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
                    ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
+                   ROUND(AVG(toFloat64OrZero(toString(listing_percent))), 2) as listing_pct,
                    ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
                    ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
                    ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
                    count() as cnt
             FROM {client}.rb_pdp_olap
-            WHERE DATE >= today() - 14 AND Comp_flag = 0 AND Category != '' {plat_cond}
-            GROUP BY Category ORDER BY sales DESC, cnt DESC
+            WHERE {date_cond} AND Comp_flag = 0 AND cat_col != '' {plat_cond}
+            GROUP BY cat_col ORDER BY sales DESC, cnt DESC
             """
             l4_rows = execute_select_query(l4_q)
+            l4_total_sales = sum([float(r[1] or 0) for r in l4_rows])
             categories_list = []
             for r in l4_rows:
                 cat_sales = float(r[1] or 0)
                 cat_osa = float(r[2] or 0)
-                cat_disc = float(r[3] or 0)
-                cat_asp = float(r[4] or 0)
-                cat_qty = float(r[5] or 0)
+                cat_list_pct = float(r[3] or 100.0)
+                cat_disc = float(r[4] or 0)
+                cat_asp = float(r[5] or 0)
+                cat_qty = float(r[6] or 0)
+                cat_wt_osa = round((cat_osa * cat_list_pct) / 100.0, 2) if cat_osa is not None and cat_list_pct is not None else cat_osa
 
-                val = cat_disc if metric == "discount" else cat_osa if metric in ("osa", "wt_osa") else cat_asp if metric == "asp_ppu" else cat_qty if metric == "qty_sold" else cat_sales
+                cat_sales_disp = "N/A" if l4_total_sales == 0 else cat_sales
+                cat_qty_disp = "N/A" if l4_total_sales == 0 else cat_qty
+
+                val = cat_disc if metric == "discount" else cat_wt_osa if metric == "wt_osa" else cat_osa if metric == "osa" else cat_asp if metric == "asp_ppu" else cat_qty if metric == "qty_sold" else cat_sales
                 is_breach = cat_osa < 70.0 if metric in ("osa", "wt_osa", "offtakes") else (cat_disc > 40.0 if metric == "discount" else False)
                 status_lbl = "CATEGORY SHORTFALL" if is_breach else "NORMAL"
 
                 categories_list.append({
                     "name": format_category(r[0]),
                     "value": val,
-                    "sales": cat_sales,
+                    "sales": cat_sales_disp,
                     "osa": cat_osa,
+                    "wt_osa": cat_wt_osa,
                     "discount": cat_disc,
                     "asp": cat_asp,
-                    "qty": cat_qty,
+                    "qty": cat_qty_disp,
                     "is_breach": is_breach,
                     "status_label": status_lbl
                 })
@@ -1647,25 +1776,33 @@ class AnomalySentinel:
             SELECT Web_Pid, substring(Product, 1, 40) as p_name, Platform,
                    ROUND(SUM(toFloat64OrZero(toString(Sales))), 2) as sales,
                    ROUND(SUM(neno_osa) * 100.0 / nullIf(SUM(deno_osa), 0), 2) as osa,
+                   ROUND(AVG(toFloat64OrZero(toString(listing_percent))), 2) as listing_pct,
                    ROUND(AVG(toFloat64OrZero(toString(Discount))), 2) as discount,
                    ROUND(AVG(CASE WHEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0 AND ifNull(toFloat64OrZero(toString(neno_osa)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) ELSE NULL END), 2) as asp,
                    ROUND(SUM(toFloat64OrZero(toString(Qty_Sold))), 0) as qty,
                    count() as cnt
             FROM {client}.rb_pdp_olap
-            WHERE DATE >= today() - 14 AND Comp_flag = 0 AND Product != '' {plat_cond}
+            WHERE {date_cond} AND Comp_flag = 0 AND Product != '' {plat_cond}
             GROUP BY Web_Pid, p_name, Platform
             ORDER BY sales DESC, cnt DESC
+            LIMIT 15
             """
             l5_rows = execute_select_query(l5_q)
+            l5_total_sales = sum([float(r[3] or 0) for r in l5_rows])
             skus_list = []
             for r in l5_rows:
                 s_sales = float(r[3] or 0)
                 s_osa = float(r[4] or 0)
-                s_disc = float(r[5] or 0)
-                s_asp = float(r[6] or 0)
-                s_qty = float(r[7] or 0)
+                s_list_pct = float(r[5] or 100.0)
+                s_disc = float(r[6] or 0)
+                s_asp = float(r[7] or 0)
+                s_qty = float(r[8] or 0)
+                s_wt_osa = round((s_osa * s_list_pct) / 100.0, 2) if s_osa is not None and s_list_pct is not None else s_osa
 
-                val = s_disc if metric == "discount" else s_osa if metric in ("osa", "wt_osa") else s_asp if metric == "asp_ppu" else s_qty if metric == "qty_sold" else s_sales
+                s_sales_disp = "N/A" if l5_total_sales == 0 else s_sales
+                s_qty_disp = "N/A" if l5_total_sales == 0 else s_qty
+
+                val = s_disc if metric == "discount" else s_wt_osa if metric == "wt_osa" else s_osa if metric == "osa" else s_asp if metric == "asp_ppu" else s_qty if metric == "qty_sold" else s_sales
                 is_breach = s_osa < 70.0 if metric in ("osa", "wt_osa", "offtakes") else (s_disc > 40.0 if metric == "discount" else False)
                 status_lbl = "CRITICAL STOCKOUT" if is_breach else "OPTIMAL"
 
@@ -1674,11 +1811,12 @@ class AnomalySentinel:
                     "product": clean_sku_name(r[1]),
                     "platform": format_platform(r[2]),
                     "value": val,
-                    "sales": s_sales,
+                    "sales": s_sales_disp,
                     "osa": s_osa,
+                    "wt_osa": s_wt_osa,
                     "discount": s_disc,
                     "asp": s_asp,
-                    "qty": s_qty,
+                    "qty": s_qty_disp,
                     "is_breach": is_breach,
                     "status_label": status_lbl
                 })
