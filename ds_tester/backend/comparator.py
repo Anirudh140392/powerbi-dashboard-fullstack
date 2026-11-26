@@ -22,14 +22,32 @@ def normalize_ui_text(raw_text: Optional[str], target_unit: Optional[str] = None
         return None, 0
 
     text = str(raw_text).strip()
-    if not text or text in ("-", "N/A", "null", "None", "Loading...", "NaN"):
+    if not text or text in ("-", "N/A", "null", "None", "Loading...", "NaN", "—"):
         return None, 0
+
+    # If text contains a trend arrow following a primary metric (e.g. "13.58% ▲ 2.2%" or "1.07% ▼ 0.1%"),
+    # extract the leading primary metric
+    arrow_match = re.search(r"^([+-]?\d[\d,\.]*\s*(?:%|[a-zA-Z]+)?)\s*[▲▼]", text)
+    if arrow_match:
+        text = arrow_match.group(1).strip()
+    elif "\n" in text:
+        first_line = text.split("\n")[0].strip()
+        if re.search(r"\d", first_line):
+            text = first_line
+
+    # Also handle standalone delta arrows e.g. "▲ 2.2%" -> "+2.2%" or "▼ 0.1%" -> "-0.1%"
+    if text.startswith("▲"):
+        text = "+" + text.lstrip("▲").strip()
+    elif text.startswith("▼"):
+        text = "-" + text.lstrip("▼").strip()
 
     # Remove currency symbols and spaces
     clean = text.replace("₹", "").replace("$", "").replace("€", "").replace("£", "").strip()
     # Remove percentage signs and day/days suffixes
     clean = clean.replace("%", "").strip()
     clean = re.sub(r"(?i)\s*(days|day|units|unit|retailers|quarters)$", "", clean).strip()
+    # Remove any remaining arrows
+    clean = re.sub(r"[▲▼]", "", clean).strip()
 
     # Detect multiplier suffix
     multiplier = 1.0

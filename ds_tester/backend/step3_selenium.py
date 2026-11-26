@@ -343,9 +343,9 @@ def wait_for_loading_complete(driver: webdriver.Chrome, timeout: float = 3.0):
     """
     Waits for active loading spinners, progress bars, or MUI skeletons to disappear.
     Excludes permanent status indicators (such as .animate-pulse dots/badges).
-    Returns immediately if no loaders are active. Capped at 3.5s maximum to prevent stalling.
+    Returns immediately if no loaders are active.
     """
-    effective_timeout = min(float(timeout), 3.5)
+    effective_timeout = min(float(timeout), 10.0)
     start_time = time.time()
     time.sleep(0.04)
     while time.time() - start_time < effective_timeout:
@@ -455,171 +455,127 @@ def get_client_metadata(client_name: str) -> Tuple[str, str, str]:
 
 
 
-def ensure_authenticated(driver: webdriver.Chrome, target_url: str = FRONTEND_URL, client: Optional[str] = None):
-
+def ensure_authenticated(
+    driver: webdriver.Chrome,
+    target_url: str = FRONTEND_URL,
+    client: Optional[str] = None,
+    on_live_step: Optional[Any] = None,
+):
     """
-
     Ensures the browser session is authenticated with live platform credentials,
-
     injecting valid session state and navigating smoothly to target_url.
-
-    Supports targeting a specific client database (e.g. drl, prestige, pidilite, boat, mars).
-
+    Reuses existing session instantly across batch runs if already logged in to target_db.
     """
-
     import jwt
-
     import json
-
-
 
     target_db = normalize_client_db(client)
 
-    jwt_secret = os.getenv("JWT_SECRET", "trailytics_jwt_secret_2026")
+    # 1. Fast Session Reuse: If driver is already authenticated for target_db on frontend, reuse instantly!
+    curr_url = ""
+    try:
+        curr_url = driver.current_url or ""
+    except Exception:
+        pass
 
+    is_already_auth = False
+    if FRONTEND_URL in curr_url:
+        try:
+            curr_db = driver.execute_script("return sessionStorage.getItem('activeWorkspaceDb') || localStorage.getItem('activeWorkspaceDb');")
+            is_logged_in = driver.execute_script("return sessionStorage.getItem('isLoggedIn') === 'true';")
+            if is_logged_in and curr_db == target_db:
+                is_already_auth = True
+        except Exception:
+            pass
+
+    if is_already_auth:
+        clean_curr = curr_url.split("?")[0].rstrip("/")
+        clean_target = target_url.split("?")[0].rstrip("/")
+        if clean_curr != clean_target:
+            driver.get(target_url)
+            wait_for_loading_complete(driver, timeout=3.0)
+            if on_live_step:
+                on_live_step(f"Navigated to {target_url}...")
+        elif on_live_step:
+            on_live_step(f"Active session verified on {target_url}...")
+        return
+
+    # 2. Fresh Authentication
+    jwt_secret = os.getenv("JWT_SECRET", "trailytics_jwt_secret_2026")
     real_db_id, real_company_id, real_logo_url = get_client_metadata(target_db)
 
-
-
     token_payload = {
-
         "userId": "1",
-
         "email": LOGIN_EMAIL,
-
         "userName": "Admin",
-
         "dbName": target_db,
-
         "dbId": real_db_id,
-
         "companyId": real_company_id,
-
         "dbLogoUrl": real_logo_url,
-
         "role": "admin",
-
         "qcUser": 0,
-
         "dbStatus": True,
-
     }
-
     token = jwt.encode(token_payload, jwt_secret, algorithm="HS256")
-
     tab_perms = {}
-
     try:
-
         from ds_tester.backend.modules.insights import _fetch_client_kpi_config
-
         kpi_cfg = _fetch_client_kpi_config(target_db)
-
         if kpi_cfg:
-
             tab_perms["Insights"] = {"kpi": kpi_cfg}
-
     except Exception:
-
         pass
-
-
 
     user_obj = {
-
         "email": LOGIN_EMAIL,
-
         "name": "Admin",
-
         "role": "admin",
-
         "dbName": target_db,
-
         "dbId": real_db_id,
-
         "companyId": real_company_id,
-
         "dbLogoUrl": real_logo_url,
-
         "tabPermissions": tab_perms,
-
     }
 
-
-
     # Open base url to allow setting sessionStorage on the dashboard domain
-
     driver.get(FRONTEND_URL)
-
-    time.sleep(0.5)
-
-
+    time.sleep(0.1)
 
     driver.execute_script(
-
         """
-
         delete window.__insightsData;
-
         sessionStorage.setItem("isLoggedIn", "true");
-
         sessionStorage.setItem("token", arguments[0]);
-
         sessionStorage.setItem("user", arguments[1]);
-
         sessionStorage.setItem("workspaceSelected", "true");
-
         sessionStorage.setItem("activeWorkspaceDb", arguments[2]);
-
         localStorage.setItem("activeWorkspaceDb", arguments[2]);
-
         if (arguments[3]) {
-
             localStorage.setItem("companyId", arguments[3]);
-
             localStorage.setItem("company_id", arguments[3]);
-
         }
-
         localStorage.setItem("companyName", arguments[2]);
-
         localStorage.setItem("insights_tour_v9", "true");
-
         localStorage.setItem("insights_dd_tour_v7", "true");
-
         """,
-
         token,
-
         json.dumps(user_obj),
-
         target_db,
-
         real_company_id,
-
     )
 
-
-
     driver.get(target_url)
-
     try:
-
         driver.execute_script('''
-
             localStorage.setItem("insights_tour_v9", "true");
-
             localStorage.setItem("insights_dd_tour_v7", "true");
-
         ''')
-
     except Exception:
-
         pass
 
-    driver.maximize_window()
-
-    wait_for_loading_complete(driver, timeout=25)
+    wait_for_loading_complete(driver, timeout=4.0)
+    if on_live_step:
+        on_live_step(f"Authenticated session for {target_db.capitalize()} on {target_url}...")
 
 
 
@@ -939,15 +895,32 @@ def apply_dashboard_period(driver: webdriver.Chrome, period: Any):
             const startVal = arguments[0];
             const endVal = arguments[1];
 
+            function toDayjs(base, dateStr) {
+                if (window.dayjs) {
+                    try { return window.dayjs(dateStr); } catch(e) {}
+                }
+                if (base && typeof base.clone === 'function') {
+                    try {
+                        const parts = dateStr.split('-').map(Number);
+                        return base.clone().year(parts[0]).month(parts[1] - 1).date(parts[2]).startOf('day');
+                    } catch(e) {}
+                }
+                return null;
+            }
+
             // A. Check window.__filterContext directly (instantaneous React state dispatch)
             const fc = window.__filterContext;
             if (fc && typeof fc.setTimeStart === 'function' && typeof fc.setTimeEnd === 'function') {
-                const dayjsFunc = fc.timeStart ? fc.timeStart.constructor : (window.dayjs || null);
-                if (dayjsFunc) {
-                    const s = dayjsFunc(startVal);
-                    const e = dayjsFunc(endVal);
+                const s = toDayjs(fc.timeStart, startVal);
+                const e = toDayjs(fc.timeEnd || fc.timeStart, endVal);
+                if (s && e) {
+                    const len = e.diff(s, 'day') + 1;
+                    const ce = s.subtract(1, 'day');
+                    const cs = ce.subtract(len - 1, 'day');
                     fc.setTimeStart(s);
                     fc.setTimeEnd(e);
+                    if (typeof fc.setCompareStart === 'function') fc.setCompareStart(cs);
+                    if (typeof fc.setCompareEnd === 'function') fc.setCompareEnd(ce);
                     if (typeof fc.setUserSetDate === 'function') fc.setUserSetDate(true);
                     return { success: true, method: 'filterContext' };
                 }
@@ -961,11 +934,10 @@ def apply_dashboard_period(driver: webdriver.Chrome, period: Any):
                 let fiber = dateBtn[key];
                 while (fiber) {
                     if (fiber.memoizedProps && typeof fiber.memoizedProps.onApply === 'function') {
-                        const base = fiber.memoizedProps.timeStart;
-                        if (base) {
-                            const dayjsFunc = base.constructor;
-                            const s = dayjsFunc(startVal);
-                            const e = dayjsFunc(endVal);
+                        const base = fiber.memoizedProps.timeStart || (window.__filterContext && window.__filterContext.timeStart);
+                        const s = toDayjs(base, startVal);
+                        const e = toDayjs(base, endVal);
+                        if (s && e) {
                             const len = e.diff(s, 'day') + 1;
                             const ce = s.subtract(1, 'day');
                             const cs = ce.subtract(len - 1, 'day');

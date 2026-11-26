@@ -4,6 +4,10 @@ import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 import { useAuth } from "./AuthContext";
 
+if (typeof window !== "undefined") {
+    window.dayjs = dayjs;
+}
+
 export const FilterContext = createContext();
 
 // Context ready states so children know when async data has loaded
@@ -1026,6 +1030,9 @@ export const FilterProvider = ({ children }) => {
                 setTimeStart,
                 timeEnd,
                 setTimeEnd,
+                setCompareStart,
+                setCompareEnd,
+                setUserSetDate,
                 platforms,
             };
         } catch (_) {}

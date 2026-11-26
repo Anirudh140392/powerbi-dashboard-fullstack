@@ -608,24 +608,30 @@ def step2_logic(segment: str, period: Any, client: Optional[str] = None) -> Dict
             query = f"""
             WITH
               curr AS (
-                SELECT brand, platform_name, ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(PARTITION BY platform_name), 0), 2) AS sos
-                FROM {db_name}.rb_kw_olap WHERE DATE BETWEEN '{start_date}' AND '{end_date}' GROUP BY brand, platform_name
+                SELECT brand, lower(platform_name) as platform, 
+                       ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(PARTITION BY lower(platform_name)), 0), 2) AS sos
+                FROM {db_name}.rb_kw_olap WHERE DATE BETWEEN '{start_date}' AND '{end_date}'
+                GROUP BY brand, lower(platform_name)
               ),
               prev AS (
-                SELECT brand, platform_name, ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(PARTITION BY platform_name), 0), 2) AS sos
-                FROM {db_name}.rb_kw_olap WHERE DATE BETWEEN '{prev_start}' AND '{prev_end}' GROUP BY brand, platform_name
+                SELECT brand, lower(platform_name) as platform, 
+                       ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(PARTITION BY lower(platform_name)), 0), 2) AS sos
+                FROM {db_name}.rb_kw_olap WHERE DATE BETWEEN '{prev_start}' AND '{prev_end}'
+                GROUP BY brand, lower(platform_name)
               )
-            SELECT curr.brand, curr.platform_name, curr.sos, ROUND(curr.sos - prev.sos, 2) as d_sos
-            FROM curr INNER JOIN prev ON curr.brand = prev.brand AND curr.platform_name = prev.platform_name
+            SELECT curr.brand, curr.platform, curr.sos, prev.sos, ROUND(curr.sos - prev.sos, 2) as d_sos
+            FROM curr INNER JOIN prev ON curr.brand = prev.brand AND curr.platform = prev.platform
+            WHERE curr.brand IS NOT NULL AND lower(curr.brand) != 'other'
             """
             rows = execute_select_query(query, database=db_name)
             if rows:
-                sorted_by_delta = sorted([r for r in rows if r[3] is not None], key=lambda x: x[3], reverse=True)
-                gainers = [r for r in sorted_by_delta if r[3] > 0]
-                drainers = [r for r in sorted_by_delta if r[3] < 0]
+                sorted_by_delta = sorted([r for r in rows if r[4] is not None], key=lambda x: x[4], reverse=True)
+                gainers = [r for r in sorted_by_delta if r[4] > 0]
+                drainers = [r for r in sorted_by_delta if r[4] < 0]
 
-                max_gain = float(gainers[0][3]) if gainers else 0.0
-                max_drain = float(sorted_by_delta[-1][3]) if drainers else 0.0
+                max_gain = float(gainers[0][4]) if gainers else 0.0
+                drainers_sorted = sorted(drainers, key=lambda x: x[4])
+                max_drain = float(drainers_sorted[0][4]) if drainers_sorted else 0.0
 
                 return {
                     "top_gainers_count": float(min(5, len(gainers))),
@@ -675,7 +681,7 @@ def step3_ui(
         show_live_step_banner(driver, f"Navigating to Visibility Analysis ({target_client})...")
 
     ensure_authenticated(driver, target_url, client=target_client)
-    wait_for_loading_complete(driver, timeout=25)
+    wait_for_loading_complete(driver, timeout=5.0)
 
     if not headless:
         bring_chrome_to_top(driver)
@@ -712,7 +718,7 @@ def step3_ui(
 
     apply_dashboard_period(driver, period)
     time.sleep(0.1)
-    wait_for_loading_complete(driver, timeout=25)
+    wait_for_loading_complete(driver, timeout=5.0)
 
     # ---------------- 1. Overview Section UI Scraping ----------------
     if section == "overview":
@@ -729,63 +735,76 @@ def step3_ui(
         }
 
         try:
-            cards_scraped = driver.execute_script(r"""
-                const titles = [
-                    "Overall SOS",
-                    "Sponsored SOS",
-                    "Organic SOS"
-                ];
-                const res = {};
-                const headings = Array.from(document.querySelectorAll("h3, h2, div"));
-                titles.forEach(title => {
-                    const h = headings.find(el => el.innerText && el.innerText.trim().toLowerCase() === title.toLowerCase());
-                    if (h) {
-                        const card = h.closest(".group") || h.closest("div.rounded-2xl") || h.parentElement?.parentElement?.parentElement;
-                        if (card) {
-                            card.style.outline = '2px solid #0284c7';
-                            const valEl = card.querySelector(".text-3xl span, .text-3xl, div[class*='text-3xl'] span, div[class*='text-3xl']");
-                            if (valEl && valEl.innerText.trim()) {
-                                res[title] = valEl.innerText.trim();
+            start_scrape = time.time()
+            while time.time() - start_scrape < 10.0:
+                cards_scraped = driver.execute_script(r"""
+                    const titles = [
+                        "Overall SOS",
+                        "Sponsored SOS",
+                        "Organic SOS"
+                    ];
+                    const res = {};
+                    const labels = Array.from(document.querySelectorAll("span, p, h2, h3, h4, .MuiTypography-root"));
+                    titles.forEach(title => {
+                        const target = title.toLowerCase();
+                        const h = labels.find(el => (el.textContent || '').trim().toLowerCase() === target);
+                        if (h) {
+                            const card = h.closest(".MuiCard-root, div.rounded-2xl, div[class*='rounded-2xl']") || h.parentElement?.parentElement;
+                            if (card) {
+                                card.style.outline = '2px solid #0284c7';
+                                const textNodes = Array.from(card.querySelectorAll("*"))
+                                    .map(el => (el.textContent || '').trim())
+                                    .filter(t => /\d+\.?\d*%/.test(t));
+                                if (textNodes.length > 0) {
+                                    const m = textNodes[0].match(/(\d+\.?\d*)%/);
+                                    if (m) res[title] = m[0];
+                                } else {
+                                    const m = (card.textContent || '').match(/(\d+\.?\d*)%/);
+                                    if (m) res[title] = m[0];
+                                }
                             }
                         }
-                    }
-                });
-                return res;
-            """)
-
-            if isinstance(cards_scraped, dict):
-                if cards_scraped.get("Overall SOS"):
-                    results["overall_sos"] = cards_scraped["Overall SOS"]
-                if cards_scraped.get("Sponsored SOS"):
-                    results["sponsored_sos"] = cards_scraped["Sponsored SOS"]
-                if cards_scraped.get("Organic SOS"):
-                    results["organic_sos"] = cards_scraped["Organic SOS"]
-
-            if not results["overall_sos"] or not results["sponsored_sos"] or not results["organic_sos"]:
-                fallback = driver.execute_script(r"""
-                    const res = {};
-                    const cards = Array.from(document.querySelectorAll("div.rounded-2xl, div[class*='rounded-2xl']"));
-                    for (const c of cards) {
-                        const txt = c.innerText || '';
-                        if (txt.includes("Overall SOS") && !res.overall_sos) {
-                            const m = txt.match(/(\d+\.?\d*)%/);
-                            if (m) res.overall_sos = m[0];
-                        }
-                        if (txt.includes("Sponsored SOS") && !res.sponsored_sos) {
-                            const m = txt.match(/(\d+\.?\d*)%/);
-                            if (m) res.sponsored_sos = m[0];
-                        }
-                        if (txt.includes("Organic SOS") && !res.organic_sos) {
-                            const m = txt.match(/(\d+\.?\d*)%/);
-                            if (m) res.organic_sos = m[0];
-                        }
-                    }
+                    });
                     return res;
                 """)
-                if isinstance(fallback, dict):
-                    for k, v in fallback.items():
-                        if not results.get(k) and v:
-                            results[k] = v
+
+                if isinstance(cards_scraped, dict):
+                    if cards_scraped.get("Overall SOS"):
+                        results["overall_sos"] = cards_scraped["Overall SOS"]
+                    if cards_scraped.get("Sponsored SOS"):
+                        results["sponsored_sos"] = cards_scraped["Sponsored SOS"]
+                    if cards_scraped.get("Organic SOS"):
+                        results["organic_sos"] = cards_scraped["Organic SOS"]
+
+                if not results["overall_sos"] or not results["sponsored_sos"] or not results["organic_sos"]:
+                    fallback = driver.execute_script(r"""
+                        const res = {};
+                        const cards = Array.from(document.querySelectorAll(".MuiCard-root, div.rounded-2xl, div[class*='rounded-2xl']"));
+                        for (const c of cards) {
+                            const txt = c.textContent || '';
+                            if (txt.includes("Overall SOS") && !res.overall_sos) {
+                                const m = txt.match(/(\d+\.?\d*)%/);
+                                if (m) res.overall_sos = m[0];
+                            }
+                            if (txt.includes("Sponsored SOS") && !res.sponsored_sos) {
+                                const m = txt.match(/(\d+\.?\d*)%/);
+                                if (m) res.sponsored_sos = m[0];
+                            }
+                            if (txt.includes("Organic SOS") && !res.organic_sos) {
+                                const m = txt.match(/(\d+\.?\d*)%/);
+                                if (m) res.organic_sos = m[0];
+                            }
+                        }
+                        return res;
+                    """)
+                    if isinstance(fallback, dict):
+                        for k, v in fallback.items():
+                            if not results.get(k) and v:
+                                results[k] = v
+
+                if results["overall_sos"] and results["sponsored_sos"] and results["organic_sos"]:
+                    break
+                time.sleep(0.4)
         except Exception as e:
             print(f"[DS Tester] Error scraping Visibility Overview cards: {e}")
 
@@ -871,9 +890,13 @@ def step3_ui(
                             if (idx === 0 || idx >= cells.length) return;
                             const cell = cells[idx];
                             const valEl = cell.querySelector("span.font-mono, span.tabular-nums, button") || cell;
-                            const valText = valEl ? valEl.innerText.trim() : "";
+                            const valText = valEl ? (valEl.innerText || valEl.textContent || "").trim() : "";
                             if (valText) {
-                                result[`${h}|${kpiName}`] = valText;
+                                // Extract primary percentage before any newline or trend arrow (▲, ▼)
+                                let cleanVal = valText.split('\n')[0].split('▲')[0].split('▼')[0].trim();
+                                const pctMatch = cleanVal.match(/[-+]?\d*\.?\d+(?:%)?/);
+                                if (pctMatch) cleanVal = pctMatch[0];
+                                result[`${h}|${kpiName}`] = cleanVal;
                             }
                         });
                     });
@@ -1064,37 +1087,59 @@ def step3_ui(
         }
 
         try:
-            # Poll for up to 15 seconds for Gainers & Drainers tables to render
-            for attempt in range(15):
+            # Poll for up to 20 seconds for Gainers & Drainers tables to render
+            for attempt in range(40):
                 scraped = driver.execute_script(r"""
                     const res = {};
-                    const headings = Array.from(document.querySelectorAll("h2, h3"));
-                    const gdH = headings.find(h => (h.innerText || '').includes("Gainers & Drainers"));
+                    const headings = Array.from(document.querySelectorAll("h2, h3, div, span"));
+                    const gdH = headings.find(h => (h.textContent || '').trim().includes("Gainers & Drainers"));
                     if (gdH) {
                         const container = gdH.closest("div[style*='border-radius'], div.rounded-2xl") || gdH.parentElement;
                         if (container) {
                             container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            container.style.outline = '2px solid #0284c7';
                         }
                     }
 
-                    // Locate Top Gainers and Top Drainers tables
-                    const tables = Array.from(document.querySelectorAll("div"));
-                    const gainTable = tables.find(t => (t.innerText || '').includes("Top Gainers") && t.querySelector("table"));
-                    const drainTable = tables.find(t => (t.innerText || '').includes("Top Drainers") && t.querySelector("table"));
+                    // Locate specifically the Top Gainers and Top Drainers header divs
+                    const allEls = Array.from(document.querySelectorAll("div, h2, h3, h4, span"));
+                    const gainH = allEls.find(h => (h.textContent || '').trim().toLowerCase() === "top gainers");
+                    const drainH = allEls.find(h => (h.textContent || '').trim().toLowerCase() === "top drainers");
+
+                    const gainTable = gainH ? (gainH.parentElement?.querySelector("table") || gainH.closest("div")?.querySelector("table")) : null;
+                    const drainTable = drainH ? (drainH.parentElement?.querySelector("table") || drainH.closest("div")?.querySelector("table")) : null;
 
                     if (gainTable) {
-                        const gRows = Array.from(gainTable.querySelectorAll("tbody tr")).filter(r => !r.innerText.includes('No gainers'));
-                        res.top_gainers_count = String(gRows.length);
-                        const deltas = (gainTable.innerText || '').match(/[▲+]\s*(\d+\.?\d*)%/);
-                        if (deltas) res.max_gain_pct = `+${deltas[1]}%`;
+                        const rows = Array.from(gainTable.querySelectorAll("tbody tr")).filter(r => !r.textContent.includes("No gainers") && !r.textContent.includes("•"));
+                        let brandRows = rows.filter(r => {
+                            const firstTd = r.querySelector("td");
+                            return firstTd && (firstTd.textContent || '').includes("Keywords");
+                        });
+                        if (brandRows.length === 0) {
+                            brandRows = rows.filter(r => r.querySelectorAll("td").length === 2);
+                        }
+                        res.top_gainers_count = String(brandRows.length);
+                        if (brandRows.length > 0) {
+                            const secondCol = brandRows[0].querySelector("td:nth-child(2)") || brandRows[0];
+                            const m = (secondCol.textContent || '').match(/([▲+]\s*\d+\.?\d*%)/) || (secondCol.textContent || '').match(/(\d+\.?\d*%)/);
+                            if (m) res.max_gain_pct = m[1] || m[0];
+                        }
                     }
 
                     if (drainTable) {
-                        const dRows = Array.from(drainTable.querySelectorAll("tbody tr")).filter(r => !r.innerText.includes('No drainers'));
-                        res.top_drainers_count = String(dRows.length);
-                        const deltas = (drainTable.innerText || '').match(/[▼-]\s*(\d+\.?\d*)%/);
-                        if (deltas) res.max_drain_pct = `-${deltas[1]}%`;
+                        const rows = Array.from(drainTable.querySelectorAll("tbody tr")).filter(r => !r.textContent.includes("No drainers") && !r.textContent.includes("•"));
+                        let brandRows = rows.filter(r => {
+                            const firstTd = r.querySelector("td");
+                            return firstTd && (firstTd.textContent || '').includes("Keywords");
+                        });
+                        if (brandRows.length === 0) {
+                            brandRows = rows.filter(r => r.querySelectorAll("td").length === 2);
+                        }
+                        res.top_drainers_count = String(brandRows.length);
+                        if (brandRows.length > 0) {
+                            const secondCol = brandRows[0].querySelector("td:nth-child(2)") || brandRows[0];
+                            const m = (secondCol.textContent || '').match(/([▼-]\s*\d+\.?\d*%)/) || (secondCol.textContent || '').match(/(\d+\.?\d*%)/);
+                            if (m) res.max_drain_pct = m[1] || m[0];
+                        }
                     }
 
                     return res;
@@ -1105,7 +1150,7 @@ def step3_ui(
                         if scraped.get(k):
                             gd_results[k] = scraped[k]
                     break
-                time.sleep(0.1)
+                time.sleep(0.5)
         except Exception as e:
             print(f"[DS Tester] Error scraping Gainers & Drainers: {e}")
 

@@ -380,8 +380,11 @@ def _execute_single_run(
             run["live_step"] = full_text
             if driver is not None:
                 try:
-                    b64 = driver.get_screenshot_as_base64()
-                    run["live_screenshot"] = f"data:image/jpeg;base64,{b64}"
+                    curr = driver.current_url or ""
+                    # Only take screenshot if browser has actually loaded a dashboard page (never on blank data: or about:blank)
+                    if curr.startswith("http://") or curr.startswith("https://"):
+                        b64 = driver.get_screenshot_as_base64()
+                        run["live_screenshot"] = f"data:image/jpeg;base64,{b64}"
                 except Exception:
                     pass
 

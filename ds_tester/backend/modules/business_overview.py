@@ -220,33 +220,19 @@ def step1_fetch(segment: str, period: Any, client: Optional[str] = None) -> Dict
         top = data.get("topMetrics", []) if isinstance(data, dict) else []
 
         extracted = {}
-
         for m in top:
-
-            n = (m.get("name") or "").lower().strip()
-
-            raw = m.get("label")
-
+            n = (m.get("name") or m.get("title") or "").lower().strip()
+            raw = m.get("label") if m.get("label") is not None else m.get("value")
             num = _parse_num(raw)
-
             if "offtake" in n:
-
                 extracted["offtake"] = num
-
             elif "osa" in n or "availability" in n:
-
                 extracted["osa"] = num
-
             elif "search" in n or "sos" in n:
-
                 extracted["sos"] = num
-
             elif "market" in n:
-
                 extracted["market_share"] = num
-
             elif "discount" in n or "promo" in n:
-
                 extracted["discount"] = num
 
 
@@ -947,142 +933,101 @@ def step3_ui(
 
 
     if on_live_step:
-
         on_live_step(f"Authenticating session for {client_label}...")
 
-    ensure_authenticated(driver, target_url, client=client)
-
-
+    ensure_authenticated(driver, target_url, client=client, on_live_step=on_live_step)
 
     if not headless:
-
         bring_chrome_to_top(driver)
-
         show_live_step_banner(driver, f"🔍 DS Tester: Loading Business Overview ({client_label})...")
 
-
-
-    time.sleep(0.1)
-
-    wait_for_loading_complete(driver, timeout=20)
-
-
+    time.sleep(0.05)
+    wait_for_loading_complete(driver, timeout=4.0)
 
     # Ensure channel filter is set to All so UI matches API/logic scope
-
     try:
-
         from ..step3_selenium import apply_dashboard_channel
-
         apply_dashboard_channel(driver, "all")
-
     except Exception:
-
         pass
 
-
-
     # Apply date range
-
     if on_live_step:
-
         on_live_step(f"Applying period filter...")
 
     apply_dashboard_period(driver, period)
-
-    time.sleep(0.2)
-
-    wait_for_loading_complete(driver, timeout=25)
-
     time.sleep(0.1)
-
-
+    wait_for_loading_complete(driver, timeout=4.0)
+    time.sleep(0.05)
 
     if segment == "business_overview_overview":
-
         if on_live_step:
-
             on_live_step("Focusing & Highlighting Business Overview Top KPI Cards...")
 
         if not headless:
-
             bring_chrome_to_top(driver)
-
             show_live_step_banner(driver, "🔍 DS Tester: Testing Business Overview (Top KPI Cards)...")
 
-
-
         # Highlight and scroll to top
-
         driver.execute_script("""
-
             window.scrollTo({ top: 0, behavior: 'smooth' });
-
             const topGrid = document.querySelector('.grid.grid-cols-1.sm\\\\:grid-cols-2.lg\\\\:grid-cols-5');
-
             if (topGrid) {
-
                 const container = topGrid.closest('div.border') || topGrid.closest('div.rounded-3xl') || topGrid.parentElement;
-
                 if (container) {
-
                     container.style.outline = '3px solid #16a34a';
-
                     container.style.boxShadow = '0 0 20px #16a34a';
-
                     container.style.borderRadius = '1.5rem';
-
                 }
-
             }
-
         """)
+        time.sleep(0.1)
 
-        time.sleep(0.15)
+        # Robust polling scraper for top KPI cards
+        start_scrape = time.time()
+        res = {}
+        while time.time() - start_scrape < 8.0:
+            res = driver.execute_script(r"""
+                const metrics = {};
+                const cards = Array.from(document.querySelectorAll(
+                    '.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-5:first-of-type > *, .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-5 > *'
+                ));
 
+                for (const card of cards) {
+                    const full = (card.textContent || '').toLowerCase();
+                    const lines = (card.innerText || '').split('\n').map(l => l.trim()).filter(Boolean);
+                    if (!lines.length) continue;
 
+                    let val = null;
+                    if (lines.length >= 2 && /[0-9]/.test(lines[1]) && !lines[1].toLowerCase().includes('offtake') && !lines[1].toLowerCase().includes('search')) {
+                        val = lines[1];
+                    } else {
+                        for (const l of lines) {
+                            if (/[-+]?₹?\s*\d+(?:\.\d+)?\s*(?:Cr|L|Lac|%|k)?/i.test(l) && !/^[+-]\d+(\.\d+)?%?$/.test(l)) {
+                                val = l;
+                                break;
+                            }
+                        }
+                    }
+                    if (!val && lines.length > 0) val = lines[0];
 
-        res = driver.execute_script(r"""
-
-            const topGrid = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-5');
-
-            if (!topGrid) return {};
-
-            
-
-            const metrics = {};
-
-            for (const child of topGrid.children) {
-
-                const txt = (child.innerText || '').trim();
-
-                const lines = txt.split(String.fromCharCode(10)).map(s => s.trim()).filter(Boolean);
-
-                if (lines.length >= 3) {
-
-                    const val = lines[1];
-
-                    const title = lines[lines.length - 1].toLowerCase();
-
-                    if (title.includes('offtake')) metrics.offtake = val;
-
-                    else if (title.includes('osa')) metrics.osa = val;
-
-                    else if (title.includes('search')) metrics.sos = val;
-
-                    else if (title.includes('market')) metrics.market_share = val;
-
-                    else if (title.includes('discount')) metrics.discount = val;
-
+                    if (full.includes('offtake') && !metrics.offtake) {
+                        metrics.offtake = val;
+                    } else if ((full.includes('osa') || full.includes('availability')) && !metrics.osa) {
+                        metrics.osa = val;
+                    } else if ((full.includes('share of search') || full.includes('sos')) && !metrics.sos) {
+                        metrics.sos = val;
+                    } else if (full.includes('market share') && !metrics.market_share) {
+                        metrics.market_share = val;
+                    } else if ((full.includes('discount') || full.includes('promo')) && !metrics.discount) {
+                        metrics.discount = val;
+                    }
                 }
-
-            }
-
-            return metrics;
-
-        """)
-
-
+                return metrics;
+            """)
+            if isinstance(res, dict) and res.get('offtake') and res.get('osa'):
+                break
+            time.sleep(0.2)
 
         return res or {}
 
