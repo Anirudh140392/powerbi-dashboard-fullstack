@@ -712,6 +712,8 @@ def get_anomaly_chart(
     baseline: Optional[float] = None,
     deviation_pct: Optional[float] = None,
     severity: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ):
     """
     Returns time-series baseline corridor with +-10% bounds
@@ -729,6 +731,8 @@ def get_anomaly_chart(
         verified_baseline=baseline,
         verified_dev=deviation_pct,
         verified_severity=severity,
+        start_date=start_date,
+        end_date=end_date,
     )
 
 class EmailAssignRequest(BaseModel):

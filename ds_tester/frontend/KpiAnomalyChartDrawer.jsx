@@ -211,6 +211,8 @@ export default function KpiAnomalyChartDrawer({
   logicValue = null,
   uiValue = null,
   anomalyData = null,
+  startDate = null,
+  endDate = null,
 }) {
   const isStalled = Boolean(anomalyData?.status === 'DATA_INGESTION_STALLED' || String(anomalyData?.rca?.summary || '').includes('Data Ingestion Stalled'));
 
@@ -330,12 +332,14 @@ export default function KpiAnomalyChartDrawer({
   useEffect(() => {
     if (!open) return;
     fetchTrendData();
-  }, [open, client, metric, days, viewMode, kpiKey, detectedPlatform]);
+  }, [open, client, metric, days, viewMode, kpiKey, detectedPlatform, startDate, endDate]);
 
   const fetchTrendData = async () => {
     setLoading(true);
     setError(null);
     try {
+      const activeStartDate = startDate || anomalyData?.start_date || anomalyData?.startDate || anomalyData?.period?.startDate;
+      const activeEndDate = endDate || anomalyData?.end_date || anomalyData?.endDate || anomalyData?.period?.endDate;
       const res = await axios.get("/ds-tester/anomaly/chart", {
         params: {
           client,
@@ -348,6 +352,8 @@ export default function KpiAnomalyChartDrawer({
           baseline: anomalyData?.baseline,
           deviation_pct: anomalyData?.deviation_pct,
           severity: anomalyData?.severity,
+          start_date: activeStartDate,
+          end_date: activeEndDate,
         },
         timeout: 60000,
       });
@@ -392,7 +398,8 @@ export default function KpiAnomalyChartDrawer({
       return `₹${num.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
     }
     if (m === "qty_sold") {
-      if (Math.abs(num) >= 1000000) return `${(num / 1000000).toFixed(1)}M units`;
+      if (Math.abs(num) >= 10000000) return `${(num / 10000000).toFixed(2)} Cr units`;
+      if (Math.abs(num) >= 100000) return `${(num / 100000).toFixed(2)} Lac units`;
       if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}k units`;
       return `${Math.round(num).toLocaleString("en-IN")} units`;
     }

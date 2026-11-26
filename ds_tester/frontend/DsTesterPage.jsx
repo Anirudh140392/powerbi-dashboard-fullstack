@@ -5203,6 +5203,8 @@ export default function DsTesterPage({ isEmbedded = false }) {
             logicValue={selectedKpiForChart.logic}
             uiValue={selectedKpiForChart.ui}
             anomalyData={selectedKpiForChart}
+            startDate={selectedKpiForChart.startDate || selectedKpiForChart.period?.startDate || customSentinelFilters?.startDate || selectedPeriod?.startDate}
+            endDate={selectedKpiForChart.endDate || selectedKpiForChart.period?.endDate || customSentinelFilters?.endDate || selectedPeriod?.endDate}
           />
         </DrawerErrorBoundary>
       )}

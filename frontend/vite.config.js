@@ -15,6 +15,7 @@ export default defineConfig({
       "@mui/icons-material": path.resolve(__dirname, "./node_modules/@mui/icons-material"),
       "dayjs": path.resolve(__dirname, "./node_modules/dayjs"),
       "axios": path.resolve(__dirname, "./node_modules/axios"),
+      "recharts": path.resolve(__dirname, "./node_modules/recharts"),
     },
     // Allow importing .tsx / .ts files from trailytics_ratings without extension
     extensions: ['.mjs', '.js', '.ts', '.tsx', '.jsx', '.json'],
