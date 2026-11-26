@@ -183,7 +183,7 @@ BACKUP_STORE_PATH = os.path.join(os.path.dirname(__file__), "anomaly_store_backu
 
 class AnomalySentinel:
     def __init__(self):
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()

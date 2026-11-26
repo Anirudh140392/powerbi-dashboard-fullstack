@@ -45,7 +45,7 @@ def _save_runs_store():
 _load_runs_store()
 
 # Concurrency lock: Only one run at a time (Selenium is blocking)
-_runner_mutex = threading.Lock()
+_runner_mutex = threading.RLock()
 _is_busy: bool = False
 _active_driver: Any = None
 _abort_requested: bool = False
