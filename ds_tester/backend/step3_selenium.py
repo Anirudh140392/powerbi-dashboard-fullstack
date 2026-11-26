@@ -77,15 +77,6 @@ def create_chrome_driver(headless: bool = False) -> webdriver.Chrome:
 
 
     options.add_argument("--disable-extensions")
-    options.add_argument("--disable-background-networking")
-    options.add_argument("--disable-sync")
-    options.add_argument("--disable-default-apps")
-    options.add_argument("--no-first-run")
-    options.add_argument("--dns-prefetch-disable")
-    options.add_argument("--disable-backgrounding-occluded-windows")
-
-    # Set eager page load strategy: DOM is interactive immediately without blocking on image downloads
-    options.page_load_strategy = "eager"
 
     # Disable notifications so popups don't obstruct Selenium clicks
     prefs = {
