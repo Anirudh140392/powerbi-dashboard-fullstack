@@ -49,6 +49,7 @@ import CrossPlatformMatrixModal, { PRICING_KPI_COLUMNS, VISIBILITY_KPI_COLUMNS, 
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../utils/FilterContext";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 
 /**
  * ---------------------------------------------------------------------------
@@ -1223,16 +1224,24 @@ export default function TrendsCompetitionDrawer({
       const wb = XLSX.utils.book_new();
 
       if (Array.isArray(competitionData) && competitionData.length > 0) {
-        const compRows = competitionData.map((item, idx) => ({
-          "S.No": idx + 1,
-          "Brand": item.brand || item.name || item.brand_name || "N/A",
-          "OSA %": item.osa !== undefined ? `${Number(item.osa).toFixed(1)}%` : "N/A",
-          "Listing %": item.listing !== undefined ? `${Number(item.listing).toFixed(1)}%` : "N/A",
-          "Market Share %": item.marketShare !== undefined ? `${Number(item.marketShare).toFixed(1)}%` : "N/A",
-          "Assortment": item.assortment || 0,
-          "DOI": item.doi || 0,
-          "Fillrate %": item.fillrate !== undefined ? `${Number(item.fillrate).toFixed(1)}%` : "N/A",
-        }));
+        const hideRestricted = isPrestigeAccount();
+        const compRows = competitionData.map((item, idx) => {
+          const row = {
+            "S.No": idx + 1,
+            "Brand": item.brand || item.name || item.brand_name || "N/A",
+            "OSA %": item.osa !== undefined ? `${Number(item.osa).toFixed(1)}%` : "N/A",
+            "Listing %": item.listing !== undefined ? `${Number(item.listing).toFixed(1)}%` : "N/A",
+          };
+          if (!hideRestricted) {
+            row["Market Share %"] = item.marketShare !== undefined ? `${Number(item.marketShare).toFixed(1)}%` : "N/A";
+          }
+          row["Assortment"] = item.assortment || 0;
+          if (!hideRestricted) {
+            row["DOI"] = item.doi || 0;
+          }
+          row["Fillrate %"] = item.fillrate !== undefined ? `${Number(item.fillrate).toFixed(1)}%` : "N/A";
+          return row;
+        });
         const sheet = XLSX.utils.json_to_sheet(compRows);
         XLSX.utils.book_append_sheet(wb, sheet, "Competition Data");
       } else {
@@ -2799,6 +2808,7 @@ export default function TrendsCompetitionDrawer({
   const trendMetaRaw = DASHBOARD_DATA.trends || { metrics: [], points: [] };
 
   // PM metrics are always visible - backend routes SKU-level data from rb_pdp_olap
+  const isPrestige = isPrestigeAccount();
   const trendMeta = trendMetaRaw;
 
   // ===================== SORT TREND METRICS BY AVAILABILITY =====================
@@ -2808,6 +2818,7 @@ export default function TrendsCompetitionDrawer({
     if (!trendMeta?.metrics) return [];
 
     const filtered = trendMeta.metrics.filter((m) => {
+      if (isPrestige && (isPrestigeHiddenKpi(m.id) || isPrestigeHiddenKpi(m.label))) return false;
       if (isEcom && m.id === "Listing") return false;
       if (isEcom && m.id === "CPM") return false;
       if (isQcom && m.id === "CPC") return false;
@@ -2827,7 +2838,7 @@ export default function TrendsCompetitionDrawer({
     const unavailable = mapped.filter((m) => m.isMetricNA);
 
     return [...available, ...unavailable];
-  }, [trendMeta?.metrics, isEcom, isQcom, dynamicKey, kpiAvailability]);
+  }, [trendMeta?.metrics, isEcom, isQcom, dynamicKey, kpiAvailability, isPrestige]);
 
   // Auto-sync active metrics: ensure unavailable (N/A) metrics are removed from active selection
   // and at least one available metric is active so the chart does not open blank
@@ -2847,7 +2858,15 @@ export default function TrendsCompetitionDrawer({
   }, [kpiAvailability, sortedTrendMetrics]);
 
   const compMeta = DASHBOARD_DATA.competition || {};
-  const compareMeta = DASHBOARD_DATA.compareSkus || {};
+  const rawCompareMeta = DASHBOARD_DATA.compareSkus || {};
+  const compareMeta = useMemo(() => {
+    if (!rawCompareMeta.metrics) return rawCompareMeta;
+    if (!isPrestige) return rawCompareMeta;
+    return {
+      ...rawCompareMeta,
+      metrics: rawCompareMeta.metrics.filter(m => !isPrestigeHiddenKpi(m.id) && !isPrestigeHiddenKpi(m.label))
+    };
+  }, [rawCompareMeta, isPrestige]);
 
   // ⭐ Auto-select first SKU + only Osa when opening Compare SKUs first time
   useEffect(() => {

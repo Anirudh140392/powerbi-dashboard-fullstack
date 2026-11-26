@@ -1837,8 +1837,9 @@ export const getInsightsData = async (filters) => {
     };
 
     try {
+        const isPrestigeDb = typeof getCurrentDbName() === 'string' && getCurrentDbName().toLowerCase().includes('prestige');
         // Check rb_ms_olap and rb_po_olap availability once before building queries
-        const rbMsOlapExists = await checkRbMsOlapExists();
+        const rbMsOlapExists = !isPrestigeDb && await checkRbMsOlapExists();
         const rbPoOlapExists = await checkRbPoOlapExists();
         const competitorOsaQuery = buildCompetitorOsaQuery(rbMsOlapExists);
 
@@ -1872,7 +1873,7 @@ export const getInsightsData = async (filters) => {
             safeQuery(dsListingSummaryQuery, 'DSListingSummary'),
             safeQuery(adStockQuery, 'KeywordEfficiency'),
             safeQuery(competitorOsaQuery, 'CompetitorOSA'),
-            safeQuery(removeAdLowOSAQuery, 'RemoveAdLowOSA'),
+            !isPrestigeDb ? safeQuery(removeAdLowOSAQuery, 'RemoveAdLowOSA') : Promise.resolve([]),
             // safeQuery(challengerLaunchQuery, 'ChallengerLaunch'),
             Promise.resolve([]),
             safeQuery(performanceQuery, 'Performance'),
@@ -2173,7 +2174,7 @@ export const getInsightsData = async (filters) => {
         // ---------------------------------------------------------------------
         // SIGNAL 1 — Share Headroom Hotspots
         // ---------------------------------------------------------------------
-        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Share Headroom Hotspots') {
+        if (!isPrestigeDb && (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Share Headroom Hotspots')) {
             const hasData = perfData && perfData.length > 0;
             const vis = {
                 overall_sos: Number(visTotalsData?.[0]?.overall_sos) || 0,
@@ -2602,7 +2603,7 @@ export const getInsightsData = async (filters) => {
         // ---------------------------------------------------------------------
         // SIGNAL 6 — Remove Ad Low OSA
         // ---------------------------------------------------------------------
-        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Remove Ad Low OSA') {
+        if (!isPrestigeDb && (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Remove Ad Low OSA')) {
             const hasData = removeAdLowOSAData.length > 0;
             const totalSpend = hasData ? removeAdLowOSAData.reduce((s, r) => s + Number(r.spendInr), 0) : 0;
             const totalLost = hasData ? removeAdLowOSAData.reduce((s, r) => s + Number(r.estLostSalesInr || 0), 0) : 0;
@@ -3240,7 +3241,7 @@ export const getInsightsData = async (filters) => {
         // ---------------------------------------------------------------------
         // SIGNAL 15 — Under Indexed Cities
         // ---------------------------------------------------------------------
-        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Under Indexed Cities' || filters.signal === 'Under Indexed Cities Analysis') {
+        if (!isPrestigeDb && (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Under Indexed Cities' || filters.signal === 'Under Indexed Cities Analysis')) {
             const uiDiagMap = {};
             (uiDiagnosticsData || []).forEach(d => {
                 const k = `${String(d.city || '').toLowerCase().trim()}|${String(d.category || '').toLowerCase().trim()}`;

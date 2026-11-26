@@ -2,6 +2,7 @@ import React, { useMemo, useState, useContext, createContext, useEffect, useCall
 import axiosInstance from "../../api/axiosInstance";
 import { formatNumber } from "../../utils/formatters";
 import { FilterContext } from "../../utils/FilterContext";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
@@ -1573,6 +1574,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     
     if (!isQuickComm) {
       keys = keys.filter(k => k.key !== 'Listing');
+    }
+
+    if (isPrestigeAccount()) {
+      keys = keys.filter(k => !isPrestigeHiddenKpi(k.key) && !isPrestigeHiddenKpi(k.label));
     }
 
     return keys;

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { SlidersHorizontal, X, ChevronRight, ChevronDown, Calendar, Layers, Clock, ExternalLink, PieChart } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
@@ -486,7 +487,7 @@ export default function OsaDetailTableLight({
                                                                     )}
                                                                     <div className="flex items-center gap-2 mt-1">
                                                                         <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">{r.platform}</div>
-                                                                        {r.offtakeShare !== undefined && r.offtakeShare !== null && Number(r.offtakeShare) > 0 && (
+                                                                        {!isPrestigeAccount() && r.offtakeShare !== undefined && r.offtakeShare !== null && Number(r.offtakeShare) > 0 && (
                                                                             <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }} title="Offtake Share">
                                                                                 <PieChart size={10} className="text-sky-500" />
                                                                                 {r.offtakeShare}% Share

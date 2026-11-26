@@ -70,6 +70,7 @@ import { Typography, Divider, Skeleton, Tooltip } from "@mui/material";
 import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { useAuth } from "@/utils/AuthContext";
+import { isPrestigeAccount } from "@/utils/tenantConfig";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -1094,7 +1095,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                     </div>
                 )
             },
-            {
+            ...(!isPrestigeAccount() ? [{
                 key: "otherBrandMkShare", label: "Comp MK Share", fmt: (v, r) => v != null ? (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
@@ -1103,10 +1104,10 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                         </span>
                     </div>
                 ) : "-"
-            },
+            }] : []),
             { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: safePct },
             { key: "gapPct", label: "Gap %", fmt: (v) => <span style={{ color: (v || 0) < 0 ? '#ef4444' : '#10b981', fontWeight: 600 }}>{safePct(v)}</span> },
-            {
+            ...(!isPrestigeAccount() ? [{
                 key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} Mkt Share`, fmt: (v, r) => v != null ? (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
@@ -1115,7 +1116,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                         </span>
                     </div>
                 ) : "-"
-            },
+            }] : []),
         ];
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -1991,9 +1992,9 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor Brand</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp MK Share</TableHead>
+                                {!isPrestigeAccount() && <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp MK Share</TableHead>}
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Mkt Share</TableHead>
+                                {!isPrestigeAccount() && <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Mkt Share</TableHead>}
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Gap %</TableHead>
                             </>)}
                             {view === "share" && (<>
@@ -2184,27 +2185,31 @@ const EvidenceTable = ({ insight, loading }) => {
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right px-3 py-3">
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[11px] font-medium text-red-600">{safePct(d.otherBrandMkShare)}</span>
-                                                            {d.otherBrandMkShareChange != null && (
-                                                                <span className={`text-[10px] mt-0.5 ${(d.otherBrandMkShareChange || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
-                                                                    {(d.otherBrandMkShareChange || 0) >= 0 ? '+' : ''}{(d.otherBrandMkShareChange || 0).toFixed(1)}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
+                                                    {!isPrestigeAccount() && (
+                                                        <TableCell className="text-right px-3 py-3">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-[11px] font-medium text-red-600">{safePct(d.otherBrandMkShare)}</span>
+                                                                {d.otherBrandMkShareChange != null && (
+                                                                    <span className={`text-[10px] mt-0.5 ${(d.otherBrandMkShareChange || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                                                                        {(d.otherBrandMkShareChange || 0) >= 0 ? '+' : ''}{(d.otherBrandMkShareChange || 0).toFixed(1)}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                    )}
                                                     <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.kwOsa)}</TableCell>
-                                                    <TableCell className="text-right px-3 py-3">
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[11px] font-medium text-blue-600">{safePct(d.ourBrandMkShare)}</span>
-                                                            {d.ourBrandMkShareChange != null && (
-                                                                <span className={`text-[10px] mt-0.5 ${(d.ourBrandMkShareChange || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
-                                                                    {(d.ourBrandMkShareChange || 0) >= 0 ? '+' : ''}{(d.ourBrandMkShareChange || 0).toFixed(1)}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
+                                                    {!isPrestigeAccount() && (
+                                                        <TableCell className="text-right px-3 py-3">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-[11px] font-medium text-blue-600">{safePct(d.ourBrandMkShare)}</span>
+                                                                {d.ourBrandMkShareChange != null && (
+                                                                    <span className={`text-[10px] mt-0.5 ${(d.ourBrandMkShareChange || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                                                                        {(d.ourBrandMkShareChange || 0) >= 0 ? '+' : ''}{(d.ourBrandMkShareChange || 0).toFixed(1)}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                    )}
                                                     <TableCell className="text-right text-[11px] font-semibold text-emerald-600 px-3 py-3">{safePct(d.gapPct)}</TableCell>
                                                 </>
                                             )}
@@ -3414,14 +3419,14 @@ const InsightsSignalHub = () => {
     const [corrStartDate, setCorrStartDate] = useState(dayjs().subtract(30, 'day').format("YYYY-MM-DD"));
     const [corrEndDate, setCorrEndDate] = useState(dayjs().format("YYYY-MM-DD"));
     const [showCorrelationsInfo, setShowCorrelationsInfo] = useState(false);
-    const [activeTrendKPIs, setActiveTrendKPIs] = useState({
-        sales: true,
+    const [activeTrendKPIs, setActiveTrendKPIs] = useState(() => ({
+        sales: !isPrestigeAccount(user),
         drr: true,
         osa: true,
         promo: true,
         listing: true,
         searchRank: true
-    });
+    }));
 
 
     useEffect(() => {
@@ -3498,7 +3503,19 @@ const InsightsSignalHub = () => {
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
     const filteredInsights = useMemo(() => {
+        const isPrestige = isPrestigeAccount(user);
         return allInsights.filter(insight => {
+            if (
+                isPrestige &&
+                [
+                    "Share Headroom Hotspots",
+                    "Remove Ad Low OSA",
+                    "Under Indexed Cities",
+                    "Under Indexed Cities Analysis"
+                ].includes(insight.type)
+            ) {
+                return false;
+            }
             const meta = SIGNAL_META[insight.type];
             if (!meta) return true;
 
@@ -3526,7 +3543,7 @@ const InsightsSignalHub = () => {
             }
             return true;
         });
-    }, [allInsights, insightsKpiConfig]);
+    }, [allInsights, insightsKpiConfig, user]);
 
     const selected = useMemo(() => allInsights.find((x) => x.id === selectedId) ?? null, [allInsights, selectedId]);
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
@@ -4270,7 +4287,7 @@ const InsightsSignalHub = () => {
                                                         {/* Interactive KPI Selectors */}
                                                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
                                                             {[
-                                                                { key: "sales", label: "Sales (₹)", color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)" },
+                                                                ...(!isPrestigeAccount(user) ? [{ key: "sales", label: "Sales (₹)", color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)" }] : []),
                                                                 { key: "drr", label: "DRR (Units)", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.08)" },
                                                                 { key: "osa", label: "OSA (%)", color: "#10b981", bg: "rgba(16, 185, 129, 0.08)" },
                                                                 { key: "promo", label: "Promo (%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)" },
@@ -4544,7 +4561,7 @@ const InsightsSignalHub = () => {
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Brand</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>SKU</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Location</th>
-                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Sales</th>
+                                                                    {!isPrestigeAccount(user) && <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Sales</th>}
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>DRR</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>OSA</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "center", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Trend</th>
@@ -4589,21 +4606,23 @@ const InsightsSignalHub = () => {
                                                                             <td style={{ padding: "10px 12px", color: "#374151", fontWeight: 600 }}>{row.brand || "-"}</td>
                                                                             <td style={{ padding: "10px 12px", color: "#6b7280", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.sku || "-"}</td>
                                                                             <td style={{ padding: "10px 12px", color: "#374151" }}>{row.location || "-"}</td>
-                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
-                                                                                        {row.sales != null ? formatINRCompact(row.sales) : "-"}
-                                                                                    </span>
-                                                                                    <span style={{
-                                                                                        fontSize: "9px", fontWeight: 700,
-                                                                                        color: salesUp ? "#16a34a" : "#dc2626",
-                                                                                        display: "flex", alignItems: "center", gap: "2px",
-                                                                                    }}>
-                                                                                        {salesUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                                                                                        {salesUp ? "+" : ""}{row.salesChange != null ? `${row.salesChange}%` : "-"}
-                                                                                    </span>
-                                                                                </div>
-                                                                            </td>
+                                                                            {!isPrestigeAccount(user) && (
+                                                                                <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                                                                        <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                                                                                            {row.sales != null ? formatINRCompact(row.sales) : "-"}
+                                                                                        </span>
+                                                                                        <span style={{
+                                                                                            fontSize: "9px", fontWeight: 700,
+                                                                                            color: salesUp ? "#16a34a" : "#dc2626",
+                                                                                            display: "flex", alignItems: "center", gap: "2px",
+                                                                                        }}>
+                                                                                            {salesUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                                                                                            {salesUp ? "+" : ""}{row.salesChange != null ? `${row.salesChange}%` : "-"}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </td>
+                                                                            )}
                                                                             <td style={{ padding: "10px 12px", textAlign: "right" }}>
                                                                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                                                                                     <span style={{ fontWeight: 700, color: "#1e293b" }}>

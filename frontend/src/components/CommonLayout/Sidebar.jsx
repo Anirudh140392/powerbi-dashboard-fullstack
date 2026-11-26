@@ -389,9 +389,9 @@ const Sidebar = ({
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar'] },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar', 'prestige'] },
       { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
+      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat', 'prestige'] },
       { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
       { label: "Content Score", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Content Analysis", path: "/content-analysis", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
@@ -1627,11 +1627,14 @@ const Sidebar = ({
         {Object.entries(menuSections).map(([sectionName, items]) => (
           <Box key={sectionName} sx={{ mb: 2 }}>
             {items.filter((item) => {
-              const dbName = user?.dbName;
+              const dbName = (sessionStorage.getItem('activeWorkspaceDb') || user?.dbName || '').toLowerCase().trim();
               // If user's DB status is inactive, hide all items
               if (user?.dbStatus === false) return false;
-              const tabPerms = user?.tabPermissions;
+              // Check DB-level explicit hide rule first
+              if (item.hideForDb && item.hideForDb.some(d => d.toLowerCase() === dbName || dbName.includes(d.toLowerCase()))) return false;
+              if (item.showOnlyForDb && !item.showOnlyForDb.some(d => d.toLowerCase() === dbName || dbName.includes(d.toLowerCase()))) return false;
 
+              const tabPerms = user?.tabPermissions;
               // Check permission based on tab_permissions column from admin_master.tb_user
               if (!isTabPermitted(tabPerms, item.label)) {
                 return false;
@@ -1640,9 +1643,6 @@ const Sidebar = ({
               if (hasExplicitTabPerm(tabPerms, item.label)) {
                 return true;
               }
-              // Fallback to DB-level constraints if tabPerms didn't have explicit value for this label
-              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
-              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
               return true;
             }).map((item) => {
               const isActive = currentPath === item.path;

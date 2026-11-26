@@ -14,6 +14,7 @@
  * To add a table, KPI or template, extend REPORT_SOURCES / REPORT_FIELDS /
  * SPECIAL_TEMPLATES / GENERAL_TEMPLATES — the UI is driven entirely from these lists.
  */
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig.js";
 
 export const REPORT_SOURCES = [
     {
@@ -240,6 +241,27 @@ export const DEFAULT_CONFIG = {
     brandScope: "own",
 };
 
+export const getVisibleReportSources = (user = null) => {
+    if (!isPrestigeAccount(user)) return REPORT_SOURCES;
+    return REPORT_SOURCES.filter((s) => s.id !== "ms" && s.id !== "pm");
+};
+
+export const isReportFieldVisible = (field, user = null) => {
+    if (!field) return false;
+    if (!isPrestigeAccount(user)) return true;
+    if (field.source === "ms" || field.source === "pm") return false;
+    return !isPrestigeHiddenKpi(field.key) && !isPrestigeHiddenKpi(field.label);
+};
+
+export const getDefaultReportConfig = (user = null) => {
+    if (!isPrestigeAccount(user)) return DEFAULT_CONFIG;
+    return {
+        sources: ["pdp"],
+        columns: ["date", "platform", "brand", "osa"],
+        brandScope: "own",
+    };
+};
+
 
 /** Marker colours for well-known dimension values, shown beside their labels in the pivot. */
 export const DIMENSION_VALUE_COLORS = {
@@ -441,7 +463,29 @@ export const GENERAL_TEMPLATES = [
 ];
 
 /** The template category and templates an account can use. */
-export const getTemplateCatalog = (dbName) =>
-    isMarsAccount(dbName)
-        ? { category: TEMPLATE_CATEGORIES.special, templates: SPECIAL_TEMPLATES }
-        : { category: TEMPLATE_CATEGORIES.general, templates: GENERAL_TEMPLATES };
+export const getTemplateCatalog = (dbName) => {
+    if (isMarsAccount(dbName)) {
+        return { category: TEMPLATE_CATEGORIES.special, templates: SPECIAL_TEMPLATES };
+    }
+    const isPrestige = String(dbName || "").toLowerCase().includes("prestige") || isPrestigeAccount();
+    if (!isPrestige) {
+        return { category: TEMPLATE_CATEGORIES.general, templates: GENERAL_TEMPLATES };
+    }
+    const visibleTemplates = GENERAL_TEMPLATES
+        .filter((tpl) => !tpl.sources.some((s) => s === "ms" || s === "pm") && tpl.id !== "category_performance")
+        .map((tpl) => {
+            const cols = tpl.columns.filter((k) => !isPrestigeHiddenKpi(k));
+            const values = (tpl.pivot?.areas?.values || []).filter((k) => !isPrestigeHiddenKpi(k));
+            const cleanCols = cols.length > 2 ? cols : [...cols, "osa"];
+            const cleanValues = values.length > 0 ? values : ["osa"];
+            return {
+                ...tpl,
+                description: tpl.description.replace(/Offtake and |Offtake, /gi, ""),
+                columns: cleanCols,
+                pivot: tpl.pivot
+                    ? { ...tpl.pivot, areas: { ...tpl.pivot.areas, values: cleanValues } }
+                    : tpl.pivot,
+            };
+        });
+    return { category: TEMPLATE_CATEGORIES.general, templates: visibleTemplates };
+};

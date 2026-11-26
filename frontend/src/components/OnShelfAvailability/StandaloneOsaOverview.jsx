@@ -4,6 +4,7 @@ import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import { FilterContext } from "../../utils/FilterContext";
 import { LayoutGrid, Layers, MapPin, PieChart } from "lucide-react";
 import { Skeleton } from "@mui/material";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 
 export default function StandaloneOsaOverview({ filters, loading: parentLoading }) {
   const [dataLoading, setDataLoading] = useState(true);
@@ -172,7 +173,11 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       { key: 'marketShare', title: `${dbDisplayName} Market Share%`, sub: "Overall Market Share", data: msCardData, icon: PieChart, gradient: ['#f43f5e', '#ec4899'] }
     ];
 
-    return cards_config.map((cfg) => {
+    const visibleCards = isPrestigeAccount()
+      ? cards_config.filter((cfg) => !isPrestigeHiddenKpi(cfg.key) && !isPrestigeHiddenKpi(cfg.title))
+      : cards_config;
+
+    return visibleCards.map((cfg) => {
       const data = cfg.data || { value: "—", delta: 0, isNotMetro: false, trend: [] };
       const delta = Number(data.delta || 0);
 

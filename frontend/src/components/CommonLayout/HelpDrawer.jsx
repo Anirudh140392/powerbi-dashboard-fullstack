@@ -1246,9 +1246,9 @@ const HelpDrawer = ({ userDbName }) => {
     { label: "India Overview", icon: <PublicIcon sx={{ fontSize: "1rem" }} />, path: "/geo-intelligence" },
     { label: "Availability Analysis", icon: <ShoppingCartIcon sx={{ fontSize: "1rem" }} />, path: "/availability-analysis" },
     { label: "Visibility Analysis", icon: <VisibilityIcon sx={{ fontSize: "1rem" }} />, path: "/visibility-anlysis" },
-    { label: "Market Share", icon: <AutoGraphIcon sx={{ fontSize: "1rem" }} />, path: "/market-share", hideForDb: ["boat", "mars_petcare"] },
+    { label: "Market Share", icon: <AutoGraphIcon sx={{ fontSize: "1rem" }} />, path: "/market-share", hideForDb: ["boat", "mars_petcare", "prestige"] },
     { label: "Pricing Analysis", icon: <PriceChangeIcon sx={{ fontSize: "1rem" }} />, path: "/pricing-analysis", hideForDb: ["mamaearth"] },
-    { label: "Performance Marketing", icon: <AdsClickIcon sx={{ fontSize: "1rem" }} />, path: "/performance-marketing", hideForDb: ["mamaearth", "boat"] },
+    { label: "Performance Marketing", icon: <AdsClickIcon sx={{ fontSize: "1rem" }} />, path: "/performance-marketing", hideForDb: ["mamaearth", "boat", "prestige"] },
     { label: "Content Analysis", icon: <ArticleIcon sx={{ fontSize: "1rem" }} />, path: "/content-analysis" },
     { label: "Review Rating", icon: <StarBorderIcon sx={{ fontSize: "1rem" }} />, path: "/review-rating" },
     { label: "Primary Summary", icon: <DashboardIcon sx={{ fontSize: "1rem" }} />, path: "/primary-overview", showOnlyForDb: ["drl"] },
@@ -1352,9 +1352,13 @@ const HelpDrawer = ({ userDbName }) => {
   const getGlossarySource = () => {
     switch (activeMenu) {
       case "India Overview":
-        return indiaOverviewGlossary;
+        return activeDbName.includes("prestige")
+          ? indiaOverviewGlossary.filter((item) => !["Market Share", "Sales", "Orders"].includes(item.kpi))
+          : indiaOverviewGlossary;
       case "Availability Analysis":
-        return availabilityAnalysisGlossary;
+        return activeDbName.includes("prestige")
+          ? availabilityAnalysisGlossary.filter((item) => !["Days of Inventory (DOI)", "Offtake Share"].includes(item.kpi))
+          : availabilityAnalysisGlossary;
       case "Market Share":
         return marketShareGlossary;
       case "Visibility Analysis":

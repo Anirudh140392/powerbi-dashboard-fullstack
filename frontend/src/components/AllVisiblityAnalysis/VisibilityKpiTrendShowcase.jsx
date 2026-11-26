@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
@@ -919,7 +920,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
 
   const activeKpiKeys = useMemo(() => {
     const keys = [...BASE_KPI_KEYS];
-    if (!hasKeywordFilter) {
+    if (!hasKeywordFilter && !isPrestigeAccount()) {
       keys.push(...OFFTAKE_KPI_KEYS);
     }
     keys.push({ ...SEARCH_RANK_KPI_KEY, disabled: !hasKeywordFilter });

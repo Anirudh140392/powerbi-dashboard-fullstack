@@ -5,7 +5,7 @@ import {
     LockOutlined as LockIcon,
     WarningAmberRounded as WarningIcon,
 } from "@mui/icons-material";
-import { FIELD_GROUPS, FIELDS_BY_KEY, REPORT_FIELDS, SOURCES_BY_ID } from "./reportStudioConfig";
+import { FIELD_GROUPS, FIELDS_BY_KEY, REPORT_FIELDS, SOURCES_BY_ID, isReportFieldVisible } from "./reportStudioConfig";
 import { getFieldSources, getUnavailableReason, isFieldAvailable } from "./reportStudioUtils";
 
 const UNIT_BADGE = { currency: "₹", percent: "%", ratio: "x", number: "#" };
@@ -77,7 +77,7 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
         const matches = (f) => !q || f.label.toLowerCase().includes(q) || (f.description || "").toLowerCase().includes(q);
         // Show fields that at least one selected source can provide.
         const offered = (f) => getFieldSources(f).some((s) => sources.includes(s));
-        const pick = (group) => REPORT_FIELDS.filter((f) => f.group === group && offered(f) && matches(f));
+        const pick = (group) => REPORT_FIELDS.filter((f) => f.group === group && isReportFieldVisible(f) && offered(f) && matches(f));
         return {
             dimensions: pick(FIELD_GROUPS.DIMENSION),
             other: pick(FIELD_GROUPS.OTHER),

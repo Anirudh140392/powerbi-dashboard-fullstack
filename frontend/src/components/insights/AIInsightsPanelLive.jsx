@@ -28,6 +28,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BrainCircuit, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 import { buildAISegments, SIGNAL_META, checkIsInsightEmpty, getSignalConditionInfo } from "../../pages/Insights/Insights";
 
 // ─── Helpers (copied from Insights.jsx so this file is self-contained) ────────
@@ -112,11 +113,16 @@ const buildPrompt = (insight) => {
         "competitorName", "pfu", "firstSeenDate",
     ];
 
+    const isPrestige = isPrestigeAccount();
+    const activeSafeKeys = isPrestige
+        ? SAFE_KEYS.filter(k => !isPrestigeHiddenKpi(k) && !["marketShareMoM", "offtakeMoM", "otherBrandMkShare", "ourBrandMkShare", "spendInr", "acos", "acosChangePct"].includes(k))
+        : SAFE_KEYS;
+
     const cleanEvidence = (insight.evidence || [])
         .slice(0, 15)
         .map(row => {
             const cleaned = {};
-            for (const k of SAFE_KEYS) {
+            for (const k of activeSafeKeys) {
                 if (row[k] !== undefined && row[k] !== null && row[k] !== "-") {
                     cleaned[k] = row[k];
                 }

@@ -7,6 +7,7 @@ import React, {
   useLayoutEffect,
   useContext,
 } from "react";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../utils/tenantConfig";
 import {
   Box,
   Typography,
@@ -1734,7 +1735,7 @@ export default function VisibilityTrendsCompetitionDrawer({
 
                     const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
 
-                    if (hasKeywordFilter && m.id === "offtake") {
+                    if ((hasKeywordFilter && m.id === "offtake") || (isPrestigeAccount() && (isPrestigeHiddenKpi(m.id) || isPrestigeHiddenKpi(m.label)))) {
                       return null;
                     }
 

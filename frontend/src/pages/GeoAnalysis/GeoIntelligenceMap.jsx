@@ -10,6 +10,7 @@ import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 import { DateRange } from "react-date-range";
 import "react-date-range/dist/styles.css"; // main style file
 import "react-date-range/dist/theme/default.css"; // theme css file
@@ -41,6 +42,7 @@ const getPinSvg = (color, valueText) => `
 export default function GeoIntelligenceMap() {
     const { toggleHelp, openHelpWithMenu } = useHelp();
     const { user } = useAuth();
+    const isPrestige = isPrestigeAccount(user);
     const {
         platform: globalPlatform,
         selectedChannel,
@@ -211,10 +213,11 @@ export default function GeoIntelligenceMap() {
     }, [globalPlatform, metric]);
 
     useEffect(() => {
-        if (platform.toLowerCase().includes('amazon') && metric === 'Market Share') {
+        if ((platform.toLowerCase().includes('amazon') && metric === 'Market Share') ||
+            (isPrestige && (metric === 'Market Share' || metric === 'Sales' || metric === 'Orders'))) {
             setMetric('OSA %');
         }
-    }, [platform, metric]);
+    }, [platform, metric, isPrestige]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
@@ -598,6 +601,7 @@ export default function GeoIntelligenceMap() {
                         <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
                             {["OSA %", "Market Share", "Sales", "Orders"]
                                 .filter(m => !(m === 'Market Share' && platform.toLowerCase().includes('amazon')))
+                                .filter(m => !(isPrestige && (m === 'Market Share' || m === 'Sales' || m === 'Orders')))
                                 .map(m => (
                                 <button
                                     key={m}

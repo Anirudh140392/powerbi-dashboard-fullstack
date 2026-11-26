@@ -18,6 +18,7 @@ import {
   Stack,
 } from "@mui/material";
 import { Search, Download, X, MapPin, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 
 // Utility to join classes
 function cn(...c) {
@@ -51,6 +52,7 @@ function TrendPill({ value }) {
 }
 
 const PricingInsightsTable = ({ sku, onClose, insightType }) => {
+    const isPrestige = isPrestigeAccount();
     const [searchTerm, setSearchTerm] = useState("");
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -98,16 +100,21 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
     }, [sortedData, page, rowsPerPage]);
 
     const handleExportCSV = () => {
-        const headers = ["City", "Current Discount %", "Change %", "OSA %", "Offtake"];
+        const headers = isPrestige
+            ? ["City", "Current Discount %", "Change %", "OSA %"]
+            : ["City", "Current Discount %", "Change %", "OSA %", "Offtake"];
         const csvRows = [
             headers.join(","),
-            ...sortedData.map(item => [
-                `"${item.name}"`,
-                item.discount.toFixed(1),
-                item.change.toFixed(1),
-                (item.osa || 0).toFixed(1),
-                (item.offtakes || 0).toLocaleString()
-            ].join(","))
+            ...sortedData.map(item => {
+                const row = [
+                    `"${item.name}"`,
+                    item.discount.toFixed(1),
+                    item.change.toFixed(1),
+                    (item.osa || 0).toFixed(1),
+                ];
+                if (!isPrestige) row.push((item.offtakes || 0).toLocaleString());
+                return row.join(",");
+            })
         ];
         
         const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -195,15 +202,17 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                                     OSA %
                                 </TableCell>
 
-                                <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                    Offtake
-                                </TableCell>
+                                {!isPrestige && (
+                                    <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        Offtake
+                                    </TableCell>
+                                )}
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {paginatedData.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                                    <TableCell colSpan={isPrestige ? 4 : 5} align="center" sx={{ py: 8 }}>
                                         <Typography sx={{ color: '#94a3b8', fontSize: '13px' }}>No cities match this filter.</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -227,11 +236,13 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                                             </Typography>
                                         </TableCell>
 
-                                        <TableCell align="center">
-                                            <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
-                                                {formatNumberToIndianUnits(row.offtakes)}
-                                            </Typography>
-                                        </TableCell>
+                                        {!isPrestige && (
+                                            <TableCell align="center">
+                                                <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+                                                    {formatNumberToIndianUnits(row.offtakes)}
+                                                </Typography>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))
                             )}

@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatNumber } from "@/utils/formatters";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "@/utils/tenantConfig";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -703,7 +704,12 @@ function MatrixVariant({ dynamicKey, data, title, titleAction, showPagination = 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
-  const { columns, rows } = data;
+  const isPrestige = isPrestigeAccount();
+  const { columns, rows: rawRows } = data;
+  const rows = React.useMemo(() => {
+    if (!isPrestige) return rawRows;
+    return rawRows.filter(r => !isPrestigeHiddenKpi(r?.kpi));
+  }, [rawRows, isPrestige]);
 
   // Filter states
   const [showValue, setShowValue] = useState(true);
@@ -763,11 +769,18 @@ function MatrixVariant({ dynamicKey, data, title, titleAction, showPagination = 
 
   // Use dynamic options when available, fallback to kpiFilterOptions prop
   const filterOptions = React.useMemo(() => {
-    if (kpiFilterOptions) return kpiFilterOptions;
-    if (dynamicFilterOptions.length > 0) return dynamicFilterOptions;
-    // Placeholder while not yet fetched
-    return FILTER_SECTIONS.map(s => ({ ...s, options: [] }));
-  }, [kpiFilterOptions, dynamicFilterOptions, FILTER_SECTIONS]);
+    const baseOpts = kpiFilterOptions
+      ? kpiFilterOptions
+      : (dynamicFilterOptions.length > 0 ? dynamicFilterOptions : FILTER_SECTIONS.map(s => ({ ...s, options: [] })));
+    if (!isPrestige) return baseOpts;
+    return baseOpts.map(sec => {
+      if (sec.id !== 'kpis') return sec;
+      return {
+        ...sec,
+        options: (sec.options || []).filter(o => !isPrestigeHiddenKpi(o.id) && !isPrestigeHiddenKpi(o.label))
+      };
+    });
+  }, [kpiFilterOptions, dynamicFilterOptions, FILTER_SECTIONS, isPrestige]);
 
   // Handle section change from KpiFilterPanel
   const handleSectionChange = React.useCallback((sectionId, values) => {

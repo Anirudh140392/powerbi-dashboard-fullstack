@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ChevronDown, Check
 import { cn } from '../../lib/utils';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../utils/tenantConfig';
 
 // Standalone copy of SubCategoryMarket (KPI Matrix) for On-Shelf Availability page.
 
@@ -209,11 +210,14 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
         if (currentPage > 1) setCurrentPage(currentPage - 1);
     };
 
-    const kpiColumns = [
+    const allKpiColumns = [
         { id: 'marketShare', label: 'Market Share %' },
         { id: 'overallSov', label: 'Overall Share of Visibility' },
         { id: 'paidSov', label: 'Paid Share of Visibility' }
     ];
+    const kpiColumns = isPrestigeAccount()
+        ? allKpiColumns.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.label))
+        : allKpiColumns;
 
     const getStatusStyles = (status) => {
         switch (status) {

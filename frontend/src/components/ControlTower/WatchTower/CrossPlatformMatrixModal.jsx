@@ -22,6 +22,7 @@ import { X, Filter, Download, Layers, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import axiosInstance from "../../../api/axiosInstance";
+import { isPrestigeAccount, isPrestigeHiddenKpi } from "../../../utils/tenantConfig";
 
 export const DEFAULT_KPI_COLUMNS = [
   { id: "osa", altId: "availability", label: "OSA", format: "percent" },
@@ -53,7 +54,11 @@ export const ALL_KPI_COLUMNS = [
 const DEFAULT_FILTERS = {};
 
 export default function CrossPlatformMatrixModal({ open, onClose, initialFilters = DEFAULT_FILTERS, initialLevel = "brand", kpiColumns = DEFAULT_KPI_COLUMNS }) {
-  const activeKpiColumns = kpiColumns || DEFAULT_KPI_COLUMNS;
+  const isPrestige = isPrestigeAccount();
+  const rawKpiColumns = kpiColumns || DEFAULT_KPI_COLUMNS;
+  const activeKpiColumns = isPrestige
+    ? rawKpiColumns.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.label))
+    : rawKpiColumns;
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ platforms: [], matrix: [] });
   const [showFilters, setShowFilters] = useState(false);

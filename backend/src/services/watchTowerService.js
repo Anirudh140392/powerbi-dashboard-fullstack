@@ -948,6 +948,28 @@ async function resolveKwTableForSov(dateFrom, dateTo) {
     return { kwTable, hasWeightedImp };
 }
 
+const isPrestigeDb = () => {
+    const db = getCurrentDbName();
+    return typeof db === 'string' && db.toLowerCase().includes('prestige');
+};
+
+const PRESTIGE_HIDDEN_KPI_TITLES = new Set([
+    'offtakes', 'offtake', 'sp offtake', 'mrp offtake',
+    'quantity sold', 'qty sold',
+    'category size',
+    'spend', 'ad spend', 'promo spends', 'promo spend',
+    'tacos', 'roas', 'inorg sales', 'inorganic sales', 'conversion', 'cpm', 'cpc', 'aov',
+    'overall sov',
+    'market share',
+    'wt discount', 'wt. discount'
+]);
+
+const filterPrestigeKpiColumns = (cols = []) => (
+    isPrestigeDb()
+        ? cols.filter(c => !PRESTIGE_HIDDEN_KPI_TITLES.has(String(c?.title || c?.name || c?.label || '').trim().toLowerCase()))
+        : cols
+);
+
 /**
  * Shared KPI column generator with change calculations
  */
@@ -1016,7 +1038,7 @@ const generateKpiColumns = ({
         return `${rounded} Days`;
     };
 
-    return [
+    const cols = [
         { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) }, rawVal: offtake },
         { title: "SP Offtake", value: fmtCurr(spOfftake), change: { text: fmtChg(spOfftakeChange), positive: spOfftakeChange >= 0 }, meta: { units: "sales", change: fmtChg(spOfftakeChange) }, rawVal: spOfftake },
         { title: "MRP Offtake", value: fmtCurr(mrpOfftake), change: { text: fmtChg(mrpOfftakeChange), positive: mrpOfftakeChange >= 0 }, meta: { units: "sales", change: fmtChg(mrpOfftakeChange) }, rawVal: mrpOfftake },
@@ -1045,6 +1067,7 @@ const generateKpiColumns = ({
         { title: "ASP", value: fmtRs(asp), change: { text: fmtChg(aspChange), positive: aspChange >= 0 }, meta: { units: "Weighted", change: fmtChg(aspChange) } },
         { title: "AOV", value: fmtRs(aov), change: { text: fmtChg(aovChange), positive: aovChange >= 0 }, meta: { units: "Order Value", change: fmtChg(aovChange) } }
     ];
+    return filterPrestigeKpiColumns(cols);
 };
 
 /**
@@ -2459,7 +2482,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         const chartLabels = offtakeChart.map(p => p.label);
 
-        const topMetrics = [
+        const topMetrics = filterPrestigeKpiColumns([
             {
                 name: "Offtake",
                 label: formattedOfftake,
@@ -2520,11 +2543,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 chart: promoChart.map(p => p.value),
                 labels: chartLabels
             }
-        ];
+        ]);
 
         // Performance Metrics KPIs (6 KPI Cards) - OPTIMIZED WITH GROUP BY
         // Skip this expensive computation if only topMetrics are needed
-        const performanceMetricsKpis = [];
+        let performanceMetricsKpis = [];
 
         if (!skipPerformanceKpis) {
             try {
@@ -3127,6 +3150,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }
         } // End of if (!skipPerformanceKpis)
 
+        if (isPrestigeDb()) {
+            performanceMetricsKpis = performanceMetricsKpis.filter(k => k.id === 'sos_new');
+        }
+
         // ===== EARLY RETURN: Skip heavy sections when only overview is needed =====
         if (onlyOverview) {
             console.log('[computeSummaryMetrics] onlyOverview=true, skipping Platform/Month/Category/Brands sections');
@@ -3283,7 +3310,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const cpmChange = calcChange(cpm, prevCpm);
             const cpcChange = calcChange(cpc, prevCpc);
 
-            return [
+            return filterPrestigeKpiColumns([
                 {
                     title: "Offtakes",
                     value: formatCurrency(offtake),
@@ -3356,7 +3383,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     change: { text: formatChange(cpcChange), positive: cpcChange >= 0 },
                     meta: { units: "clicks", change: formatChange(cpcChange) }
                 },
-            ];
+            ]);
         };
 
         // Calculate "All" Metrics (Global Aggregate)
@@ -3832,7 +3859,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
 
         // Generate columns helper for Month Overview (similar to generateColumns but for a single month row)
-        const generateMonthColumns = (offtake, availability, sos, marketShare, spend = 0, roas = 0, inorgSales = 0, conversion = 0, cpm = 0, cpc = 0, buyBoxPct = 0) => [
+        const generateMonthColumns = (offtake, availability, sos, marketShare, spend = 0, roas = 0, inorgSales = 0, conversion = 0, cpm = 0, cpc = 0, buyBoxPct = 0) => filterPrestigeKpiColumns([
             { title: "Offtakes", value: formatCurrency(offtake), meta: { units: "", change: "▲0.0%" } },
             { title: "Spend", value: formatCurrency(spend), meta: { units: "", change: "▲0.0%" } },
             { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "", change: "▲0.0%" } },
@@ -3846,7 +3873,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0%" } }, // Mock
             { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } },
             { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } }
-        ];
+        ]);
 
         // OPTIMIZED: Bulk month overview with GROUP BY instead of per-month queries
         let monthOverview = [];
@@ -4323,7 +4350,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     label: catName,
                     type: catName,
                     logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
-                    columns: [
+                    columns: filterPrestigeKpiColumns([
                         {
                             title: "Offtakes",
                             value: formatCurrency(catOfftake),
@@ -4402,7 +4429,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             change: { text: "▲0.0%", positive: true },
                             meta: { units: "clicks", change: "▲0.0%" }
                         }
-                    ]
+                    ])
                 };
 
             } catch (err) {
@@ -4845,7 +4872,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 key: brandName.toLowerCase().replace(/\s+/g, '_'),
                 label: brandName,
                 type: "Brand",
-                columns: [
+                columns: filterPrestigeKpiColumns([
                     { title: "Offtakes", value: formatCurrency(currSales), meta: { units: `${(currSales / 100000).toFixed(2)} L`, change: `${salesTrend >= 0 ? '▲' : '▼'}${Math.abs(salesTrend).toFixed(2)}%` } },
                     { title: "Spend", value: formatCurrency(currSpend), meta: { units: formatCurrency(currSpend), change: `${spendTrend >= 0 ? '▲' : '▼'}${Math.abs(spendTrend).toFixed(2)}%` } },
                     { title: "ROAS", value: `${currRoas.toFixed(2)}x`, meta: { units: `${formatCurrency(currAdSales)}`, change: `${roasTrend >= 0 ? '▲' : '▼'}${Math.abs(roasTrend).toFixed(2)}%` } },
@@ -4865,7 +4892,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     { title: "Promo Compete", value: `${otherBrandsAvgDisc.toFixed(2)}%`, meta: { units: `${otherBrandsAvgDisc.toFixed(2)}%`, change: `${promoCompeteTrend >= 0 ? '▲' : '▼'}${Math.abs(promoCompeteTrend).toFixed(2)}%` } },
                     { title: "CPM", value: formatCurrency(currCpm), meta: { units: formatCurrency(currCpm), change: `${cpmTrend >= 0 ? '▲' : '▼'}${Math.abs(cpmTrend).toFixed(2)}%` } },
                     { title: "CPC", value: formatCurrency(currCpc), meta: { units: formatCurrency(currCpc), change: `${cpcTrend >= 0 ? '▲' : '▼'}${Math.abs(cpcTrend).toFixed(2)}%` } }
-                ]
+                ])
             };
         }));
 
@@ -10795,7 +10822,8 @@ const getCompetitionData = async (filters = {}) => {
 
         console.log(`[getCompetitionData] Got category sales data(${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
-        const hasAnyMsData = isPlatformInMsOlap && (
+        const prestigeDb = isPrestigeDb();
+        const hasAnyMsData = !prestigeDb && isPlatformInMsOlap && (
             (msPlatArr && msPlatArr.length > 0)
                 ? isPlatformInMsOlap
                 : (categoryTotalSalesMap.size > 0 || skuMsMap.size > 0 || brandSalesMap.size > 0)
@@ -11173,15 +11201,17 @@ const getCompetitionData = async (filters = {}) => {
 
         // Sort by Offtake Share descending (highest to lowest), falling back to Market Share, total_sales, then OSA
         skuMetrics.sort((a, b) => {
-            const offtakeA = Number(a.OfftakeShare?.value ?? a.OfftakeShare ?? a.offtake_share ?? a.CategoryShare?.value ?? a.CategoryShare) || 0;
-            const offtakeB = Number(b.OfftakeShare?.value ?? b.OfftakeShare ?? b.offtake_share ?? b.CategoryShare?.value ?? b.CategoryShare) || 0;
-            if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
-            const msA = Number(a.MarketShare?.value ?? a.MarketShare) || 0;
-            const msB = Number(b.MarketShare?.value ?? b.MarketShare) || 0;
-            if (Math.abs(msB - msA) > 0.0001) return msB - msA;
-            const salesA = Number(a.total_sales) || 0;
-            const salesB = Number(b.total_sales) || 0;
-            if (salesB !== salesA) return salesB - salesA;
+            if (!prestigeDb) {
+                const offtakeA = Number(a.OfftakeShare?.value ?? a.OfftakeShare ?? a.offtake_share ?? a.CategoryShare?.value ?? a.CategoryShare) || 0;
+                const offtakeB = Number(b.OfftakeShare?.value ?? b.OfftakeShare ?? b.offtake_share ?? b.CategoryShare?.value ?? b.CategoryShare) || 0;
+                if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
+                const msA = Number(a.MarketShare?.value ?? a.MarketShare) || 0;
+                const msB = Number(b.MarketShare?.value ?? b.MarketShare) || 0;
+                if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+                const salesA = Number(a.total_sales) || 0;
+                const salesB = Number(b.total_sales) || 0;
+                if (salesB !== salesA) return salesB - salesA;
+            }
             const osaA = Number(a.OSA?.value ?? a.OSA) || 0;
             const osaB = Number(b.OSA?.value ?? b.OSA) || 0;
             return osaB - osaA;
@@ -11753,11 +11783,12 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const pmCheckResult = await queryClickHouse(`SELECT count(*) as count FROM ${pmSrc.table} WHERE ${globalPmConds.join(' AND ')}`);
         const hasPmData = parseInt(pmCheckResult[0]?.count || 0) > 0;
 
+        const prestigeDb = isPrestigeDb();
         const kpiAvailability = {
             pdp: totalsData.length > 0,
-            ms: msTotalsData.length > 0,
+            ms: prestigeDb ? false : msTotalsData.length > 0,
             kw: kwTotalsData.length > 0,
-            pm: hasPmData
+            pm: prestigeDb ? false : hasPmData
         };
 
         // Build lookup maps for totals by date_group
@@ -11967,8 +11998,8 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                     categoryShare: (kpiAvailability.ms && hasMsBucketData && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
                     MarketShare: (kpiAvailability.ms && hasMsBucketData && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
                     marketShare: (kpiAvailability.ms && hasMsBucketData && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
-                    Offtakes: (kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
-                    offtakes: (kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
+                    Offtakes: (!prestigeDb && kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
+                    offtakes: (!prestigeDb && kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
                     InorganicSales: (kpiAvailability.pm && hasPmBucketData && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null,
                     inorganicSales: (kpiAvailability.pm && hasPmBucketData && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null
                 };

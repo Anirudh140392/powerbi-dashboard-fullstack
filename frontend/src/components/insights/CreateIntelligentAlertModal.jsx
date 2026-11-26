@@ -21,6 +21,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
 import axiosInstance from "../../api/axiosInstance";
 import { createAlert, updateAlert } from "../../api/insightsService";
+import { isPrestigeAccount } from "../../utils/tenantConfig";
 
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
@@ -229,13 +230,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
     const { user } = useAuth();
     const activeDbName = (
-        user?.dbName || 
-        user?.db_name || 
+        user?.dbName ||
+        user?.db_name ||
         user?.database ||
         user?.db ||
         user?.client_db ||
         user?.clientDb ||
-        sessionStorage.getItem("activeWorkspaceDb") || 
+        sessionStorage.getItem("activeWorkspaceDb") ||
         sessionStorage.getItem("database") ||
         sessionStorage.getItem("client_db") ||
         (() => {
@@ -1192,7 +1193,9 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 gap: "4px",
                                             }}
                                         >
-                                            {ALERT_PRESETS.map((preset) => {
+                                            {ALERT_PRESETS
+                                                .filter(preset => !(isPrestigeAccount(user) && preset.id.includes("offtake")))
+                                                .map((preset) => {
                                                 const isSelected = selectedPresetIds.includes(preset.id);
                                                 return (
                                                     <div

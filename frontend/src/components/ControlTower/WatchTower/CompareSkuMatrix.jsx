@@ -21,6 +21,7 @@ import { cn } from '../../../lib/utils';
 import AddSkuDrawer from './AddSkuDrawer';
 import CompareSkuFilterModal from './CompareSkuFilterModal';
 import axiosInstance from '../../../api/axiosInstance';
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantConfig';
 import { 
     LineChart, 
     Line, 
@@ -52,11 +53,11 @@ const CompareSkuMatrix = ({ onClose }) => {
         skus: [],
         dateFrom: null,
         dateTo: null,
-        kpis: ['offtakes', 'availability', 'shareOfVolume', 'ad_sov', 'organic_sos', 'spend', 'conversion', 'marketShare', 'categorySize'],
+        kpis: ['offtakes', 'availability', 'shareOfVolume', 'ad_sov', 'organic_sos', 'spend', 'conversion', 'marketShare', 'categorySize'].filter(k => !isPrestigeAccount() || !isPrestigeHiddenKpi(k)),
     });
     
     // Full metrics list — sections and KPI items
-    const allMetricsList = [
+    const rawMetricsList = [
         { id: 'offtake', label: 'Offtake', section: null, kpiKey: 'offtakes' },
         { id: 'est_cat_share', label: 'Cat Share', section: null, kpiKey: 'categorySize' },
         { id: 'availability', label: 'Availability', type: 'section' },
@@ -75,6 +76,15 @@ const CompareSkuMatrix = ({ onClose }) => {
         { id: 'cpm', label: 'CPM', section: null, kpiKey: 'cpm' },
         { id: 'cpc', label: 'CPC', section: null, kpiKey: 'cpc' },
     ];
+
+    const isPrestige = isPrestigeAccount();
+    const allMetricsList = isPrestige
+        ? rawMetricsList.filter(m =>
+            m.type === 'section' ||
+            // 'overall_sov' row here represents 'Overall SOS' (rb_kw_olap.overall), not 'Overall SOV'
+            ((m.id === 'overall_sov' || !isPrestigeHiddenKpi(m.id)) && !isPrestigeHiddenKpi(m.kpiKey) && !isPrestigeHiddenKpi(m.label))
+        )
+        : rawMetricsList;
 
     // Dynamic metricsList: filter based on applied KPI selection
     const metricsList = allMetricsList.filter(m => {

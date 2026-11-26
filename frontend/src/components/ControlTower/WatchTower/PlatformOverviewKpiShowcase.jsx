@@ -26,6 +26,7 @@ import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import { useAuth } from "../../../utils/AuthContext";
 import { FilterContext } from "../../../utils/FilterContext";
+import { isPrestigeAccount } from "../../../utils/tenantConfig";
 import CrossPlatformMatrixModal, { ALL_KPI_COLUMNS } from "./CrossPlatformMatrixModal";
 
 
@@ -1399,7 +1400,7 @@ const CHART_COLORS = [
 
 const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep, selectedLevel }) => {
   const { user } = useAuth();
-  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat' || isPrestigeAccount(user);
   const getInitialMetric = () => {
     if (!selectedLevel) return "osa";
     const mapping = {
@@ -1900,7 +1901,7 @@ const KPI_KEYS = [
 
 const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTrend, period, timeStep }) => {
   const { user } = useAuth();
-  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat' || isPrestigeAccount(user);
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
@@ -2101,6 +2102,7 @@ const formatLargeNumber = (value) => {
 
 const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading, onTrendClick, onDownload, onBrandSelect }) => {
   const { user } = useAuth();
+  const hideMarketShare = isPrestigeAccount(user);
   const { brands: contextOwnBrands, selectedBrand } = useContext(FilterContext);
 
   const [page, setPage] = useState(1);
@@ -2229,12 +2231,12 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[25%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[15%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[15%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[15%]">Price</th>
-                <th className="px-3 py-2 text-center w-[15%]">Discount %</th>
-                <th className="px-3 py-2 text-center w-[15%]">Mkt Share</th>
+                <th className={`px-3 py-2 text-left ${hideMarketShare ? 'w-[28%]' : 'w-[25%]'}`}>Brand</th>
+                <th className={`px-3 py-2 text-center ${hideMarketShare ? 'w-[18%]' : 'w-[15%]'}`}>OSA</th>
+                <th className={`px-3 py-2 text-center ${hideMarketShare ? 'w-[18%]' : 'w-[15%]'}`}>SOS</th>
+                <th className={`px-3 py-2 text-center ${hideMarketShare ? 'w-[18%]' : 'w-[15%]'}`}>Price</th>
+                <th className={`px-3 py-2 text-center ${hideMarketShare ? 'w-[18%]' : 'w-[15%]'}`}>Discount %</th>
+                {!hideMarketShare && <th className="px-3 py-2 text-center w-[15%]">Mkt Share</th>}
               </tr>
             </thead>
 
@@ -2246,7 +2248,7 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {!hideMarketShare && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
 
@@ -2295,9 +2297,11 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
                   <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
                     <KpiCell data={ourBrandOutsideTop10['Promo-My'] || ourBrandOutsideTop10.PromoMy} suffix="%" />
                   </td>
-                  <td className="px-3 py-2.5 text-right text-slate-900 border-x border-amber-200 font-bold text-amber-950">
-                    <KpiCell data={ourBrandOutsideTop10.MarketShare} suffix="%" />
-                  </td>
+                  {!hideMarketShare && (
+                    <td className="px-3 py-2.5 text-right text-slate-900 border-x border-amber-200 font-bold text-amber-950">
+                      <KpiCell data={ourBrandOutsideTop10.MarketShare} suffix="%" />
+                    </td>
+                  )}
                 </tr>
               )}
 
@@ -2361,9 +2365,11 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
                     <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
                       <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
                     </td>
-                    <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100 font-medium">
-                      <KpiCell data={row.MarketShare} suffix="%" />
-                    </td>
+                    {!hideMarketShare && (
+                      <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100 font-medium">
+                        <KpiCell data={row.MarketShare} suffix="%" />
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -2371,7 +2377,7 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
               {!loading && paginatedRows.length === 0 && !ourBrandOutsideTop10 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2399,6 +2405,8 @@ const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading,
 
 
 const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
+  const { user } = useAuth();
+  const hideRestrictedKpis = isPrestigeAccount(user);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -2430,13 +2438,13 @@ const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[18%]">SKU</th>
-                <th className="px-3 py-2 text-center w-[14%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[13%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Discount %</th>
-                <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[14%]">Offtake Share %</th>
+                <th className={`px-3 py-2 text-center ${hideRestrictedKpis ? 'w-[24%]' : 'w-[18%]'}`}>SKU</th>
+                <th className={`px-3 py-2 text-center ${hideRestrictedKpis ? 'w-[19%]' : 'w-[14%]'}`}>Brand</th>
+                <th className={`px-3 py-2 text-center ${hideRestrictedKpis ? 'w-[19%]' : 'w-[13%]'}`}>OSA</th>
+                <th className={`px-3 py-2 text-center ${hideRestrictedKpis ? 'w-[19%]' : 'w-[13%]'}`}>Price</th>
+                <th className={`px-3 py-2 text-center ${hideRestrictedKpis ? 'w-[19%]' : 'w-[14%]'}`}>Discount %</th>
+                {!hideRestrictedKpis && <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>}
+                {!hideRestrictedKpis && <th className="px-3 py-2 text-center w-[14%]">Offtake Share %</th>}
               </tr>
             </thead>
 
@@ -2448,8 +2456,8 @@ const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {!hideRestrictedKpis && <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
+                  {!hideRestrictedKpis && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2476,19 +2484,23 @@ const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
                     <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row.MarketShare} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <KpiCell data={row.OfftakeShare || row.CategoryShare} suffix="%" />
-                  </td>
+                  {!hideRestrictedKpis && (
+                    <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      <KpiCell data={row.MarketShare} suffix="%" />
+                    </td>
+                  )}
+                  {!hideRestrictedKpis && (
+                    <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
+                      <KpiCell data={row.OfftakeShare || row.CategoryShare} suffix="%" />
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={hideRestrictedKpis ? 5 : 7}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
@@ -2659,6 +2671,8 @@ const LocationSelect = ({ cities, value, onChange }) => {
 /* -------------------------------------------------------------------------- */
 
 const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick, drawerFilters, setDrawerFilters }) => {
+  const { user } = useAuth();
+  const isPrestige = isPrestigeAccount(user);
   const { selectedMsl } = useContext(FilterContext);
   // Use filterOptions if provided, otherwise fallback to static constants
   const rawCities = useMemo(() => {
@@ -2773,11 +2787,14 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
   const brandRows = useMemo(() => {
     return [...apiBrandData].sort((a, b) => {
-      const valA = Number(a.MarketShare?.value) || 0;
-      const valB = Number(b.MarketShare?.value) || 0;
-      return valB - valA;
+      if (!isPrestige) {
+        const valA = Number(a.MarketShare?.value) || 0;
+        const valB = Number(b.MarketShare?.value) || 0;
+        if (valB !== valA) return valB - valA;
+      }
+      return (Number(b.OSA?.value) || 0) - (Number(a.OSA?.value) || 0);
     });
-  }, [apiBrandData]);
+  }, [apiBrandData, isPrestige]);
 
   const skuRows = useMemo(() => {
     let filtered = [...apiSkuData];
@@ -2789,28 +2806,30 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       });
     }
     return filtered.sort((a, b) => {
-      const getOfftakeVal = (item) => {
-        const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
-        const num = Number(raw);
-        return isNaN(num) ? 0 : num;
-      };
-      const offtakeA = getOfftakeVal(a);
-      const offtakeB = getOfftakeVal(b);
-      if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
+      if (!isPrestige) {
+        const getOfftakeVal = (item) => {
+          const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
+          const num = Number(raw);
+          return isNaN(num) ? 0 : num;
+        };
+        const offtakeA = getOfftakeVal(a);
+        const offtakeB = getOfftakeVal(b);
+        if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
 
-      const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
-      const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
-      if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+        const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+        const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+        if (Math.abs(msB - msA) > 0.0001) return msB - msA;
 
-      const salesA = Number(a.total_sales || a.Sales?.value || a.Sales || 0) || 0;
-      const salesB = Number(b.total_sales || b.Sales?.value || b.Sales || 0) || 0;
-      if (salesB !== salesA) return salesB - salesA;
+        const salesA = Number(a.total_sales || a.Sales?.value || a.Sales || 0) || 0;
+        const salesB = Number(b.total_sales || b.Sales?.value || b.Sales || 0) || 0;
+        if (salesB !== salesA) return salesB - salesA;
+      }
 
       const osaA = Number(a.OSA?.value ?? a.OSA ?? a.osa ?? 0) || 0;
       const osaB = Number(b.OSA?.value ?? b.OSA ?? b.osa ?? 0) || 0;
       return osaB - osaA;
     });
-  }, [apiSkuData]);
+  }, [apiSkuData, filters.brands, isPrestige]);
 
   const handleDownloadCompetitionExcel = () => {
     try {
@@ -2830,25 +2849,35 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         return `₹${num}`;
       };
 
-      const skuData = (skuRows || []).map(s => ({
-        "SKU": s.sku_name || s.name || s.Product || s.sku || "N/A",
-        "BRAND": s.brand_name || s.brandName || s.brand || "N/A",
-        "OSA": safeFormatPercent(s.OSA?.value ?? s.OSA ?? s.osa),
-        "PRICE": safeFormatPrice(s.Price?.value ?? s.Price ?? s.price),
-        "PROMO-MY %": safeFormatPercent(s['Promo-My']?.value ?? s.PromoMy?.value ?? s['Promo-My'] ?? s.PromoMy ?? s.PromoPercent?.value ?? s.promoPercent),
-        "MKT SHARE": safeFormatPercent(s.MarketShare?.value ?? s.MarketShare ?? s.marketShare),
-        "OFFTAKE SHARE %": safeFormatPercent(s.OfftakeShare?.value ?? s.OfftakeShare ?? s.offtake_share ?? s.CategoryShare?.value ?? s.CategoryShare),
-      }));
+      const skuData = (skuRows || []).map(s => {
+        const row = {
+          "SKU": s.sku_name || s.name || s.Product || s.sku || "N/A",
+          "BRAND": s.brand_name || s.brandName || s.brand || "N/A",
+          "OSA": safeFormatPercent(s.OSA?.value ?? s.OSA ?? s.osa),
+          "PRICE": safeFormatPrice(s.Price?.value ?? s.Price ?? s.price),
+          "PROMO-MY %": safeFormatPercent(s['Promo-My']?.value ?? s.PromoMy?.value ?? s['Promo-My'] ?? s.PromoMy ?? s.PromoPercent?.value ?? s.promoPercent),
+        };
+        if (!isPrestige) {
+          row["MKT SHARE"] = safeFormatPercent(s.MarketShare?.value ?? s.MarketShare ?? s.marketShare);
+          row["OFFTAKE SHARE %"] = safeFormatPercent(s.OfftakeShare?.value ?? s.OfftakeShare ?? s.offtake_share ?? s.CategoryShare?.value ?? s.CategoryShare);
+        }
+        return row;
+      });
 
-      const brandData = (brandRows || []).map(b => ({
-        "BRAND": b.name || b.brand_name || b.brand || "N/A",
-        "OSA": safeFormatPercent(b.OSA?.value ?? b.OSA ?? b.osa),
-        "SOS": safeFormatPercent(b.SOS?.value ?? b.SOS ?? b.sos),
-        "PRICE": safeFormatPrice(b.Price?.value ?? b.Price ?? b.price),
-        "PROMO-MY %": safeFormatPercent(b.PromoPercent?.value ?? b.PromoPercent ?? b.promoPercent),
-        "MKT SHARE": safeFormatPercent(b.MarketShare?.value ?? b.MarketShare ?? b.marketShare),
-        "OFFTAKE SHARE %": safeFormatPercent(b.OfftakeShare?.value ?? b.OfftakeShare ?? b.offtake_share ?? b.CategoryShare?.value ?? b.CategoryShare),
-      }));
+      const brandData = (brandRows || []).map(b => {
+        const row = {
+          "BRAND": b.name || b.brand_name || b.brand || "N/A",
+          "OSA": safeFormatPercent(b.OSA?.value ?? b.OSA ?? b.osa),
+          "SOS": safeFormatPercent(b.SOS?.value ?? b.SOS ?? b.sos),
+          "PRICE": safeFormatPrice(b.Price?.value ?? b.Price ?? b.price),
+          "PROMO-MY %": safeFormatPercent(b.PromoPercent?.value ?? b.PromoPercent ?? b.promoPercent),
+        };
+        if (!isPrestige) {
+          row["MKT SHARE"] = safeFormatPercent(b.MarketShare?.value ?? b.MarketShare ?? b.marketShare);
+          row["OFFTAKE SHARE %"] = safeFormatPercent(b.OfftakeShare?.value ?? b.OfftakeShare ?? b.offtake_share ?? b.CategoryShare?.value ?? b.CategoryShare);
+        }
+        return row;
+      });
 
       if (tab === "sku") {
         const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);

@@ -24,6 +24,7 @@ import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 import dayjs from 'dayjs'
+import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../utils/tenantConfig'
 
 // ---------- Helpers ----------
 
@@ -62,6 +63,15 @@ function makeSeries(seedBase, n = 30, volatility = 0.12, platformSeed = "default
 function pctChange(last, prev) {
     if (prev === 0) return 0;
     return ((last - prev) / prev) * 100;
+}
+
+function getResponsiveGridCols(count) {
+    if (count <= 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-1 sm:grid-cols-2';
+    if (count === 3) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+    if (count === 4) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+    if (count === 6) return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6';
+    return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-5';
 }
 
 // ---------- SVG Sparkline ----------
@@ -1114,8 +1124,10 @@ const SnapshotOverview = ({
             kpis.find(k => normalize(k.title) === 'share_of_search' || k.id === 'sos');
         const isSosWait = performanceLoading && !sosItem;
 
+        const isPrestige = isPrestigeAccount();
+
         // Extract organic/inorganic sales data from performanceData to attach to Offtake KPI
-        const inorganicPerfItem = performanceData.find(p => p.id === 'inorganic') || {};
+        const inorganicPerfItem = (!isPrestige ? performanceData.find(p => p.id === 'inorganic') : null) || {};
         const organicSalesVal = inorganicPerfItem.organicSales || null;
         const inorganicSalesVal = inorganicPerfItem.value || null;
 
@@ -1135,20 +1147,22 @@ const SnapshotOverview = ({
         const inorganicNum = parseVal(inorganicSalesVal);
         const totalSplit = organicNum + inorganicNum;
 
-        let topRowItems = baseTop.map((kpi, idx) => {
-            const enriched = {
-                ...kpi,
-                trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
-            };
-            // Attach organic/inorganic data to Offtake KPI
-            if (normalize(kpi.title) === 'offtake' || normalize(kpi.title) === 'offtakes' || kpi.id === 'offtake') {
-                enriched.organicSales = organicSalesVal;
-                enriched.inorganicSales = inorganicSalesVal;
-                enriched.organicPct = totalSplit > 0 ? (organicNum / totalSplit) * 100 : null;
-                enriched.inorganicPct = totalSplit > 0 ? (inorganicNum / totalSplit) * 100 : null;
-            }
-            return enriched;
-        });
+        let topRowItems = baseTop
+            .filter(kpi => !isPrestige || (!isPrestigeHiddenKpi(kpi.id) && !isPrestigeHiddenKpi(kpi.title)))
+            .map((kpi, idx) => {
+                const enriched = {
+                    ...kpi,
+                    trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
+                };
+                // Attach organic/inorganic data to Offtake KPI
+                if (!isPrestige && (normalize(kpi.title) === 'offtake' || normalize(kpi.title) === 'offtakes' || kpi.id === 'offtake')) {
+                    enriched.organicSales = organicSalesVal;
+                    enriched.inorganicSales = inorganicSalesVal;
+                    enriched.organicPct = totalSplit > 0 ? (organicNum / totalSplit) * 100 : null;
+                    enriched.inorganicPct = totalSplit > 0 ? (inorganicNum / totalSplit) * 100 : null;
+                }
+                return enriched;
+            });
 
         if (sosItem || isSosWait) {
             const sosKpi = sosItem ? {
@@ -1296,19 +1310,33 @@ const SnapshotOverview = ({
             roasItem, roasPerf, 'roas', 'ROAS', IndianRupee, ['#eab308', '#facc15'], 4
         ));
 
+        if (isPrestige) {
+            return {
+                topKpis: topRowItems.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.title)),
+                bottomKpis: []
+            };
+        }
+
         return { topKpis: topRowItems, bottomKpis: bottomItems };
     }, [kpis, performanceData, variant, seed]);
 
     // PREPARE DATA FOR DETAILED VIEW
     const detailedKpis = useMemo(() => {
         if (variant === 'watchtower') return [];
-        return kpis.map((k, i) => ({
+        const isPrestige = isPrestigeAccount();
+        const visible = isPrestige
+            ? kpis.filter(k => !isPrestigeHiddenKpi(k.id) && !isPrestigeHiddenKpi(k.title))
+            : kpis;
+        return visible.map((k, i) => ({
             ...k,
             trendSeries: k.trendSeries || k.trend || makeSeries(50 + i, 20, 0.2, seed)
         }))
     }, [kpis, variant, seed]);
 
     if (variant === 'watchtower') {
+        const topCardCount = loading ? (topKpis.length || (isPrestigeAccount() ? 3 : 5)) : topKpis.length;
+        const bottomCardCount = performanceLoading ? 5 : bottomKpis.length;
+
         return (
             <div style={{ marginBottom: '1rem', fontFamily: 'Roboto, sans-serif' }}>
                 <motion.div
@@ -1362,10 +1390,10 @@ const SnapshotOverview = ({
                     </div>
 
                     <div className="p-6 space-y-8">
-                        {/* Top Row: Squarish Grid (5 columns) */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                        {/* Top Row: Responsive Grid adapting to visible card count */}
+                        <div className={cn("grid gap-5", getResponsiveGridCols(topCardCount))}>
                             {loading ? (
-                                [1, 2, 3, 4, 5].map((i) => <ComparisonCard key={i} loading={true} />)
+                                Array.from({ length: topCardCount }).map((_, i) => <ComparisonCard key={i + 1} loading={true} />)
                             ) : (
                                 topKpis.map((kpi, idx) => (
                                     <motion.div
@@ -1373,6 +1401,7 @@ const SnapshotOverview = ({
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.02, duration: 0.15 }}
+                                        className="h-full"
                                     >
                                         <ComparisonCard kpi={kpi} loading={kpi.loading} helpMenu={helpMenu} />
                                     </motion.div>
@@ -1380,33 +1409,35 @@ const SnapshotOverview = ({
                             )}
                         </div>
 
-                        {/* Bottom Row: Performance Section (4 columns) */}
-                        <div className="pt-2 px-1 pb-1">
-                            <div className="bg-[#f0f9f9]/60 rounded-2xl p-4 border border-cyan-100/50">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
-                                        <Zap size={16} className="text-orange-500 fill-orange-500/20" />
-                                    </Box>
-                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                    {performanceLoading ? (
-                                        [1, 2, 3, 4, 5].map((i) => <ActionableMetricCard key={i} loading={true} />)
-                                    ) : (
-                                        bottomKpis.map((kpi, idx) => (
-                                            <motion.div
-                                                key={kpi.id}
-                                                initial={{ opacity: 0, x: -10 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
-                                            >
-                                                <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
-                                            </motion.div>
-                                        ))
-                                    )}
+                        {/* Bottom Row: Performance Section */}
+                        {((performanceLoading && !isPrestigeAccount()) || bottomKpis.length > 0) && (
+                            <div className="pt-2 px-1 pb-1">
+                                <div className="bg-[#f0f9f9]/60 rounded-2xl p-4 border border-cyan-100/50">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
+                                            <Zap size={16} className="text-orange-500 fill-orange-500/20" />
+                                        </Box>
+                                        <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
+                                    </div>
+                                    <div className={cn("grid gap-4", getResponsiveGridCols(bottomCardCount))}>
+                                        {performanceLoading ? (
+                                            [1, 2, 3, 4, 5].map((i) => <ActionableMetricCard key={i} loading={true} />)
+                                        ) : (
+                                            bottomKpis.map((kpi, idx) => (
+                                                <motion.div
+                                                    key={kpi.id}
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
+                                                >
+                                                    <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </motion.div>
             </div>
@@ -1476,7 +1507,7 @@ const SnapshotOverview = ({
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 4 ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-3'} ${detailedKpis.length === 5 ? 'lg:grid-cols-5' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
+                    <div className={cn("grid gap-4 sm:gap-5 lg:gap-6", getResponsiveGridCols(detailedKpis.length || 3))}>
                         {loading ? (
                             Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
                                 <DetailedSparklineCard key={i} loading={true} />
