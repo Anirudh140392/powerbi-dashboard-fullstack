@@ -155,7 +155,7 @@ def render_anomaly_email_html(
     client_label = client.replace("_", " ").title()
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
     total_anoms = len(anomalies)
-    clean_assignee = assignee_email or "abhishek.j@trailytics.com"
+    clean_assignee = assignee_email.strip() if (assignee_email and assignee_email.strip()) else "Unassigned"
     clean_from = from_email or DEFAULT_FROM_EMAIL
 
     # Build Detailed Deep-Dive Anomaly Cards (Top 5 for responsive performance)

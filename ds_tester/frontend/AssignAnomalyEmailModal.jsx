@@ -45,7 +45,7 @@ export default function AssignAnomalyEmailModal({
   onAssigned,
 }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Form, 1 = Live Preview
-  const [recipients, setRecipients] = useState("abhishek.j@trailytics.com");
+  const [recipients, setRecipients] = useState("shushant@trailytics.com");
   const [fromEmail, setFromEmail] = useState("shushant@trailytics.com");
   const [priority, setPriority] = useState("P1 - Critical");
   const [notes, setNotes] = useState("");
@@ -67,16 +67,22 @@ export default function AssignAnomalyEmailModal({
     if (open) {
       setSendResult(null);
       setCopied(false);
-      fetchEmailPreview();
+      const timer = setTimeout(() => {
+        fetchEmailPreview();
+      }, 250);
+      return () => clearTimeout(timer);
     }
-  }, [open, client, priority, notes, fromEmail]);
+  }, [open, client, priority, notes, fromEmail, recipients]);
 
   const fetchEmailPreview = async () => {
     setLoadingPreview(true);
     try {
+      const emailList = recipients
+        ? recipients.split(/[,;]+/).map((s) => s.trim()).filter((e) => e.length > 0)
+        : [];
       const res = await axios.post(`${DS_TESTER_API}/anomaly/preview-email`, {
         client: client || "prestige",
-        recipients: recipients ? recipients.split(",").map((s) => s.trim()) : ["tester@trailytics.com"],
+        recipients: emailList.length > 0 ? emailList : ["Unassigned"],
         anomaly_ids: targetAnomalies.map((a) => a.id).filter(Boolean),
         notes,
         priority,
@@ -152,17 +158,18 @@ export default function AssignAnomalyEmailModal({
     }
   };
 
-  const handleCopyRichHtml = async () => {
-    if (!previewHtml) return;
+  const handleCopyRichHtml = async (htmlOverride) => {
+    const rawHtml = htmlOverride || previewHtml;
+    if (!rawHtml) return;
 
     try {
       // 1. Modern Clipboard API with text/html MIME type (renders visual cards & tables in Outlook)
       if (navigator.clipboard && window.ClipboardItem) {
         const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = previewHtml;
-        const plainText = tempDiv.innerText || tempDiv.textContent || previewHtml;
+        tempDiv.innerHTML = rawHtml;
+        const plainText = tempDiv.innerText || tempDiv.textContent || rawHtml;
 
-        const blobHtml = new Blob([previewHtml], { type: "text/html" });
+        const blobHtml = new Blob([rawHtml], { type: "text/html" });
         const blobText = new Blob([plainText], { type: "text/plain" });
 
         const item = new ClipboardItem({
@@ -182,7 +189,7 @@ export default function AssignAnomalyEmailModal({
     // 2. Fallback: Select hidden container DOM and execCommand('copy') for rich formatting
     try {
       const container = document.createElement("div");
-      container.innerHTML = previewHtml;
+      container.innerHTML = rawHtml;
       container.style.position = "fixed";
       container.style.pointerEvents = "none";
       container.style.opacity = "0";
@@ -203,7 +210,7 @@ export default function AssignAnomalyEmailModal({
       setTimeout(() => setCopied(false), 3500);
     } catch (err) {
       // 3. Fallback: plain text
-      navigator.clipboard.writeText(previewHtml);
+      navigator.clipboard.writeText(rawHtml);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
@@ -231,21 +238,27 @@ export default function AssignAnomalyEmailModal({
   };
 
   const handleSendViaOutlookWeb = async () => {
-    const emailList = (recipients || "abhishek.j@trailytics.com")
+    const emailList = (recipients || "")
       .split(/[,;]+/)
       .map((e) => e.trim())
       .filter((e) => e.includes("@"));
 
-    // 1. Immediately persist assignment in database & anomaly store
+    let freshHtml = previewHtml;
+
+    // 1. Immediately persist assignment in database & anomaly store and fetch fresh HTML
     try {
-      await axios.post(`${DS_TESTER_API}/anomaly/preview-email`, {
+      const res = await axios.post(`${DS_TESTER_API}/anomaly/preview-email`, {
         client: client || "boat",
-        recipients: emailList.length > 0 ? emailList : ["abhishek.j@trailytics.com"],
+        recipients: emailList.length > 0 ? emailList : (recipients ? [recipients] : ["shushant@trailytics.com"]),
         anomaly_ids: targetAnomalies.map((a) => a.id).filter(Boolean),
         notes: notes || "Assigned via Outlook Web",
         priority,
         from_email: fromEmail || "shushant@trailytics.com",
       });
+      if (res.data?.html) {
+        freshHtml = res.data.html;
+        setPreviewHtml(res.data.html);
+      }
       if (typeof onAssigned === "function") {
         onAssigned();
       }
@@ -253,8 +266,8 @@ export default function AssignAnomalyEmailModal({
       console.warn("Assignment persist error:", e);
     }
 
-    // 2. Copy high-contrast rich HTML report to clipboard
-    await handleCopyRichHtml();
+    // 2. Copy high-contrast rich HTML report to clipboard using the fresh HTML
+    await handleCopyRichHtml(freshHtml);
 
     // 3. Open Outlook Web compose window
     const { webOutlookUrl, cleanRecipients } = getMailFields();
@@ -264,7 +277,7 @@ export default function AssignAnomalyEmailModal({
     setSendResult({
       success: true,
       mode: "web",
-      message: `Assigned & Saved! All ${targetAnomalies.length} anomaly issue(s) assigned to ${cleanRecipients || "abhishek.j@trailytics.com"} on the DS Tester dashboard. The full visual HTML report is copied to your clipboard — in Outlook, click in the email body and press Ctrl + V to paste the complete formatted report.`,
+      message: `Assigned & Saved! All ${targetAnomalies.length} anomaly issue(s) assigned to ${cleanRecipients || "shushant@trailytics.com"} on the DS Tester dashboard. The full visual HTML report is copied to your clipboard — in Outlook, click in the email body and press Ctrl + V to paste the complete formatted report.`,
     });
   };
 

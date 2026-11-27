@@ -764,7 +764,7 @@ def preview_anomaly_email(payload: EmailAssignRequest):
     elif not selected_anoms:
         selected_anoms = []
 
-    recip = ", ".join(payload.recipients) if payload.recipients else "abhishek.j@trailytics.com"
+    recip = ", ".join(payload.recipients).strip() if (payload.recipients and any(r.strip() for r in payload.recipients)) else "Unassigned"
     assigner = payload.from_email or DEFAULT_FROM_EMAIL
     now_ts = datetime.now().strftime("%d %b %Y, %I:%M %p")
     for a in selected_anoms:
@@ -853,7 +853,7 @@ def mark_anomaly_done_endpoint(payload: MarkAnomalyDoneRequest):
                 a["status"] = target_status
                 if target_status == "FIXED":
                     a["fixed_at"] = now_ts
-                    a["fixed_by"] = payload.fixed_by or a.get("assigned_to") or "abhishek.j@trailytics.com"
+                    a["fixed_by"] = payload.fixed_by or a.get("assigned_to") or "Engineer"
                     if payload.notes:
                         a["resolution_notes"] = payload.notes
                 else:
