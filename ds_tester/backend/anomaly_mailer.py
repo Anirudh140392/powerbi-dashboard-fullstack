@@ -158,58 +158,7 @@ def render_anomaly_email_html(
     clean_assignee = assignee_email or "abhishek.j@trailytics.com"
     clean_from = from_email or DEFAULT_FROM_EMAIL
 
-    # 1. Build Master Anomaly Assignment Manifest Table Rows (Every Anomaly Listed)
-    registry_rows_html = ""
-    for idx, anom in enumerate(anomalies):
-        kpi_label = anom.get("kpi_label") or anom.get("kpi") or "KPI Metric"
-        dev_pct = float(anom.get("deviation_pct", 0.0))
-        unit = anom.get("unit") or "%"
-        actual_val = anom.get("actual", 0.0)
-        baseline_val = anom.get("baseline", 0.0)
-        plat = anom.get("platform") or "All Platforms"
-        mod = (anom.get("module") or "Module").replace("_", " ").title()
-
-        dev_color = "#dc2626" if abs(dev_pct) >= 25 else "#ea580c" if abs(dev_pct) >= 10 else "#16a34a"
-        row_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
-        dev_sign = "+" if dev_pct > 0 else ""
-
-        row_assigned_to = anom.get("assigned_to") or clean_assignee
-        row_assigned_by = anom.get("assigned_by") or clean_from
-
-        registry_rows_html += f"""
-        <tr bgcolor="{row_bg}" style="background-color:{row_bg};">
-          <td align="center" style="padding:8px 6px; border:1px solid #e2e8f0; font-weight:700; color:#64748b;">
-            <font color="#64748b" face="'Segoe UI', Tahoma, Arial, sans-serif">{idx + 1}</font>
-          </td>
-          <td style="padding:8px 8px; border:1px solid #e2e8f0; font-weight:700; color:#1e293b;">
-            <font color="#1e293b" face="'Segoe UI', Tahoma, Arial, sans-serif">{mod}</font>
-          </td>
-          <td style="padding:8px 10px; border:1px solid #e2e8f0; font-weight:700; color:#0f172a;">
-            <font color="#0f172a" face="'Segoe UI', Tahoma, Arial, sans-serif"><b>{kpi_label}</b></font>
-          </td>
-          <td align="center" style="padding:8px 8px; border:1px solid #e2e8f0;">
-            <span style="background-color:#f1f5f9; padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; color:#334155;">
-              <font color="#334155" face="'Segoe UI', Tahoma, Arial, sans-serif">{plat}</font>
-            </span>
-          </td>
-          <td align="right" style="padding:8px 8px; border:1px solid #e2e8f0; font-weight:800; color:{dev_color};">
-            <font color="{dev_color}" face="'Segoe UI', Tahoma, Arial, sans-serif"><b>{dev_sign}{dev_pct}%</b></font>
-          </td>
-          <td style="padding:8px 8px; border:1px solid #e2e8f0; font-size:11px; color:#1d4ed8; font-weight:700;">
-            <font color="#1d4ed8" face="'Segoe UI', Tahoma, Arial, sans-serif"><b>{row_assigned_to}</b></font>
-          </td>
-          <td style="padding:8px 8px; border:1px solid #e2e8f0; font-size:11px; color:#475569;">
-            <font color="#475569" face="'Segoe UI', Tahoma, Arial, sans-serif">{row_assigned_by}</font>
-          </td>
-          <td align="center" style="padding:8px 6px; border:1px solid #e2e8f0;">
-            <span style="background-color:#fee2e2; color:#dc2626; font-size:10px; font-weight:800; padding:3px 6px; border-radius:4px;">
-              <font color="#dc2626" face="'Segoe UI', Tahoma, Arial, sans-serif"><b>ASSIGNED</b></font>
-            </span>
-          </td>
-        </tr>
-        """
-
-    # 2. Build Detailed Deep-Dive Anomaly Cards (Top 5 for responsive performance)
+    # Build Detailed Deep-Dive Anomaly Cards (Top 5 for responsive performance)
     detailed_anomalies = anomalies[:5]
     anomaly_cards_html = ""
     for idx, anom in enumerate(detailed_anomalies):
@@ -519,46 +468,6 @@ def render_anomaly_email_html(
                   </td>
                 </tr>
               </table>
-            </td>
-          </tr>
-
-          <!-- Master Anomaly Assignment Manifest Table (All 53 Anomalies with Who-Assigned-To-Whom) -->
-          <tr>
-            <td style="padding:15px 28px;">
-              <div style="border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-                <div style="background-color:#1e293b; color:#ffffff; padding:12px 16px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td>
-                        <font color="#ffffff" face="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" size="3">
-                          <b style="color:#ffffff !important;">📋 MASTER ANOMALY ASSIGNMENT MANIFEST ({total_anoms} ISSUES)</b>
-                        </font>
-                        <div style="color:#94a3b8; font-size:11px; margin-top:2px;">
-                          <font color="#94a3b8">Ownership Registry: Specific anomaly allocation, assigned to whom by whom</font>
-                        </div>
-                      </td>
-                    </tr>
-                  </table>
-                </div>
-
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; font-size:11px; text-align:left;">
-                  <thead>
-                    <tr bgcolor="#f1f5f9" style="background-color:#f1f5f9; border-bottom:2px solid #cbd5e1;">
-                      <th style="padding:8px 6px; border:1px solid #e2e8f0; width:26px; text-align:center;"><font color="#1e293b">#</font></th>
-                      <th style="padding:8px 8px; border:1px solid #e2e8f0;"><font color="#1e293b">Module</font></th>
-                      <th style="padding:8px 10px; border:1px solid #e2e8f0;"><font color="#1e293b">Anomaly / KPI Name</font></th>
-                      <th style="padding:8px 8px; border:1px solid #e2e8f0; text-align:center;"><font color="#1e293b">Platform</font></th>
-                      <th style="padding:8px 8px; border:1px solid #e2e8f0; text-align:right;"><font color="#1e293b">Deviation</font></th>
-                      <th style="padding:8px 8px; border:1px solid #e2e8f0;"><font color="#1e293b">Assigned To</font></th>
-                      <th style="padding:8px 8px; border:1px solid #e2e8f0;"><font color="#1e293b">Assigned By</font></th>
-                      <th style="padding:8px 6px; border:1px solid #e2e8f0; text-align:center;"><font color="#1e293b">Status</font></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {registry_rows_html}
-                  </tbody>
-                </table>
-              </div>
             </td>
           </tr>
 
