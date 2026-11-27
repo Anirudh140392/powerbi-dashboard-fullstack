@@ -359,9 +359,17 @@ const PlatformOverviewNew = ({
         selectedChannel,
         platforms: globalPlatforms,
         timeStart,
+        setTimeStart,
         timeEnd,
+        setTimeEnd,
         compareStart,
+        setCompareStart,
         compareEnd,
+        setCompareEnd,
+        setUserSetDate,
+        setComparisonLabel,
+        maxDate,
+        minDate,
         datesFetched,
         platformsFetched,
         selectedMsl,
@@ -414,12 +422,27 @@ const PlatformOverviewNew = ({
         setApiLoading(true);
         setDrlSource(newSource);
     };
-    const [platformSelections, setPlatformSelections] = useState({ brand: [], location: [], month: [], category: [] })
+    // An unset tab uses every available platform; an empty selection requests the combined view.
+    const [platformSelections, setPlatformSelections] = useState({})
     const [collapsedByTab, setCollapsedByTab] = useState({})
     const [layoutsByTab, setLayoutsByTab] = useState({})
     const [dimension, setDimension] = useState('platform')
+    const selectYearToDate = () => {
+        const end = maxDate || dayjs()
+        const yearStart = end.startOf('year')
+        const start = minDate && minDate.isAfter(yearStart) ? minDate : yearStart
+        const periodDays = end.diff(start, 'day') + 1
+        const previousEnd = start.subtract(1, 'day')
+        const previousStart = previousEnd.subtract(periodDays - 1, 'day')
+
+        setTimeStart(start)
+        setTimeEnd(end)
+        setCompareStart(minDate && previousStart.isBefore(minDate) ? minDate : previousStart)
+        setCompareEnd(minDate && previousEnd.isBefore(minDate) ? minDate : previousEnd)
+        setComparisonLabel('VS PREV. PERIOD')
+        setUserSetDate(true)
+    }
     const comparisonTab = ['brand', 'location', 'month', 'category'].includes(dimension)
-    const brandPlatforms = platformSelections[dimension] || platformSelections.brand
     const setComparisonPlatforms = values => setPlatformSelections(prev => ({ ...prev, [dimension]: values }))
     const collapsedPlatforms = collapsedByTab[dimension] || {}
     const brandLayout = layoutsByTab[dimension] || 'table'
@@ -537,9 +560,10 @@ const PlatformOverviewNew = ({
         })
     }, [effectivePlatform, globalPlatforms, user])
     const chosenBrandPlatforms = useMemo(() => {
-        const chosen = new Set(brandPlatforms.map(p => p.toLowerCase()))
+        const selected = platformSelections[dimension] ?? brandPlatformOptions
+        const chosen = new Set(selected.map(p => p.toLowerCase()))
         return brandPlatformOptions.filter(p => chosen.has(p.toLowerCase()))
-    }, [brandPlatformOptions, brandPlatforms])
+    }, [brandPlatformOptions, dimension, platformSelections])
     const comparedPlatforms = comparisonTab && chosenBrandPlatforms.length > 1 ? chosenBrandPlatforms : null
 
     // Determine the active platform filter for non-platform, non-sku dimensions
@@ -713,8 +737,6 @@ const PlatformOverviewNew = ({
         sapCodes: [],
         skuName: '',
         skuCode: '',
-        dateFrom: '',
-        dateTo: '',
         msl: '0',
         kpis: defaultKpiKeys,
         filterLogic: 'OR',
@@ -730,7 +752,7 @@ const PlatformOverviewNew = ({
         const isGlobalSubBrandReset = selectedSubBrand === "All" || (Array.isArray(selectedSubBrand) && selectedSubBrand.includes("All")) || !selectedSubBrand;
 
         if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset && isGlobalSubBrandReset) {
-            setPlatformSelections({ brand: [], location: [], month: [], category: [] });
+            setPlatformSelections({});
             setAdvancedFilters(prev => ({
                 ...prev,
                 brands: [],
@@ -741,8 +763,6 @@ const PlatformOverviewNew = ({
                 sapCodes: [],
                 skuName: '',
                 skuCode: '',
-                dateFrom: '',
-                dateTo: '',
                 msl: '0',
                 filterLogic: 'OR',
             }));
@@ -835,8 +855,8 @@ const PlatformOverviewNew = ({
             : (selectedBrand && selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : '');
         const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
             : (selectedCategory === 'All' ? 'All' : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
-        const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
-        const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
+        const reqStartDate = timeStart ? timeStart.format('YYYY-MM-DD') : '';
+        const reqEndDate = timeEnd ? timeEnd.format('YYYY-MM-DD') : '';
         const reqCompareStart = compareStart ? compareStart.format('YYYY-MM-DD') : '';
         const reqCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : '';
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
@@ -1024,7 +1044,7 @@ const PlatformOverviewNew = ({
     const kpiCount = selectedKpis.length
     const displayKpis = comparedPlatforms ? comparedPlatforms.flatMap(platform => {
         const summary = dimension === 'location' ? citySummaryKpis : summaryKpis
-        const metrics = brandLayout === 'table' && collapsedPlatforms[platform] ? summary : selectedKpis
+        const metrics = brandLayout === 'table' && collapsedPlatforms[platform] !== false ? summary : selectedKpis
         return metrics.map(kpi => ({
             key: platformMetricKey(platform, kpi.key),
             metricKey: kpi.key,
@@ -1250,7 +1270,7 @@ const PlatformOverviewNew = ({
                                     options={brandPlatformOptions}
                                     selected={chosenBrandPlatforms}
                                     combinedLabel={effectivePlatform === 'All' ? 'All platforms' : effectivePlatform.replaceAll(',', ', ')}
-                                    onApply={setComparisonPlatforms}
+                                    onChange={setComparisonPlatforms}
                                 />
                             )}
                             {!comparisonTab && dimension !== 'platform' && dimension !== 'sku' && (
@@ -1285,6 +1305,7 @@ const PlatformOverviewNew = ({
                                                 if (key === dimension) return;
                                                 setApiLoading(true);
                                                 if (key !== 'sku') setSkuPlatformFilter('All');
+                                                if (key === 'month') selectYearToDate();
                                                 setDimension(key);
                                             }}
                                             className={cn(
@@ -1339,15 +1360,6 @@ const PlatformOverviewNew = ({
                                 <Download size={15} className="flex-shrink-0" />
                             </motion.button>
 
-                            {/* Legend indicators */}
-                            <div className="hidden sm:flex flex-col gap-0.5 justify-center">
-                                <span className="flex items-center gap-1.5 text-[8.5px] text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full font-bold border border-emerald-100/50 uppercase tracking-tight leading-none">
-                                    <span className="w-1 h-1 rounded-full bg-emerald-500"></span> Growth
-                                </span>
-                                <span className="flex items-center gap-1.5 text-[8.5px] text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-full font-bold border border-rose-100/50 uppercase tracking-tight leading-none">
-                                    <span className="w-1 h-1 rounded-full bg-rose-500"></span> Decline
-                                </span>
-                            </div>
                         </div>
                     }
                 >
@@ -1420,7 +1432,7 @@ const PlatformOverviewNew = ({
                             columns={displayKpis}
                             platforms={comparedPlatforms}
                             collapsedPlatforms={collapsedPlatforms}
-                            onTogglePlatform={platform => setCollapsedByTab(prev => ({ ...prev, [dimension]: { ...prev[dimension], [platform]: !prev[dimension]?.[platform] } }))}
+                            onTogglePlatform={platform => setCollapsedByTab(prev => ({ ...prev, [dimension]: { ...prev[dimension], [platform]: prev[dimension]?.[platform] === false } }))}
                             layout={brandLayout}
                             onLayoutChange={layout => setLayoutsByTab(prev => ({ ...prev, [dimension]: layout }))}
                             sortConfig={sortConfig}
@@ -1436,7 +1448,7 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className={cn("w-48 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-80' : 'sm:w-72')}>
+                                    <div className={cn("sticky left-0 z-30 w-48 flex-shrink-0 bg-white pr-2 sm:pr-4 border-r border-slate-200 shadow-[6px_0_10px_-8px_rgba(15,23,42,0.25)] flex items-center justify-between", dimension === 'sku' ? 'sm:w-80' : 'sm:w-72')}>
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
                                             <motion.button
@@ -1492,12 +1504,12 @@ const PlatformOverviewNew = ({
                                         <motion.div
                                             key={e.key}
                                             className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
-                                            initial={{ opacity: 0, x: -10 }}
-                                            animate={{ opacity: 1, x: 0 }}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
                                             transition={{ duration: 0.3 }}
                                         >
-                                            {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-52 sm:w-80' : 'w-48 sm:w-72')}>
+                                            {/* Keep the entity visible while KPI columns scroll behind its opaque surface. */}
+                                            <div className={cn("sticky left-0 z-30 flex-shrink-0 self-stretch flex items-center gap-1.5 sm:gap-2 bg-white pr-2 sm:pr-4 border-r border-slate-200 shadow-[6px_0_10px_-8px_rgba(15,23,42,0.25)]", dimension === 'sku' ? 'w-48 sm:w-80' : 'w-48 sm:w-72')}>
                                                 {dimension === 'location' ? (
                                                     <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-slate-100/80 flex items-center justify-center flex-shrink-0">
                                                         <MapPin size={15} className="text-slate-700" />

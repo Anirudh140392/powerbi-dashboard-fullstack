@@ -48,6 +48,7 @@ export default function BrandKpiViews({ entityLabel = 'Brand', brands, count, kp
     const plural = entityLabel.toLowerCase().replace(/y$/, 'ie') + 's'
     const divider = 'border-l border-l-slate-300 shadow-[inset_5px_0_0_0_#f1f5f9]'
     const columnDivider = index => index > 0 && columns[index].platform !== columns[index - 1].platform && divider
+    const isPlatformCollapsed = platform => collapsedPlatforms[platform] !== false
     return (
         <section aria-label={`${entityLabel} KPI comparison`} className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -74,21 +75,21 @@ export default function BrandKpiViews({ entityLabel = 'Brand', brands, count, kp
                         <thead className="bg-slate-50">
                             {platforms && (
                                 <tr>
-                                    <th rowSpan={2} scope="col" className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50 px-3 text-left text-xs text-slate-600">{entityLabel}</th>
+                                    <th rowSpan={2} scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-50 px-3 text-left text-xs text-slate-600 shadow-[6px_0_10px_-8px_rgba(15,23,42,0.25)]">{entityLabel}</th>
                                     {platforms.map((platform, index) => (
                                         <th key={platform} colSpan={columns.filter(column => column.platform === platform).length} scope="colgroup" className={cn("border-b border-b-slate-200 bg-blue-50/60 px-3 py-2 text-center text-xs font-semibold text-slate-800 capitalize", index > 0 && divider)}>
-                                            <button type="button" aria-expanded={!collapsedPlatforms[platform]}
-                                                aria-label={`${collapsedPlatforms[platform] ? 'Expand' : 'Collapse'} ${platform} KPIs`}
+                                            <button type="button" aria-expanded={!isPlatformCollapsed(platform)}
+                                                aria-label={`${isPlatformCollapsed(platform) ? 'Expand' : 'Collapse'} ${platform} KPIs`}
                                                 onClick={() => onTogglePlatform(platform)}
                                                 className="inline-flex items-center gap-1.5 rounded px-2 py-1 capitalize hover:bg-blue-100 focus-visible:outline-blue-600">
-                                                {platform}<ChevronDown size={13} aria-hidden="true" className={cn('transition-transform', collapsedPlatforms[platform] && '-rotate-90')} />
+                                                {platform}<ChevronDown size={13} aria-hidden="true" className={cn('transition-transform', isPlatformCollapsed(platform) && '-rotate-90')} />
                                             </button>
                                         </th>
                                     ))}
                                 </tr>
                             )}
                             <tr>
-                                {!platforms && <th scope="col" className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-xs font-semibold text-slate-600">{entityLabel}</th>}
+                                {!platforms && <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-xs font-semibold text-slate-600 shadow-[6px_0_10px_-8px_rgba(15,23,42,0.25)]">{entityLabel}</th>}
                                 {columns.map((kpi, index) => {
                                     const active = sortConfig.key === kpi.key
                                     const ascending = sortConfig.direction === 'asc'
@@ -108,7 +109,7 @@ export default function BrandKpiViews({ entityLabel = 'Brand', brands, count, kp
                         <tbody>
                             {brands.map(brand => (
                                 <tr key={brand.key} className="group hover:bg-blue-50/30">
-                                    <th scope="row" className="sticky left-0 z-10 w-44 min-w-36 max-w-48 border-t border-r border-slate-200 bg-white px-3 py-2 text-left sm:min-w-48">
+                                    <th scope="row" className="sticky left-0 z-10 w-44 min-w-36 max-w-48 border-t border-r border-slate-200 bg-white px-3 py-2 text-left sm:min-w-48 shadow-[6px_0_10px_-8px_rgba(15,23,42,0.25)]">
                                         <BrandHeading brand={brand} onTrend={platforms ? undefined : onTrend} />
                                     </th>
                                     {columns.map((kpi, index) => (
@@ -133,14 +134,14 @@ export default function BrandKpiViews({ entityLabel = 'Brand', brands, count, kp
                                     <table className="w-full border-separate border-spacing-0" aria-label={`${brand.name} platform comparison`}>
                                         <thead>
                                             <tr className="text-xs text-slate-500">
-                                                <th scope="col" className="sticky left-0 bg-white px-3 py-2 text-left">KPI</th>
+                                                <th scope="col" className="sticky left-0 z-10 bg-white px-3 py-2 text-left">KPI</th>
                                                 {platforms.map(platform => <th key={platform} scope="col" className="px-3 py-2 text-right">{platform}</th>)}
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {kpis.map(kpi => (
                                                 <tr key={kpi.key}>
-                                                    <th scope="row" className="sticky left-0 border-t border-slate-100 bg-white px-3 py-2 text-left text-xs font-medium text-slate-600">{kpi.label}</th>
+                                                    <th scope="row" className="sticky left-0 z-10 border-t border-slate-100 bg-white px-3 py-2 text-left text-xs font-medium text-slate-600">{kpi.label}</th>
                                                     {columns.filter(column => column.metricKey === kpi.key).map(column => (
                                                         <td key={column.key} className="border-t border-slate-100 px-3 py-2 text-right">
                                                             <BrandMetric brand={brand} kpi={column} onCopy={onCopy} getFullValue={getFullValue} />

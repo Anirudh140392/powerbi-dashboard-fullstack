@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useContext, useMemo } from 'react'
 import { FilterContext } from '../../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import axiosInstance from '../../../api/axiosInstance'
+import dayjs from 'dayjs'
 import {
     X,
     Search,
@@ -71,19 +72,19 @@ function SingleSelectDropdown({ label, icon: Icon, options, value, onChange, pla
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200',
+                    'w-full min-h-14 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all duration-200',
                     isOpen
-                        ? 'border-slate-400 ring-2 ring-slate-200 bg-white'
-                        : 'border-slate-100 bg-white hover:border-slate-200'
+                        ? 'border-blue-400 ring-2 ring-blue-100 bg-white'
+                        : 'border-slate-200 bg-white hover:border-blue-300'
                 )}
             >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Icon size={16} className="text-slate-400 flex-shrink-0" />
                     <div className="flex flex-col items-start min-w-0 text-left">
-                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider leading-none mb-1">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider leading-none mb-1">
                             {label}
                         </span>
-                        <span className="text-xs text-slate-700 font-medium truncate leading-none">
+                        <span className="text-sm text-slate-800 font-medium truncate leading-none">
                             {selectedOption ? selectedOption.name : placeholder || label}
                         </span>
                     </div>
@@ -194,19 +195,19 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200',
+                    'w-full min-h-14 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all duration-200',
                     isOpen
-                        ? 'border-slate-400 ring-2 ring-slate-200 bg-white'
-                        : 'border-slate-100 bg-white hover:border-slate-200'
+                        ? 'border-blue-400 ring-2 ring-blue-100 bg-white'
+                        : 'border-slate-200 bg-white hover:border-blue-300'
                 )}
             >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Icon size={16} className="text-slate-400 flex-shrink-0" />
                     <div className="flex flex-col items-start min-w-0 text-left">
-                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider leading-none mb-1">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider leading-none mb-1">
                             {label}
                         </span>
-                        <span className="text-xs text-slate-700 font-medium truncate leading-none">
+                        <span className="text-sm text-slate-800 font-medium truncate leading-none">
                             {selected.length === 0
                                 ? placeholder || label
                                 : `${selected.length} selected`}
@@ -353,8 +354,6 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skus: [],
         sapCodes: [],
         grammages: [],
-        dateFrom: '',
-        dateTo: '',
         msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
             if (currentDimension === 'sku') {
@@ -368,8 +367,36 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
-    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, selectedSubBrand, subBrands: subBrandsContext, timeStart, timeEnd } = useContext(FilterContext)
+    const { maxDate, minDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, selectedSubBrand, subBrands: subBrandsContext, timeStart, setTimeStart, timeEnd, setTimeEnd, setUserSetDate, setCompareStart, setCompareEnd, setComparisonLabel } = useContext(FilterContext)
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
+    const minDateStr = useMemo(() => minDate?.format('YYYY-MM-DD'), [minDate])
+
+    const updateDateRange = (field, value) => {
+        if (!value) return
+        let changedDate = dayjs(value)
+        if (!changedDate.isValid()) return
+        if (minDate && changedDate.isBefore(minDate)) changedDate = minDate
+        if (maxDate && changedDate.isAfter(maxDate)) changedDate = maxDate
+
+        let start = field === 'from' ? changedDate : timeStart
+        let end = field === 'to' ? changedDate : timeEnd
+        if (!start) start = changedDate
+        if (!end) end = changedDate
+        if (start.isAfter(end)) {
+            if (field === 'from') end = start
+            else start = end
+        }
+
+        const periodDays = end.diff(start, 'day') + 1
+        const previousEnd = start.subtract(1, 'day')
+        const previousStart = previousEnd.subtract(periodDays - 1, 'day')
+        setTimeStart(start)
+        setTimeEnd(end)
+        setCompareStart(minDate && previousStart.isBefore(minDate) ? minDate : previousStart)
+        setCompareEnd(minDate && previousEnd.isBefore(minDate) ? minDate : previousEnd)
+        setComparisonLabel('VS PREV. PERIOD')
+        setUserSetDate(true)
+    }
 
     const [dynamicBrands, setDynamicBrands] = useState([])
     const [dynamicCategories, setDynamicCategories] = useState([])
@@ -455,8 +482,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.sapCodes
                     : [];
 
-                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
-                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+                const startDate = timeStart?.format('YYYY-MM-DD');
+                const endDate = timeEnd?.format('YYYY-MM-DD');
 
                 const params = {
                     channel: cleanParam(selectedChannel),
@@ -596,8 +623,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         localFilters.platforms,
         localFilters.sapCodes,
         localFilters.skus,
-        localFilters.dateFrom,
-        localFilters.dateTo,
+        timeStart,
+        timeEnd,
         selectedChannel,
         selectedLocation,
         globalPlatform,
@@ -646,8 +673,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.categories
                     : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
 
-                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
-                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+                const startDate = timeStart?.format('YYYY-MM-DD');
+                const endDate = timeEnd?.format('YYYY-MM-DD');
 
                 const params = new URLSearchParams();
                 params.append('dimension', 'sku');
@@ -683,17 +710,23 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         currentDimension,
         localFilters.categories,
         localFilters.platforms,
-        localFilters.dateFrom,
-        localFilters.dateTo,
+        timeStart,
+        timeEnd,
         selectedChannel,
         selectedLocation,
         globalPlatform,
         selectedCategory,
     ])
 
-    // Sync with parent filters + FilterContext when modal opens
+    // Initialize drafts once per opening so shared date changes do not discard edits.
+    const initializedForDimension = useRef(null)
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            initializedForDimension.current = null
+            return
+        }
+        if (initializedForDimension.current === currentDimension) return
+        initializedForDimension.current = currentDimension
 
         const normalizeArr = (val) => {
             if (!val || val === 'All') return [];
@@ -737,7 +770,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 sapCodes,
             };
         });
-    }, [isOpen, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl, platformScope]);
+    }, [isOpen, currentDimension, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl, selectedSubBrand, platformScope]);
 
     const updateFilter = (key, value) => {
         setLocalFilters(prev => ({ ...prev, [key]: value }))
@@ -758,13 +791,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         setLocalFilters({
             brands: [],
             categories: [],
-            platforms: [],
+            platforms: platformScope || [],
             subBrands: [],
             skus: [],
             sapCodes: [],
             grammages: [],
-            dateFrom: '',
-            dateTo: '',
             msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
                 if (currentDimension === 'sku') {
@@ -821,9 +852,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     // Get dimension label for context
     const dimensionLabels = {
         platform: 'Platform',
+        location: 'City',
         brand: 'Brand',
+        month: 'Month',
         category: 'Category',
-        sku: 'Sku',
+        sku: 'SKU',
     }
 
     return (
@@ -846,25 +879,29 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 10 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                            className="w-full max-w-[500px] max-h-[75vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto border border-slate-200/50"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="advanced-filters-title"
+                            className="w-full max-w-[640px] max-h-[88vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto border border-slate-200"
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center">
+                                    <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center">
                                         <SlidersHorizontal size={18} className="text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-bold text-slate-900">Advanced Filters</h2>
-                                        <p className="text-xs text-slate-400">
+                                        <h2 id="advanced-filters-title" className="text-base font-bold text-slate-900">Advanced Filters</h2>
+                                        <p className="text-xs text-slate-500">
                                             {activeFilterCount > 0
                                                 ? `${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active`
-                                                : 'Customize your view'}
+                                                : `Customize ${dimensionLabels[currentDimension] || 'overview'} overview`}
                                         </p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={onClose}
+                                    aria-label="Close advanced filters"
                                     className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors"
                                 >
                                     <X size={18} className="text-slate-400" />
@@ -872,18 +909,15 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             </div>
 
                             {/* Body */}
-                            <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 no-scrollbar">
                                 {/* Dimension Filters */}
-                                <div>
+                                <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                                     <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                            Filter by {dimensionLabels[currentDimension]} Entities
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
-                                            Viewing: {dimensionLabels[currentDimension]}
+                                        <span className="text-xs text-slate-700 uppercase tracking-[0.1em] font-bold">
+                                            Entities
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {showBrandFilter && (
                                             <MultiSelectDropdown
                                                 label="Brand"
@@ -965,46 +999,49 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             placeholder="Top SKU Status"
                                         />
                                     </div>
-                                </div>
+                                </section>
 
-                                {/* Date Range Filter */}
-                                <div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <Calendar size={14} className="text-slate-400" />
-                                        <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                            Date Range
-                                        </span>
+                                {/* Both controls edit the same shared time period. */}
+                                <section className="rounded-2xl border border-slate-200 p-4">
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={15} className="text-blue-600" />
+                                            <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-700">Date range</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500">Changes apply immediately to Time Period above</span>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="relative">
-                                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1 block">From</label>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <label className="block text-xs font-semibold text-slate-600">
+                                            From
                                             <input
                                                 type="date"
-                                                value={localFilters.dateFrom}
-                                                onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                                                value={timeStart?.format('YYYY-MM-DD') || ''}
+                                                onChange={(e) => updateDateRange('from', e.target.value)}
+                                                min={minDateStr}
                                                 max={maxDateStr}
-                                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
+                                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                             />
-                                        </div>
-                                        <div className="relative">
-                                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1 block">To</label>
+                                        </label>
+                                        <label className="block text-xs font-semibold text-slate-600">
+                                            To
                                             <input
                                                 type="date"
-                                                value={localFilters.dateTo}
-                                                onChange={(e) => updateFilter('dateTo', e.target.value)}
+                                                value={timeEnd?.format('YYYY-MM-DD') || ''}
+                                                onChange={(e) => updateDateRange('to', e.target.value)}
+                                                min={minDateStr}
                                                 max={maxDateStr}
-                                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
+                                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                             />
-                                        </div>
+                                        </label>
                                     </div>
-                                </div>
+                                </section>
 
                                 {/* KPI Selection */}
-                                <div>
+                                <section className="rounded-2xl border border-slate-200 p-4">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
                                             <Filter size={12} className="text-slate-400" />
-                                            <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
+                                            <span className="text-xs text-slate-700 uppercase tracking-[0.1em] font-bold">
                                                 KPIs
                                             </span>
                                             <span className="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded-full border border-slate-200/50">
@@ -1037,8 +1074,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="max-h-[160px] overflow-y-auto no-scrollbar pr-1">
-                                        <div className="flex flex-wrap gap-1.5">
+                                    <div className="max-h-[190px] overflow-y-auto pr-1">
+                                        <div className="flex flex-wrap gap-2">
                                             {kpisToUse.map(kpi => {
                                                 const isSelected = localFilters.kpis.includes(kpi.key)
                                                 return (
@@ -1046,17 +1083,17 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                         key={kpi.key}
                                                         onClick={() => toggleKpi(kpi.key)}
                                                         className={cn(
-                                                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all duration-200 border',
+                                                            'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border',
                                                             isSelected
-                                                                ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                                                                : 'bg-white text-slate-500 border-slate-100 hover:border-slate-200 hover:bg-slate-50/50'
+                                                                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                                                : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
                                                         )}
                                                         whileHover={{ y: -1 }}
                                                         whileTap={{ scale: 0.98 }}
                                                     >
                                                         <div className={cn(
                                                             'w-1.5 h-1.5 rounded-full',
-                                                            isSelected ? 'bg-white' : 'bg-slate-300'
+                                                            isSelected ? 'bg-blue-600' : 'bg-slate-300'
                                                         )} />
                                                         {kpi.label}
                                                     </motion.button>
@@ -1064,28 +1101,28 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             })}
                                         </div>
                                     </div>
-                                </div>
+                                </section>
                             </div>
 
                             {/* Footer */}
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50">
+                            <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-t border-slate-200 bg-white">
                                 <button
                                     onClick={resetFilters}
-                                    className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-slate-400 hover:text-rose-500 transition-colors"
+                                    className="flex items-center gap-2 px-2 py-2 text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors"
                                 >
                                     <RotateCcw size={13} />
-                                    Reset
+                                    Reset filters
                                 </button>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={onClose}
-                                        className="px-4 py-2 text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                                        className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <motion.button
                                         onClick={handleApply}
-                                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-[11px] font-bold rounded-xl shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-colors"
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-blue-700 transition-colors"
                                         whileHover={{ y: -1 }}
                                         whileTap={{ scale: 0.98 }}
                                     >
