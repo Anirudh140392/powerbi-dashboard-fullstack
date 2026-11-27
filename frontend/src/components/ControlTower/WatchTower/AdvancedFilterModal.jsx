@@ -23,8 +23,8 @@ import { isPrestigeAccount, isPrestigeHiddenKpi } from '../../../utils/tenantCon
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
-    // { key: 'spOfftake', label: 'SP Offtake' }, // Hidden on UI as per request
-    // { key: 'mrpOfftake', label: 'MRP Offtake' }, // Hidden on UI as per request
+    { key: 'spOfftake', label: 'SP Offtake' },
+    { key: 'mrpOfftake', label: 'MRP Offtake' },
     { key: 'quantitySold', label: 'Qty Sold' },
     { key: 'spend', label: 'Spend' },
     { key: 'inorgSales', label: 'Inorg Sales' },
